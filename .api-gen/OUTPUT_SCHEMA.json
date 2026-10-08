@@ -1,0 +1,167 @@
+{
+  "$defs": {
+    "CodeFile": {
+      "properties": {
+        "file_path": {
+          "title": "File Path",
+          "type": "string"
+        },
+        "file_name": {
+          "title": "File Name",
+          "type": "string"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "file_type": {
+          "enum": [
+            "controller",
+            "service",
+            "repository",
+            "entity",
+            "dto",
+            "migration",
+            "config",
+            "middleware",
+            "validator",
+            "route",
+            "test",
+            "other"
+          ],
+          "title": "File Type",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path",
+        "file_name",
+        "language",
+        "file_type",
+        "description"
+      ],
+      "title": "CodeFile",
+      "type": "object"
+    },
+    "CriticHints": {
+      "properties": {
+        "files_to_lint": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files To Lint",
+          "type": "array"
+        },
+        "openapi_endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Openapi Endpoint"
+        }
+      },
+      "title": "CriticHints",
+      "type": "object"
+    },
+    "PR": {
+      "properties": {
+        "branch_name": {
+          "title": "Branch Name",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "draft": {
+          "default": true,
+          "title": "Draft",
+          "type": "boolean"
+        },
+        "linked_story": {
+          "default": "",
+          "title": "Linked Story",
+          "type": "string"
+        },
+        "linked_task": {
+          "default": "",
+          "title": "Linked Task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch_name",
+        "title",
+        "body"
+      ],
+      "title": "PR",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "status": {
+      "enum": [
+        "SUCCESS",
+        "PARTIAL",
+        "FAILED"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "summary": {
+      "title": "Summary",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "story_id": {
+      "title": "Story Id",
+      "type": "string"
+    },
+    "code_files": {
+      "items": {
+        "$ref": "#/$defs/CodeFile"
+      },
+      "title": "Code Files",
+      "type": "array"
+    },
+    "pr": {
+      "$ref": "#/$defs/PR"
+    },
+    "critic_hints": {
+      "$ref": "#/$defs/CriticHints"
+    },
+    "blockers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Blockers",
+      "type": "array"
+    }
+  },
+  "required": [
+    "status",
+    "summary",
+    "task_id",
+    "story_id",
+    "pr"
+  ],
+  "title": "api-gen task output",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,0 +1,1630 @@
+{
+  "group_id": "00-foundation",
+  "task_id": "T-00-FOUNDATION-API",
+  "kind": "foundation",
+  "resource": "",
+  "base_path": "/api/v1",
+  "primary_story_id": "00-foundation",
+  "story_ids": [],
+  "endpoints": [
+    {
+      "id": "GET_dashboard_summary",
+      "path": "/api/v1/dashboard/summary",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER",
+        "SIGNER"
+      ],
+      "method": "GET",
+      "summary": "Returns tenant-scoped status card counts (Total, Draft, Negotiation, Pending Approval, Pending Signature, Executed, Expiring 30/60/90) for the applied filters",
+      "is_paged": false,
+      "story_refs": [
+        "UC1-MF-001",
+        "UC1-AF-001",
+        "UC1-AF-004",
+        "UC1-AF-005",
+        "UC1-BR-001",
+        "UC1-BR-002",
+        "UC1-BR-006",
+        "UC1-BR-008",
+        "UC1-BR-009",
+        "UC1-BR-010",
+        "UC1-BR-011",
+        "UC1-BR-012",
+        "UC1-BR-013",
+        "UC1-BR-014",
+        "UC1-FV-001"
+      ],
+      "response_dto": "DashboardSummaryResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_dashboard_my_tasks",
+      "path": "/api/v1/dashboard/my-tasks",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER",
+        "SIGNER"
+      ],
+      "method": "GET",
+      "summary": "Returns contracts awaiting the logged-in user's review, approval or signature for the current pending step",
+      "is_paged": false,
+      "story_refs": [
+        "UC1-MF-001",
+        "UC1-AF-002",
+        "UC1-BR-003",
+        "UC1-BR-009",
+        "UC1-BR-010",
+        "UC1-BR-011",
+        "UC1-BR-012",
+        "UC1-BR-013",
+        "UC1-FV-002",
+        "UC1-GC-001"
+      ],
+      "response_dto": "MyTasksResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_dashboard_high_risk_contracts",
+      "path": "/api/v1/dashboard/high-risk-contracts",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER"
+      ],
+      "method": "GET",
+      "summary": "Returns contracts whose AI risk score exceeds the tenant-configured threshold, ordered by risk score descending, scoped by role",
+      "is_paged": false,
+      "story_refs": [
+        "UC1-MF-001",
+        "UC1-AF-003",
+        "UC1-BR-004",
+        "UC1-BR-005",
+        "UC1-BR-009",
+        "UC1-BR-010",
+        "UC1-BR-011",
+        "UC1-BR-012",
+        "UC1-BR-013",
+        "UC1-FV-003",
+        "UC1-GC-002"
+      ],
+      "response_dto": "HighRiskContractsResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_dashboard_filter_options",
+      "path": "/api/v1/dashboard/filters",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER",
+        "SIGNER"
+      ],
+      "method": "GET",
+      "summary": "Returns tenant-scoped options for Contract Type, Department, Counterparty and Owner filters",
+      "is_paged": false,
+      "story_refs": [
+        "UC1-FV-004",
+        "UC1-BR-006"
+      ],
+      "response_dto": "DashboardFilterOptionsResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_contracts",
+      "path": "/api/v1/contracts",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER",
+        "SIGNER"
+      ],
+      "method": "GET",
+      "summary": "Returns the Contract Repository list, filterable by status, Contract Type, Department, Counterparty, Owner and Date Range, enforcing tenant and role-based access",
+      "is_paged": true,
+      "story_refs": [
+        "UC1-MF-001",
+        "UC1-BR-007",
+        "UC1-AF-006",
+        "UC1-FV-001",
+        "UC1-FV-005"
+      ],
+      "response_dto": "ContractListResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_contract_detail",
+      "path": "/api/v1/contracts/{id}",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER",
+        "SIGNER"
+      ],
+      "method": "GET",
+      "summary": "Returns full contract detail if the logged-in user's role has permitted actions on it, otherwise denies access",
+      "is_paged": false,
+      "story_refs": [
+        "UC1-AF-006"
+      ],
+      "response_dto": "ContractResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_templates",
+      "path": "/api/v1/templates",
+      "roles": [
+        "TENANT_ADMIN",
+        "LEGAL_REVIEWER",
+        "CONTRACT_OWNER"
+      ],
+      "method": "GET",
+      "summary": "Returns templates filtered by Contract Type, Industry and/or Status; used both by Template Library listing and New Contract template selection",
+      "is_paged": false,
+      "story_refs": [
+        "UC2-MF-001",
+        "UC2-AF-002",
+        "UC2-BR-001",
+        "UC2-BR-002",
+        "UC2-FV-001",
+        "UC2-FV-002",
+        "UC3-MF-001",
+        "UC3-BR-004",
+        "UC3-BR-007",
+        "UC3-BR-008",
+        "UC3-BR-009",
+        "UC3-BR-010",
+        "UC3-GC-001",
+        "UC3-FV-003"
+      ],
+      "response_dto": "TemplateListResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_counterparty_search",
+      "path": "/api/v1/counterparties",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER"
+      ],
+      "method": "GET",
+      "summary": "Searches existing counterparties by name, company or GST/Tax ID",
+      "is_paged": false,
+      "story_refs": [
+        "UC2-MF-001",
+        "UC2-AF-008",
+        "UC2-FV-001",
+        "UC2-FV-002"
+      ],
+      "response_dto": "CounterpartySearchResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_counterparties",
+      "path": "/api/v1/counterparties",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER"
+      ],
+      "method": "POST",
+      "summary": "Creates a new counterparty, blocking duplicates on GST/Tax ID",
+      "is_paged": false,
+      "story_refs": [
+        "UC2-MF-001",
+        "UC2-AF-008",
+        "UC2-FV-001",
+        "UC2-FV-002"
+      ],
+      "request_dto": "CreateCounterpartyRequest",
+      "response_dto": "CounterpartyResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_contract_owners",
+      "path": "/api/v1/users",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER"
+      ],
+      "method": "GET",
+      "summary": "Returns tenant users filtered by role, used to populate Contract Owner dropdown",
+      "is_paged": false,
+      "story_refs": [
+        "UC2-MF-001",
+        "UC2-BR-003",
+        "UC2-BR-012"
+      ],
+      "response_dto": "UserOptionListResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_contract_third_party_paper",
+      "path": "/api/v1/contracts/third-party-paper",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER"
+      ],
+      "method": "POST",
+      "summary": "Uploads a third party paper file (PDF/DOCX, max 25MB) as an alternative to Template selection",
+      "is_paged": false,
+      "story_refs": [
+        "UC2-MF-001",
+        "UC2-AF-005",
+        "UC2-AF-006",
+        "UC2-BR-008"
+      ],
+      "request_dto": "UploadThirdPartyPaperRequest",
+      "response_dto": "FileUploadResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_contracts",
+      "path": "/api/v1/contracts",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER"
+      ],
+      "method": "POST",
+      "summary": "Creates a new contract from a Template or uploaded third party paper, validates all mandatory and conditional fields, auto-fills merge fields, and saves as Draft",
+      "is_paged": false,
+      "story_refs": [
+        "UC2-MF-001",
+        "UC2-AF-001",
+        "UC2-AF-002",
+        "UC2-AF-003",
+        "UC2-AF-004",
+        "UC2-AF-007",
+        "UC2-BR-003",
+        "UC2-BR-004",
+        "UC2-BR-005",
+        "UC2-BR-006",
+        "UC2-BR-007",
+        "UC2-BR-008",
+        "UC2-BR-009",
+        "UC2-BR-010",
+        "UC2-BR-011",
+        "UC2-BR-012",
+        "UC2-BR-013",
+        "UC2-BR-014",
+        "UC2-BR-015",
+        "UC2-FV-001",
+        "UC2-FV-002"
+      ],
+      "request_dto": "CreateContractRequest",
+      "response_dto": "ContractResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_templates",
+      "path": "/api/v1/templates",
+      "roles": [
+        "TENANT_ADMIN",
+        "LEGAL_REVIEWER"
+      ],
+      "method": "POST",
+      "summary": "Creates a new template as Version 1; transitions to Active once mandatory fields are complete",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-MF-001",
+        "UC3-AF-001",
+        "UC3-AF-002",
+        "UC3-AF-005",
+        "UC3-BR-004",
+        "UC3-BR-006",
+        "UC3-BR-007",
+        "UC3-BR-008",
+        "UC3-BR-011",
+        "UC3-FV-001"
+      ],
+      "request_dto": "CreateTemplateRequest",
+      "response_dto": "TemplateResponse",
+      "auth_required": true
+    },
+    {
+      "id": "PUT_template",
+      "path": "/api/v1/templates/{id}",
+      "roles": [
+        "TENANT_ADMIN",
+        "LEGAL_REVIEWER"
+      ],
+      "method": "PUT",
+      "summary": "Edits an existing template, creating a new version entry recording editor and timestamp; blocks concurrent conflicting saves",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-AF-001",
+        "UC3-AF-002",
+        "UC3-AF-006",
+        "UC3-BR-002",
+        "UC3-BR-004",
+        "UC3-BR-006",
+        "UC3-BR-007",
+        "UC3-BR-008",
+        "UC3-BR-011",
+        "UC3-BR-014",
+        "UC3-FV-001"
+      ],
+      "request_dto": "UpdateTemplateRequest",
+      "response_dto": "TemplateResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_template_deactivate",
+      "path": "/api/v1/templates/{id}/deactivate",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "POST",
+      "summary": "Deactivates a template; blocked if attached to any active, unsigned contract",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-MF-001",
+        "UC3-AF-004",
+        "UC3-BR-003",
+        "UC3-BR-004",
+        "UC3-BR-007",
+        "UC3-BR-012",
+        "UC3-FV-003"
+      ],
+      "response_dto": "TemplateResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_template_reactivate",
+      "path": "/api/v1/templates/{id}/reactivate",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "POST",
+      "summary": "Reactivates an Inactive template with no restrictions",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-BR-007",
+        "UC3-BR-013"
+      ],
+      "response_dto": "TemplateResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_template_versions",
+      "path": "/api/v1/templates/{id}/versions",
+      "roles": [
+        "TENANT_ADMIN",
+        "LEGAL_REVIEWER"
+      ],
+      "method": "GET",
+      "summary": "Returns the version history of a template including version number, editor and change summary",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-MF-001",
+        "UC3-BR-002",
+        "UC3-BR-007",
+        "UC3-BR-014",
+        "UC3-FV-003",
+        "UC3-GC-003"
+      ],
+      "response_dto": "VersionHistoryResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_clauses",
+      "path": "/api/v1/clauses",
+      "roles": [
+        "TENANT_ADMIN",
+        "LEGAL_REVIEWER",
+        "CONTRACT_OWNER"
+      ],
+      "method": "GET",
+      "summary": "Returns clause library entries, colour-coded by Risk Level",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-MF-001",
+        "UC3-BR-001",
+        "UC3-BR-004",
+        "UC3-BR-005",
+        "UC3-BR-007",
+        "UC3-BR-008",
+        "UC3-BR-009",
+        "UC3-BR-010",
+        "UC3-GC-002",
+        "UC3-FV-003"
+      ],
+      "response_dto": "ClauseListResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_clauses",
+      "path": "/api/v1/clauses",
+      "roles": [
+        "TENANT_ADMIN",
+        "LEGAL_REVIEWER"
+      ],
+      "method": "POST",
+      "summary": "Creates a new clause as Version 1; transitions to Active once mandatory fields are complete",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-MF-001",
+        "UC3-AF-001",
+        "UC3-AF-002",
+        "UC3-BR-001",
+        "UC3-BR-004",
+        "UC3-BR-006",
+        "UC3-BR-007",
+        "UC3-BR-008",
+        "UC3-BR-011",
+        "UC3-FV-002"
+      ],
+      "request_dto": "CreateClauseRequest",
+      "response_dto": "ClauseResponse",
+      "auth_required": true
+    },
+    {
+      "id": "PUT_clause",
+      "path": "/api/v1/clauses/{id}",
+      "roles": [
+        "TENANT_ADMIN",
+        "LEGAL_REVIEWER"
+      ],
+      "method": "PUT",
+      "summary": "Edits an existing clause, creating a new version entry; blocks removal of Mandatory clauses from contracts and blocks concurrent conflicting saves",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-AF-001",
+        "UC3-AF-002",
+        "UC3-AF-003",
+        "UC3-AF-006",
+        "UC3-BR-001",
+        "UC3-BR-002",
+        "UC3-BR-004",
+        "UC3-BR-005",
+        "UC3-BR-006",
+        "UC3-BR-007",
+        "UC3-BR-008",
+        "UC3-BR-011",
+        "UC3-BR-014",
+        "UC3-FV-002"
+      ],
+      "request_dto": "UpdateClauseRequest",
+      "response_dto": "ClauseResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_clause_deactivate",
+      "path": "/api/v1/clauses/{id}/deactivate",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "POST",
+      "summary": "Deactivates a clause",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-BR-007",
+        "UC3-BR-012"
+      ],
+      "response_dto": "ClauseResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_clause_reactivate",
+      "path": "/api/v1/clauses/{id}/reactivate",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "POST",
+      "summary": "Reactivates an Inactive clause with no restrictions",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-BR-007",
+        "UC3-BR-013"
+      ],
+      "response_dto": "ClauseResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_clause_versions",
+      "path": "/api/v1/clauses/{id}/versions",
+      "roles": [
+        "TENANT_ADMIN",
+        "LEGAL_REVIEWER"
+      ],
+      "method": "GET",
+      "summary": "Returns the version history of a clause including version number, editor and change summary",
+      "is_paged": false,
+      "story_refs": [
+        "UC3-BR-002",
+        "UC3-BR-007",
+        "UC3-BR-014",
+        "UC3-GC-003"
+      ],
+      "response_dto": "VersionHistoryResponse",
+      "auth_required": true
+    }
+  ],
+  "dtos": [],
+  "tables": [
+    {
+      "name": "tenants",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(255)",
+          "nullable": false
+        },
+        {
+          "name": "high_risk_threshold",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [],
+      "story_refs": [
+        "UC1-BR-004",
+        "UC1-BR-006",
+        "UC1-BR-009"
+      ],
+      "description": "Stores tenant accounts and tenant-level configuration such as the high risk threshold",
+      "foreign_keys": []
+    },
+    {
+      "name": "users",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(255)",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "type": "VARCHAR(50)",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_users_tenant_role",
+          "columns": [
+            "tenant_id",
+            "role"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC2-BR-003",
+        "UC2-BR-012",
+        "UC2-BR-013",
+        "UC3-BR-004",
+        "UC3-BR-010"
+      ],
+      "description": "Stores tenant users and their assigned role used for Contract Owner, Legal Reviewer, Approver and Signer scoping",
+      "foreign_keys": [
+        {
+          "column": "tenant_id",
+          "references_table": "tenants",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "counterparties",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(255)",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "nullable": false
+        },
+        {
+          "name": "company",
+          "type": "VARCHAR(255)",
+          "nullable": false
+        },
+        {
+          "name": "address",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "gst_tax_id",
+          "type": "VARCHAR(100)",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_counterparties_tenant_gst",
+          "columns": [
+            "tenant_id",
+            "gst_tax_id"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC2-MF-001",
+        "UC2-AF-008",
+        "UC2-FV-001",
+        "UC2-FV-002"
+      ],
+      "description": "Stores counterparty records for contracts, scoped per tenant",
+      "foreign_keys": [
+        {
+          "column": "tenant_id",
+          "references_table": "tenants",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "uploaded_files",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "file_name",
+          "type": "VARCHAR(255)",
+          "nullable": false
+        },
+        {
+          "name": "file_size",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "file_format",
+          "type": "VARCHAR(10)",
+          "nullable": false
+        },
+        {
+          "name": "storage_url",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [],
+      "story_refs": [
+        "UC2-AF-005",
+        "UC2-AF-006",
+        "UC2-BR-008"
+      ],
+      "description": "Stores metadata for uploaded third party paper files and other binary attachments",
+      "foreign_keys": [
+        {
+          "column": "tenant_id",
+          "references_table": "tenants",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "templates",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "template_name",
+          "type": "VARCHAR(150)",
+          "nullable": false
+        },
+        {
+          "name": "template_category",
+          "type": "VARCHAR(100)",
+          "nullable": false
+        },
+        {
+          "name": "document_format",
+          "type": "VARCHAR(10)",
+          "nullable": false
+        },
+        {
+          "name": "template_body",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(20)",
+          "nullable": false
+        },
+        {
+          "name": "current_version",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_templates_tenant_type_industry_status",
+          "columns": [
+            "tenant_id",
+            "template_category",
+            "status"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC2-BR-001",
+        "UC2-BR-002",
+        "UC3-MF-001",
+        "UC3-BR-003",
+        "UC3-BR-004",
+        "UC3-BR-007",
+        "UC3-BR-011",
+        "UC3-BR-012",
+        "UC3-BR-013",
+        "UC3-GC-001"
+      ],
+      "description": "Stores current state of templates used for contract generation",
+      "foreign_keys": [
+        {
+          "column": "tenant_id",
+          "references_table": "tenants",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "template_versions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "template_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "version_number",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "changed_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "date_changed",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "change_summary",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "template_name",
+          "type": "VARCHAR(150)",
+          "nullable": false
+        },
+        {
+          "name": "template_category",
+          "type": "VARCHAR(100)",
+          "nullable": false
+        },
+        {
+          "name": "document_format",
+          "type": "VARCHAR(10)",
+          "nullable": false
+        },
+        {
+          "name": "template_body",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(20)",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_template_versions_template",
+          "columns": [
+            "template_id",
+            "version_number"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC3-BR-002",
+        "UC3-BR-014",
+        "UC3-GC-003"
+      ],
+      "description": "Stores immutable snapshots of each saved template version with editor and timestamp",
+      "foreign_keys": [
+        {
+          "column": "template_id",
+          "references_table": "templates",
+          "references_column": "id"
+        },
+        {
+          "column": "changed_by",
+          "references_table": "users",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "clauses",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "clause_name",
+          "type": "VARCHAR(150)",
+          "nullable": false
+        },
+        {
+          "name": "clause_category",
+          "type": "VARCHAR(100)",
+          "nullable": false
+        },
+        {
+          "name": "standard_text",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "fallback_text_1",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "fallback_text_2",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "risk_level",
+          "type": "VARCHAR(10)",
+          "nullable": false
+        },
+        {
+          "name": "mandatory",
+          "type": "BOOLEAN",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(20)",
+          "nullable": false
+        },
+        {
+          "name": "current_version",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_clauses_tenant_status",
+          "columns": [
+            "tenant_id",
+            "status"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC3-BR-001",
+        "UC3-BR-005",
+        "UC3-BR-007",
+        "UC3-BR-011",
+        "UC3-BR-012",
+        "UC3-BR-013",
+        "UC3-GC-002"
+      ],
+      "description": "Stores current state of clauses used within templates and contracts",
+      "foreign_keys": [
+        {
+          "column": "tenant_id",
+          "references_table": "tenants",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "clause_versions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "clause_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "version_number",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "changed_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "date_changed",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "change_summary",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "clause_name",
+          "type": "VARCHAR(150)",
+          "nullable": false
+        },
+        {
+          "name": "clause_category",
+          "type": "VARCHAR(100)",
+          "nullable": false
+        },
+        {
+          "name": "standard_text",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "fallback_text_1",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "fallback_text_2",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "risk_level",
+          "type": "VARCHAR(10)",
+          "nullable": false
+        },
+        {
+          "name": "mandatory",
+          "type": "BOOLEAN",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(20)",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_clause_versions_clause",
+          "columns": [
+            "clause_id",
+            "version_number"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC3-BR-002",
+        "UC3-BR-014",
+        "UC3-GC-003"
+      ],
+      "description": "Stores immutable snapshots of each saved clause version with editor and timestamp",
+      "foreign_keys": [
+        {
+          "column": "clause_id",
+          "references_table": "clauses",
+          "references_column": "id"
+        },
+        {
+          "column": "changed_by",
+          "references_table": "users",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "contracts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_name",
+          "type": "VARCHAR(255)",
+          "nullable": false
+        },
+        {
+          "name": "contract_type",
+          "type": "VARCHAR(50)",
+          "nullable": false
+        },
+        {
+          "name": "industry",
+          "type": "VARCHAR(20)",
+          "nullable": false
+        },
+        {
+          "name": "department",
+          "type": "VARCHAR(100)",
+          "nullable": true
+        },
+        {
+          "name": "template_id",
+          "type": "UUID",
+          "nullable": true
+        },
+        {
+          "name": "third_party_paper_file_id",
+          "type": "UUID",
+          "nullable": true
+        },
+        {
+          "name": "counterparty_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_owner_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_value",
+          "type": "NUMERIC(18,2)",
+          "nullable": false
+        },
+        {
+          "name": "currency",
+          "type": "VARCHAR(10)",
+          "nullable": false
+        },
+        {
+          "name": "start_date",
+          "type": "DATE",
+          "nullable": false
+        },
+        {
+          "name": "end_date",
+          "type": "DATE",
+          "nullable": false
+        },
+        {
+          "name": "renewal_type",
+          "type": "VARCHAR(10)",
+          "nullable": false
+        },
+        {
+          "name": "notice_period",
+          "type": "INTEGER",
+          "nullable": true
+        },
+        {
+          "name": "assigned_date",
+          "type": "DATE",
+          "nullable": false
+        },
+        {
+          "name": "due_date",
+          "type": "DATE",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(30)",
+          "nullable": false
+        },
+        {
+          "name": "risk_score",
+          "type": "INTEGER",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_contracts_tenant_status",
+          "columns": [
+            "tenant_id",
+            "status"
+          ]
+        },
+        {
+          "name": "idx_contracts_tenant_enddate",
+          "columns": [
+            "tenant_id",
+            "end_date"
+          ]
+        },
+        {
+          "name": "idx_contracts_tenant_owner",
+          "columns": [
+            "tenant_id",
+            "contract_owner_id"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC1-MF-001",
+        "UC1-BR-001",
+        "UC1-BR-002",
+        "UC1-BR-006",
+        "UC1-BR-007",
+        "UC1-BR-014",
+        "UC2-MF-001",
+        "UC2-BR-003",
+        "UC2-BR-004",
+        "UC2-BR-005",
+        "UC2-BR-006",
+        "UC2-BR-007",
+        "UC2-BR-009",
+        "UC2-BR-010",
+        "UC2-BR-011",
+        "UC2-BR-014",
+        "UC2-BR-015"
+      ],
+      "description": "Stores core contract records including type, counterparty, owner, financial, scheduling and status data",
+      "foreign_keys": [
+        {
+          "column": "tenant_id",
+          "references_table": "tenants",
+          "references_column": "id"
+        },
+        {
+          "column": "template_id",
+          "references_table": "templates",
+          "references_column": "id"
+        },
+        {
+          "column": "third_party_paper_file_id",
+          "references_table": "uploaded_files",
+          "references_column": "id"
+        },
+        {
+          "column": "counterparty_id",
+          "references_table": "counterparties",
+          "references_column": "id"
+        },
+        {
+          "column": "contract_owner_id",
+          "references_table": "users",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "contract_tasks",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "assignee_user_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "assignment_role",
+          "type": "VARCHAR(20)",
+          "nullable": false
+        },
+        {
+          "name": "due_date",
+          "type": "DATE",
+          "nullable": false
+        },
+        {
+          "name": "is_current",
+          "type": "BOOLEAN",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_contract_tasks_assignee_current",
+          "columns": [
+            "assignee_user_id",
+            "is_current"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC1-BR-003",
+        "UC1-BR-010",
+        "UC1-BR-011",
+        "UC1-BR-012",
+        "UC1-BR-013",
+        "UC1-GC-001"
+      ],
+      "description": "Tracks the current pending assignment (reviewer, approver, or signer) per contract used to populate My Tasks panel",
+      "foreign_keys": [
+        {
+          "column": "contract_id",
+          "references_table": "contracts",
+          "references_column": "id"
+        },
+        {
+          "column": "assignee_user_id",
+          "references_table": "users",
+          "references_column": "id"
+        }
+      ]
+    }
+  ],
+  "migrations": [
+    "CreateTenants",
+    "CreateUsers",
+    "CreateCounterparties",
+    "CreateUploadedFiles",
+    "CreateTemplates",
+    "CreateTemplateVersions",
+    "CreateClauses",
+    "CreateClauseVersions",
+    "CreateContracts",
+    "CreateContractTasks"
+  ],
+  "stories": []
+}
