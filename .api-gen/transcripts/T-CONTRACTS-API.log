@@ -1,0 +1,8 @@
+Implementation of T-CONTRACTS-API is complete. Summary:
+
+- Added `app/schemas/contract.py`, `app/repositories/contracts.py`, `app/services/contracts.py`, `app/routers/contracts.py`, and wired the router into `app/main.py`, following the existing clauses module's layering/conventions exactly.
+- Added `ForbiddenError` (403) to `app/errors.py` for UC1-AF-006's "no permitted actions on this contract" case.
+- Implemented all 3 owned endpoints: `GET /api/v1/contracts` (paged, filterable, tenant-scoped), `GET /api/v1/contracts/{id}` (with a role/assignment-based permitted-access check), and `POST /api/v1/contracts` (full validation chain: mandatory fields, counterparty resolve-or-create, Contract Owner role check, template/third-party-paper mutual exclusivity, date ordering, conditional Notice Period, Draft-only status).
+- Added 31 new tests in `tests/test_contracts.py`; full suite is 68/68 passing, `python -m compileall app` clean.
+- Verified live via uvicorn: all 3 routes appear correctly in `/openapi.json`, and 401/403 behave correctly end-to-end. No reachable Postgres in this sandbox (same documented gap as the prior clauses task), so DB-backed paths are proven via the TestClient suite instead.
+- Wrote `.api-gen/outputs/T-CONTRACTS-API.json` with status `SUCCESS` and 9 documented judgement calls in `blockers` (derived `contractName` field, two story messages not literally reproducible without breaking DTO/shared-error-body fidelity, an inferred detail-access permission matrix, Contract Owner role validation scope, inline counterparty creation without duplicate-blocking, additive list filter query params, a template contractType/industry matching gap outside this task's owned tables, and the sandbox Postgres gap).

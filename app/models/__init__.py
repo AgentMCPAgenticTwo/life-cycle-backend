@@ -1,0 +1,24 @@
+"""Import every ORM entity so `Base.metadata` is fully populated as soon as this package is
+imported -- Alembic's `env.py` and any future resource task rely on this for autogeneration
+and for `Base.metadata.create_all()` in tests.
+"""
+from app.models.clause import Clause, ClauseVersion
+from app.models.contract import Contract, ContractTask
+from app.models.counterparty import Counterparty
+from app.models.tenant import Tenant
+from app.models.template import Template, TemplateVersion
+from app.models.uploaded_file import UploadedFile
+from app.models.user import User
+
+__all__ = [
+    "Tenant",
+    "User",
+    "Counterparty",
+    "UploadedFile",
+    "Template",
+    "TemplateVersion",
+    "Clause",
+    "ClauseVersion",
+    "Contract",
+    "ContractTask",
+]

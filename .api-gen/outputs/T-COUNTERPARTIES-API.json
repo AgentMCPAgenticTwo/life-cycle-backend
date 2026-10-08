@@ -1,0 +1,75 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented both counterparties endpoints (GET/POST /api/v1/counterparties) on the Python/FastAPI/PostgreSQL stack CLAUDE.md specifies, reusing the foundation's router/service/repository layering and the `counterparties` table/model the foundation task already created (not re-created or altered). Added app/schemas/counterparty.py (CounterpartyResponse, CounterpartySearchResponse, CreateCounterpartyRequest matching context.json field-for-field, camelCase), app/repositories/counterparties.py (tenant-scoped search by name/company/GST-Tax-ID and an exact case-insensitive GST/Tax ID lookup), app/services/counterparties.py (mandatory-field validation with the exact 'Please fill all mandatory fields' message pattern used by the sibling contracts module, email-format validation, and GST/Tax ID duplicate detection), and app/routers/counterparties.py wired into app/main.py. TASK.md's own prose (opaque-string ids, a .NET/`dotnet build`+`Api.sln` toolchain) does not match this repository's actual stack or this module's own context.json/table contract (both of which specify UUID ids and a Python/FastAPI/PostgreSQL stack identical to every other module file in this repo) -- per instructions CLAUDE.md wins on HOW to build, so I implemented against UUIDs and verified with `python -m compileall`/`pytest`/`uvicorn`, not the .NET commands TASK.md names (see blockers). Added 24 new tests (tests/test_counterparties.py) against the existing db_session/db_client SQLite-backed fixtures: the role matrix (401/403), tenant-scoped search, the GST/Tax ID duplicate-warning search response (UC2-AF-008), create happy path, mandatory-field/email validation (UC2-FV-001/002), and the GST/Tax ID duplicate-create conflict (409), including a cross-tenant case confirming the duplicate check is tenant-scoped and a case-insensitivity check. `python -m compileall app` and `pytest -q` both pass (94/94, including the 70 pre-existing). Verified live against uvicorn: both routes appear in /openapi.json with the right methods and field-for-field-matching schemas, both X-User-Role/X-User-Id security schemes are declared, and the 401/403 role-matrix behaves correctly end-to-end without a database (this sandbox has no reachable Postgres -- same documented limitation as every prior task's output). The DB-backed 200/201/409 paths are instead proven by the TestClient suite, which exercises the identical FastAPI dependency graph and ORM models.",
+  "task_id": "T-COUNTERPARTIES-API",
+  "story_id": "UC2-AF-008",
+  "code_files": [
+    {
+      "file_path": "app/schemas/counterparty.py",
+      "file_name": "counterparty.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "CounterpartyResponse, CounterpartySearchResponse, CreateCounterpartyRequest -- camelCase fields matching context.json exactly, no added fields."
+    },
+    {
+      "file_path": "app/repositories/counterparties.py",
+      "file_name": "counterparties.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped queries for counterparties: search_by_tenant (ILIKE across name/company/gst_tax_id), find_by_gst_tax_id (exact, case-insensitive match used for both the search duplicate-warning and the create duplicate-block), and insert_counterparty. No business rules -- data access only."
+    },
+    {
+      "file_path": "app/services/counterparties.py",
+      "file_name": "counterparties.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: search with GST/Tax ID duplicate-warning detection (UC2-AF-008), mandatory-field validation for Name/Email/Company (UC2-FV-002), email-format validation (UC2-FV-001/002), and blocking creation of a counterparty whose GST/Tax ID already matches an existing one in the tenant with a 409 Conflict (UC2-AF-008's 'blocking duplicates on GST/Tax ID')."
+    },
+    {
+      "file_path": "app/routers/counterparties.py",
+      "file_name": "counterparties.py",
+      "language": "python",
+      "file_type": "controller",
+      "description": "Thin HTTP binding for both owned routes: GET /api/v1/counterparties (search, TENANT_ADMIN/CONTRACT_OWNER) and POST /api/v1/counterparties (create, TENANT_ADMIN/CONTRACT_OWNER), with role enforcement via require_roles(...) exactly as named in the endpoint table, and the dependency-declaration order (role check before current_tenant_id before db) that the sibling clauses/contracts routers use so an unauthorized caller always gets 401/403 rather than a DB-configuration error."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Modified: registered app.routers.counterparties.router under the /api/v1 prefix, alongside the existing clauses/contracts/contracts_third_party_paper routers."
+    },
+    {
+      "file_path": "tests/test_counterparties.py",
+      "file_name": "test_counterparties.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "24 tests covering the role matrix (401/403), tenant-scoped search and filtering, the GST/Tax ID duplicate-warning search response, create happy path (with and without GST/Tax ID), mandatory-field (blank name/company) and email-format validation, and the GST/Tax ID duplicate-create 409 (including a cross-tenant non-conflict case and a case-insensitivity case)."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/429f84a3f422",
+    "title": "feat(uc123): counterparties -- search and create endpoints",
+    "body": "Implements T-COUNTERPARTIES-API: GET/POST /api/v1/counterparties with GST/Tax ID duplicate detection (UC2-AF-008) and mandatory-field/email validation (UC2-FV-001/002). Adds the counterparties router/service/repository layers reusing the foundation task's `counterparties` table and model. See blockers for the TASK.md-vs-repo contract mismatch (ids/stack/toolchain) and the sandbox verification gap with no reachable Postgres.",
+    "draft": true,
+    "linked_story": "UC2-AF-008",
+    "linked_task": "T-COUNTERPARTIES-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/main.py",
+      "app/schemas/counterparty.py",
+      "app/repositories/counterparties.py",
+      "app/services/counterparties.py",
+      "app/routers/counterparties.py",
+      "tests/test_counterparties.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "TASK.md's own 'Identifiers and roles' section claims this contract's ids are 'opaque strings' to be typed as text/varchar (not uuid), and its verification steps name a .NET toolchain ('dotnet build Api.sln', 'dotnet test Api.sln', 'dotnet run --project src/Api'). Both claims directly contradict this repo: the repo-root CLAUDE.md, this module's own uc123 skill/context.json (counterparties.id is UUID, CreateCounterpartyRequest/CounterpartyResponse have no id-format override), and the `counterparties` table the foundation task already created (id UUID, PostgreSQL) are all Python/FastAPI with UUID ids throughout. Per the operating instructions, CLAUDE.md governs HOW to build (stack/architecture/persistence) and wins on disagreement, so I implemented and verified against UUIDs, pytest and uvicorn rather than TASK.md's opaque-string/.NET instructions -- treating that part of TASK.md as boilerplate that was not customized for this repo, not as product requirements to follow.",
+    "Could not exercise the DB-backed response bodies (201 create, 200 search with results, 409 duplicate) against a live uvicorn+curl session: this sandbox has no reachable Postgres (same limitation every prior task in this run has recorded), and DATABASE_URL is unset by default so `current_tenant_id` raises before reaching any counterparties code. Verified instead: (1) both routes appear in /openapi.json with the right methods and DTO-matching schemas, both auth header security schemes declared; (2) the 401/403 role-matrix live, end-to-end, with no database at all (those checks run before any DB dependency resolves); (3) every DB-backed behavior -- happy paths, validation 400s, the duplicate 409, tenant isolation -- through tests/test_counterparties.py's 24 tests against a real FastAPI TestClient wired to an in-memory SQLite session through the identical get_db/current_tenant_id dependency chain production uses.",
+    "The GST/Tax ID duplicate check on create returns 409 Conflict (not 400) for 'blocking duplicates on GST/Tax ID' per the endpoint's own summary and the existing ConflictError convention in app/errors.py (used identically for this module's concurrent-save conflicts elsewhere). context.json does not name a status code for this case; UC2-AF-008's acceptance criteria describe a UI flow (show the matching record for selection) that this task's two endpoints cannot fully express on their own -- GET /counterparties already exposes the match via `duplicateWarning` + `items` for a frontend to intercept before ever calling POST, and POST blocks the write outright as a safety net if that pre-check is skipped or raced.",
+    "Contract Owner's new-counterparty creation flow already exists independently inside app/services/contracts.py (`_resolve_counterparty`, used by POST /api/v1/contracts when no counterpartyId is supplied) and does not perform a GST/Tax ID duplicate check -- that code belongs to the contracts task/module, not this one, so per the module-addition rules I did not modify it. The duplicate-blocking behavior UC2-AF-008 names is enforced here only for the dedicated POST /api/v1/counterparties endpoint this task owns."
+  ]
+}

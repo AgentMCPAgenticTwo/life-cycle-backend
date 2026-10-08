@@ -1,0 +1,11 @@
+Everything checks out. Summary of what was built for T-00-FOUNDATION-API:
+
+**Persistence layer**: SQLAlchemy ORM entities for all 10 contract tables (`app/models/`), with shared audit/soft-delete mixins, and one hand-written Alembic migration per required name in the exact required order (`alembic/versions/0001`–`0010`), wired to run at startup via a FastAPI lifespan hook in `app/main.py`.
+
+**Shared infrastructure**: centralized error handling (404/409/400/500 all resolving to one `{error, details}` body in `app/errors.py` + `app/main.py`), and paging primitives (`app/schemas/pagination.py`) for later `is_paged` endpoints.
+
+**Bug found and fixed**: `app/auth.py`'s two `APIKeyHeader` dependencies lacked explicit `scheme_name`s, so FastAPI collapsed `X-User-Role` and `X-User-Id` into one OpenAPI security scheme — exactly the Swagger-UI failure CLAUDE.md warns about. Fixed with distinct scheme names, plus a regression test.
+
+**Verification**: `python -m compileall app` and `pytest -q` (20/20 passing) both pass; the live `uvicorn` server was booted and the `/health` route and shared error shape were confirmed over HTTP. No live Postgres was reachable in this sandbox, so migrations were instead verified via Alembic's offline `--sql` rendering (manually reviewed against the contract) plus an automated test asserting the ORM metadata matches `context.json` exactly — documented as a blocker.
+
+Result written to `.api-gen/outputs/T-00-FOUNDATION-API.json` with `status: SUCCESS` and 6 blockers recorded (stack substitution, ID-generation choice, the auth bug/fix, the Postgres-verification gap, and scope notes).

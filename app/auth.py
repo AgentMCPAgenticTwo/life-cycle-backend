@@ -7,13 +7,18 @@ FastAPI's APIKeyHeader is used so the two headers appear in the OpenAPI document
 that the Swagger UI offers no input for them and every "try it out" call returns 401 while
 the API itself is fine.
 """
+import uuid
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import APIKeyHeader
+from sqlalchemy.orm import Session
 
-role_header = APIKeyHeader(name="X-User-Role", auto_error=False)
-user_id_header = APIKeyHeader(name="X-User-Id", auto_error=False)
+from app.db import get_db
+from app.models.user import User
+
+role_header = APIKeyHeader(name="X-User-Role", scheme_name="UserRoleHeader", auto_error=False)
+user_id_header = APIKeyHeader(name="X-User-Id", scheme_name="UserIdHeader", auto_error=False)
 
 
 @dataclass
@@ -47,3 +52,29 @@ def require_roles(*allowed: str):
         return user
 
     return _check
+
+
+def current_tenant_id(
+    user: CurrentUser = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> uuid.UUID:
+    """Resolves the caller's tenant by looking X-User-Id up in `users`.
+
+    The header-auth stub only asserts a role and a user id -- every tenant-scoped resource
+    (clauses, templates, contracts, ...) needs the tenant that user belongs to, so this is
+    the one place that join happens rather than every resource re-querying `users` itself.
+    An unresolvable or malformed X-User-Id is treated the same as a missing auth header (401):
+    without it there is no tenant to scope the request to.
+    """
+    try:
+        user_uuid = uuid.UUID(user.user_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=401, detail="missing or invalid X-User-Id header")
+    row = (
+        db.query(User)
+        .filter(User.id == user_uuid, User.deleted_at.is_(None))
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=401, detail="unknown X-User-Id")
+    return row.tenant_id
