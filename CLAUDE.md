@@ -137,601 +137,26 @@ Ids in this project are **UUIDs**. Every id field -- primary keys, path paramete
 
 ## Roles — from this contract only
 
-The roles this contract defines are `TENANT_ADMIN`, `CONTRACT_OWNER`, `LEGAL_REVIEWER`, `APPROVER`, `SIGNER`. These are the ONLY permitted values for `X-User-Role`. Missing header → **401**; a role outside this set →
+The roles this contract defines are `LEGAL_REVIEWER`, `CONTRACT_OWNER`, `TENANT_ADMIN`, `APPROVER`, `EXTERNAL_PARTY`. These are the ONLY permitted values for `X-User-Role`. Missing header → **401**; a role outside this set →
 **403**. Do not carry over role names from another project, and do not invent one
 the contract does not name.
 <!-- IDENTIFIERS END -->
-
 ---
 
 # Modules (generated)
 
 <!-- MODULE:uc123 START -->
-## uc123 (uc123)
+## uc123 (uc123) — previously generated
 
-From this module's contract: 23 endpoint(s), 31 DTO(s), 10 table(s), 81 story/stories.
-Base path for this module: `/api/v1`.
-
-### Endpoints to implement
-
-Implement exactly these paths, methods and role lists — the frontend calls them literally.
-
-| Method | Path | Roles | Request DTO | Response DTO | Purpose |
-|---|---|---|---|---|---|
-| GET | `/api/v1/dashboard/summary` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER, SIGNER | `—` | `DashboardSummaryResponse` | Returns tenant-scoped status card counts (Total, Draft, Negotiation, Pending Approval, Pending Signature, Executed, Expiring 30/60/90) for the applied filters |
-| GET | `/api/v1/dashboard/my-tasks` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER, SIGNER | `—` | `MyTasksResponse` | Returns contracts awaiting the logged-in user's review, approval or signature for the current pending step |
-| GET | `/api/v1/dashboard/high-risk-contracts` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `—` | `HighRiskContractsResponse` | Returns contracts whose AI risk score exceeds the tenant-configured threshold, ordered by risk score descending, scoped by role |
-| GET | `/api/v1/dashboard/filters` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER, SIGNER | `—` | `DashboardFilterOptionsResponse` | Returns tenant-scoped options for Contract Type, Department, Counterparty and Owner filters |
-| GET | `/api/v1/contracts` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER, SIGNER | `—` | `ContractListResponse` *(paged)* | Returns the Contract Repository list, filterable by status, Contract Type, Department, Counterparty, Owner and Date Range, enforcing tenant and role-based access |
-| GET | `/api/v1/contracts/{id}` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER, SIGNER | `—` | `ContractResponse` | Returns full contract detail if the logged-in user's role has permitted actions on it, otherwise denies access |
-| GET | `/api/v1/templates` | TENANT_ADMIN, LEGAL_REVIEWER, CONTRACT_OWNER | `—` | `TemplateListResponse` | Returns templates filtered by Contract Type, Industry and/or Status; used both by Template Library listing and New Contract template selection |
-| GET | `/api/v1/counterparties` | TENANT_ADMIN, CONTRACT_OWNER | `—` | `CounterpartySearchResponse` | Searches existing counterparties by name, company or GST/Tax ID |
-| POST | `/api/v1/counterparties` | TENANT_ADMIN, CONTRACT_OWNER | `CreateCounterpartyRequest` | `CounterpartyResponse` | Creates a new counterparty, blocking duplicates on GST/Tax ID |
-| GET | `/api/v1/users` | TENANT_ADMIN, CONTRACT_OWNER | `—` | `UserOptionListResponse` | Returns tenant users filtered by role, used to populate Contract Owner dropdown |
-| POST | `/api/v1/contracts/third-party-paper` | TENANT_ADMIN, CONTRACT_OWNER | `UploadThirdPartyPaperRequest` | `FileUploadResponse` | Uploads a third party paper file (PDF/DOCX, max 25MB) as an alternative to Template selection |
-| POST | `/api/v1/contracts` | TENANT_ADMIN, CONTRACT_OWNER | `CreateContractRequest` | `ContractResponse` | Creates a new contract from a Template or uploaded third party paper, validates all mandatory and conditional fields, auto-fills merge fields, and saves as Draft |
-| POST | `/api/v1/templates` | TENANT_ADMIN, LEGAL_REVIEWER | `CreateTemplateRequest` | `TemplateResponse` | Creates a new template as Version 1; transitions to Active once mandatory fields are complete |
-| PUT | `/api/v1/templates/{id}` | TENANT_ADMIN, LEGAL_REVIEWER | `UpdateTemplateRequest` | `TemplateResponse` | Edits an existing template, creating a new version entry recording editor and timestamp; blocks concurrent conflicting saves |
-| POST | `/api/v1/templates/{id}/deactivate` | TENANT_ADMIN | `—` | `TemplateResponse` | Deactivates a template; blocked if attached to any active, unsigned contract |
-| POST | `/api/v1/templates/{id}/reactivate` | TENANT_ADMIN | `—` | `TemplateResponse` | Reactivates an Inactive template with no restrictions |
-| GET | `/api/v1/templates/{id}/versions` | TENANT_ADMIN, LEGAL_REVIEWER | `—` | `VersionHistoryResponse` | Returns the version history of a template including version number, editor and change summary |
-| GET | `/api/v1/clauses` | TENANT_ADMIN, LEGAL_REVIEWER, CONTRACT_OWNER | `—` | `ClauseListResponse` | Returns clause library entries, colour-coded by Risk Level |
-| POST | `/api/v1/clauses` | TENANT_ADMIN, LEGAL_REVIEWER | `CreateClauseRequest` | `ClauseResponse` | Creates a new clause as Version 1; transitions to Active once mandatory fields are complete |
-| PUT | `/api/v1/clauses/{id}` | TENANT_ADMIN, LEGAL_REVIEWER | `UpdateClauseRequest` | `ClauseResponse` | Edits an existing clause, creating a new version entry; blocks removal of Mandatory clauses from contracts and blocks concurrent conflicting saves |
-| POST | `/api/v1/clauses/{id}/deactivate` | TENANT_ADMIN | `—` | `ClauseResponse` | Deactivates a clause |
-| POST | `/api/v1/clauses/{id}/reactivate` | TENANT_ADMIN | `—` | `ClauseResponse` | Reactivates an Inactive clause with no restrictions |
-| GET | `/api/v1/clauses/{id}/versions` | TENANT_ADMIN, LEGAL_REVIEWER | `—` | `VersionHistoryResponse` | Returns the version history of a clause including version number, editor and change summary |
-
-Enforce the Roles column at the framework's authorization layer **and** with the owner/assignment check in business logic. Missing header → 401, disallowed role → 403.
-
-### DTOs (your request/response types must match these exactly)
-
-**`DashboardSummaryResponse`** *(response)*
+Already built in an earlier run. Import and extend what exists; do not
+rebuild it and do not rename its fields or paths.
 
 ```
-  totalContractsCount: integer
-  inDraftCount: integer
-  inNegotiationCount: integer
-  pendingApprovalCount: integer
-  pendingSignatureCount: integer
-  executedCount: integer
-  expiring30DaysCount: integer
-  expiring60DaysCount: integer
-  expiring90DaysCount: integer
-  noContractsMessage?: string
-  noMatchMessage?: string
+Title: uc123 (uc123)
+Components: (none)
+Endpoints: GET /api/v1/dashboard/summary, GET /api/v1/dashboard/my-tasks, GET /api/v1/dashboard/high-risk-contracts, GET /api/v1/dashboard/filters, GET /api/v1/contracts, GET /api/v1/contracts/{id}, GET /api/v1/templates, GET /api/v1/counterparties, POST /api/v1/counterparties, GET /api/v1/users, POST /api/v1/contracts/third-party-paper, POST /api/v1/contracts, POST /api/v1/templates, PUT /api/v1/templates/{id}, POST /api/v1/templates/{id}/deactivate, POST /api/v1/templates/{id}/reactivate, GET /api/v1/templates/{id}/versions, GET /api/v1/clauses, POST /api/v1/clauses, PUT /api/v1/clauses/{id}, POST /api/v1/clauses/{id}/deactivate, POST /api/v1/clauses/{id}/reactivate, GET /api/v1/clauses/{id}/versions
+DTOs: DashboardSummaryResponse, MyTaskItemResponse, MyTasksResponse, HighRiskContractResponse, HighRiskContractsResponse, CounterpartyOptionResponse, OwnerOptionResponse, DashboardFilterOptionsResponse, ContractListItemResponse, ContractListResponse, ContractResponse, CreateContractRequest, UploadThirdPartyPaperRequest, FileUploadResponse, CounterpartyResponse, CounterpartySearchResponse, CreateCounterpartyRequest, UserOptionResponse, UserOptionListResponse, TemplateResponse, TemplateListResponse, CreateTemplateRequest, UpdateTemplateRequest, ClauseResponse, ClauseListResponse, CreateClauseRequest, UpdateClauseRequest, VersionHistoryItemResponse, VersionHistoryResponse, ErrorResponse, FieldErrorResponse
 ```
-
-**`MyTaskItemResponse`** *(response)*
-
-```
-  contractId: uuid
-  contractName: string
-  counterparty: string
-  status: string
-  dueDate: date
-```
-
-**`MyTasksResponse`** *(response)*
-
-```
-  items: array
-  emptyMessage?: string
-```
-
-**`HighRiskContractResponse`** *(response)*
-
-```
-  contractId: uuid
-  contractName: string
-  counterparty: string
-  riskScore: integer
-```
-
-**`HighRiskContractsResponse`** *(response)*
-
-```
-  items: array
-  emptyMessage?: string
-```
-
-**`CounterpartyOptionResponse`** *(response)*
-
-```
-  id: uuid
-  name: string
-```
-
-**`OwnerOptionResponse`** *(response)*
-
-```
-  id: uuid
-  name: string
-```
-
-**`DashboardFilterOptionsResponse`** *(response)*
-
-```
-  contractTypes: array
-  departments: array
-  counterparties: array
-  owners: array
-```
-
-**`ContractListItemResponse`** *(response)*
-
-```
-  id: uuid
-  contractName: string
-  contractType: string
-  department?: string
-  counterpartyName: string
-  contractOwnerName: string
-  status: string
-  startDate: date
-  endDate: date
-  contractValue: number
-  currency: string
-  riskScore?: integer
-```
-
-**`ContractListResponse`** *(response)*
-
-```
-  items: array
-  page: integer
-  pageSize: integer
-  totalCount: integer
-  noMatchMessage?: string
-```
-
-**`ContractResponse`** *(response)*
-
-```
-  id: uuid
-  contractName: string
-  contractType: string
-  industry: string
-  department?: string
-  templateId?: uuid
-  thirdPartyPaperFileId?: uuid
-  counterpartyId: uuid
-  counterpartyName: string
-  counterpartyEmail: string
-  counterpartyCompany: string
-  counterpartyAddress?: string
-  counterpartyGstTaxId?: string
-  contractOwnerId: uuid
-  contractOwnerName: string
-  contractValue: number
-  currency: string
-  startDate: date
-  endDate: date
-  renewalType: string
-  noticePeriod?: integer
-  assignedDate: date
-  dueDate: date
-  status: string
-  riskScore?: integer
-  createdAt: datetime
-  updatedAt: datetime
-```
-
-**`CreateContractRequest`** *(request)*
-
-```
-  contractType: string
-  industry: string
-  templateId?: uuid
-  thirdPartyPaperFileId?: uuid
-  counterpartySearch?: string
-  counterpartyId?: uuid
-  counterpartyName?: string
-  counterpartyEmail?: string
-  counterpartyCompany?: string
-  counterpartyAddress?: string
-  counterpartyGstTaxId?: string
-  contractOwnerId: uuid
-  contractValue: number
-  currency: string
-  startDate: date
-  endDate: date
-  renewalType: string
-  noticePeriod?: integer
-  dueDate: date
-```
-
-**`UploadThirdPartyPaperRequest`** *(request)*
-
-```
-  fileName: string
-  fileContentBase64: string
-  fileSize: integer
-  fileFormat: string
-```
-
-**`FileUploadResponse`** *(response)*
-
-```
-  fileId: uuid
-  fileName: string
-  fileSize: integer
-  fileFormat: string
-  storageUrl: string
-```
-
-**`CounterpartyResponse`** *(response)*
-
-```
-  id: uuid
-  name: string
-  email: string
-  company: string
-  address?: string
-  gstTaxId?: string
-```
-
-**`CounterpartySearchResponse`** *(response)*
-
-```
-  items: array
-  duplicateWarning?: string
-```
-
-**`CreateCounterpartyRequest`** *(request)*
-
-```
-  name: string
-  email: string
-  company: string
-  address?: string
-  gstTaxId?: string
-```
-
-**`UserOptionResponse`** *(response)*
-
-```
-  id: uuid
-  name: string
-  email: string
-  role: string
-```
-
-**`UserOptionListResponse`** *(response)*
-
-```
-  items: array
-```
-
-**`TemplateResponse`** *(response)*
-
-```
-  id: uuid
-  templateName: string
-  templateCategory: string
-  documentFormat: string
-  templateBody: string
-  status: string
-  lastModifiedBy: string
-  lastModifiedDate: datetime
-```
-
-**`TemplateListResponse`** *(response)*
-
-```
-  items: array
-```
-
-**`CreateTemplateRequest`** *(request)*
-
-```
-  templateName: string
-  templateCategory: string
-  documentFormat: string
-  templateBody: string
-```
-
-**`UpdateTemplateRequest`** *(request)*
-
-```
-  templateName: string
-  templateCategory: string
-  documentFormat: string
-  templateBody: string
-```
-
-**`ClauseResponse`** *(response)*
-
-```
-  id: uuid
-  clauseName: string
-  clauseCategory: string
-  standardText: string
-  fallbackText1?: string
-  fallbackText2?: string
-  riskLevel: string
-  mandatory: boolean
-  status: string
-  lastModifiedBy: string
-  lastModifiedDate: datetime
-```
-
-**`ClauseListResponse`** *(response)*
-
-```
-  items: array
-```
-
-**`CreateClauseRequest`** *(request)*
-
-```
-  clauseName: string
-  clauseCategory: string
-  standardText: string
-  fallbackText1?: string
-  fallbackText2?: string
-  riskLevel: string
-  mandatory: boolean
-```
-
-**`UpdateClauseRequest`** *(request)*
-
-```
-  clauseName: string
-  clauseCategory: string
-  standardText: string
-  fallbackText1?: string
-  fallbackText2?: string
-  riskLevel: string
-  mandatory: boolean
-```
-
-**`VersionHistoryItemResponse`** *(response)*
-
-```
-  versionNumber: integer
-  changedBy: string
-  dateChanged: datetime
-  changeSummary?: string
-```
-
-**`VersionHistoryResponse`** *(response)*
-
-```
-  items: array
-```
-
-**`ErrorResponse`** *(response)*
-
-```
-  code: string
-  message: string
-  fieldErrors?: array
-```
-
-**`FieldErrorResponse`** *(response)*
-
-```
-  field: string
-  message: string
-```
-
-### Tables (models mirror these)
-
-**`tenants`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `name` | VARCHAR(255) | no | — |
-| `high_risk_threshold` | INTEGER | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
-
-**`users`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `tenant_id` | UUID | no | — |
-| `name` | VARCHAR(255) | no | — |
-| `email` | VARCHAR(255) | no | — |
-| `role` | VARCHAR(50) | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
-
-**`counterparties`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `tenant_id` | UUID | no | — |
-| `name` | VARCHAR(255) | no | — |
-| `email` | VARCHAR(255) | no | — |
-| `company` | VARCHAR(255) | no | — |
-| `address` | TEXT | yes | — |
-| `gst_tax_id` | VARCHAR(100) | yes | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
-
-**`uploaded_files`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `tenant_id` | UUID | no | — |
-| `file_name` | VARCHAR(255) | no | — |
-| `file_size` | INTEGER | no | — |
-| `file_format` | VARCHAR(10) | no | — |
-| `storage_url` | TEXT | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
-
-**`templates`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `tenant_id` | UUID | no | — |
-| `template_name` | VARCHAR(150) | no | — |
-| `template_category` | VARCHAR(100) | no | — |
-| `document_format` | VARCHAR(10) | no | — |
-| `template_body` | TEXT | no | — |
-| `status` | VARCHAR(20) | no | — |
-| `current_version` | INTEGER | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
-
-**`template_versions`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `template_id` | UUID | no | — |
-| `version_number` | INTEGER | no | — |
-| `changed_by` | UUID | no | — |
-| `date_changed` | TIMESTAMPTZ | no | — |
-| `change_summary` | TEXT | yes | — |
-| `template_name` | VARCHAR(150) | no | — |
-| `template_category` | VARCHAR(100) | no | — |
-| `document_format` | VARCHAR(10) | no | — |
-| `template_body` | TEXT | no | — |
-| `status` | VARCHAR(20) | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`clauses`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `tenant_id` | UUID | no | — |
-| `clause_name` | VARCHAR(150) | no | — |
-| `clause_category` | VARCHAR(100) | no | — |
-| `standard_text` | TEXT | no | — |
-| `fallback_text_1` | TEXT | yes | — |
-| `fallback_text_2` | TEXT | yes | — |
-| `risk_level` | VARCHAR(10) | no | — |
-| `mandatory` | BOOLEAN | no | — |
-| `status` | VARCHAR(20) | no | — |
-| `current_version` | INTEGER | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
-
-**`clause_versions`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `clause_id` | UUID | no | — |
-| `version_number` | INTEGER | no | — |
-| `changed_by` | UUID | no | — |
-| `date_changed` | TIMESTAMPTZ | no | — |
-| `change_summary` | TEXT | yes | — |
-| `clause_name` | VARCHAR(150) | no | — |
-| `clause_category` | VARCHAR(100) | no | — |
-| `standard_text` | TEXT | no | — |
-| `fallback_text_1` | TEXT | yes | — |
-| `fallback_text_2` | TEXT | yes | — |
-| `risk_level` | VARCHAR(10) | no | — |
-| `mandatory` | BOOLEAN | no | — |
-| `status` | VARCHAR(20) | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`contracts`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `tenant_id` | UUID | no | — |
-| `contract_name` | VARCHAR(255) | no | — |
-| `contract_type` | VARCHAR(50) | no | — |
-| `industry` | VARCHAR(20) | no | — |
-| `department` | VARCHAR(100) | yes | — |
-| `template_id` | UUID | yes | — |
-| `third_party_paper_file_id` | UUID | yes | — |
-| `counterparty_id` | UUID | no | — |
-| `contract_owner_id` | UUID | no | — |
-| `contract_value` | NUMERIC(18,2) | no | — |
-| `currency` | VARCHAR(10) | no | — |
-| `start_date` | DATE | no | — |
-| `end_date` | DATE | no | — |
-| `renewal_type` | VARCHAR(10) | no | — |
-| `notice_period` | INTEGER | yes | — |
-| `assigned_date` | DATE | no | — |
-| `due_date` | DATE | no | — |
-| `status` | VARCHAR(30) | no | — |
-| `risk_score` | INTEGER | yes | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
-
-**`contract_tasks`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `assignee_user_id` | UUID | no | — |
-| `assignment_role` | VARCHAR(20) | no | — |
-| `due_date` | DATE | no | — |
-| `is_current` | BOOLEAN | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
-
-### Migrations
-
-Create these with exactly these names, in this order:
-
-- `CreateTenants`
-- `CreateUsers`
-- `CreateCounterparties`
-- `CreateUploadedFiles`
-- `CreateTemplates`
-- `CreateTemplateVersions`
-- `CreateClauses`
-- `CreateClauseVersions`
-- `CreateContracts`
-- `CreateContractTasks`
-
-Never edit or re-order a migration that already exists — add a new one.
-
 <!-- DIGEST
 Title: uc123 (uc123)
 Components: (none)
@@ -739,3 +164,555 @@ Endpoints: GET /api/v1/dashboard/summary, GET /api/v1/dashboard/my-tasks, GET /a
 DTOs: DashboardSummaryResponse, MyTaskItemResponse, MyTasksResponse, HighRiskContractResponse, HighRiskContractsResponse, CounterpartyOptionResponse, OwnerOptionResponse, DashboardFilterOptionsResponse, ContractListItemResponse, ContractListResponse, ContractResponse, CreateContractRequest, UploadThirdPartyPaperRequest, FileUploadResponse, CounterpartyResponse, CounterpartySearchResponse, CreateCounterpartyRequest, UserOptionResponse, UserOptionListResponse, TemplateResponse, TemplateListResponse, CreateTemplateRequest, UpdateTemplateRequest, ClauseResponse, ClauseListResponse, CreateClauseRequest, UpdateClauseRequest, VersionHistoryItemResponse, VersionHistoryResponse, ErrorResponse, FieldErrorResponse
 DIGEST -->
 <!-- MODULE:uc123 END -->
+
+<!-- MODULE:lifecycle-uc4-uc5 START -->
+## lifecycle uc4 uc5 (lifecycle-uc4-uc5)
+
+From this module's contract: 19 endpoint(s), 30 DTO(s), 10 table(s), 64 story/stories.
+Base path for this module: `/api/v1/lifecycle`.
+
+### Endpoints to implement
+
+Implement exactly these paths, methods and role lists — the frontend calls them literally.
+
+| Method | Path | Roles | Request DTO | Response DTO | Purpose |
+|---|---|---|---|---|---|
+| GET | `/api/v1/lifecycle/contracts/{contractId}/clause-analysis` | LEGAL_REVIEWER, CONTRACT_OWNER, TENANT_ADMIN | `—` | `ClauseAnalysisResponse` | Retrieve AI-extracted clauses, risk scores, mandatory flags and contract metadata for the Clause Analysis screen |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/accept-suggestion` | LEGAL_REVIEWER, CONTRACT_OWNER | `—` | `ClauseResponse` | Accept the AI-suggested text for a clause, replacing current text and logging the action |
+| PUT | `/api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}` | LEGAL_REVIEWER | `EditClauseRequest` | `ClauseResponse` | Save a manual rewrite of a clause via the Clause Edit Box; blocked on stale version per concurrency check |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/reject` | LEGAL_REVIEWER | `RejectClauseRequest` | `ClauseResponse` | Reject a clause suggestion, logging user, timestamp and before/after text |
+| PUT | `/api/v1/lifecycle/contracts/{contractId}/metadata` | LEGAL_REVIEWER, CONTRACT_OWNER | `UpdateMetadataRequest` | `ContractMetadataResponse` | Update AI-extracted contract metadata fields; relabels edited fields as User-confirmed |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/ask-ai` | LEGAL_REVIEWER, CONTRACT_OWNER | `AskAIRequest` | `AskAIResponse` | Submit a free-text question about the contract and receive an AI answer with verification disclaimer |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/proceed-to-negotiation` | LEGAL_REVIEWER, CONTRACT_OWNER | `—` | `ProceedToNegotiationResponse` | Finalize clause set and metadata and route the contract to Negotiation & Routing (UC5), blocked if mandatory clauses remain missing |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/retry-extraction` | LEGAL_REVIEWER, CONTRACT_OWNER | `—` | `ClauseAnalysisResponse` | Retry AI clause extraction after a failure or timeout |
+| GET | `/api/v1/lifecycle/contracts/{contractId}/audit-log` | LEGAL_REVIEWER, CONTRACT_OWNER, TENANT_ADMIN | `—` | `PagedAuditLogResponse` *(paged)* | Retrieve the immutable audit trail of Accept/Edit/Reject/Metadata/AskAI actions for a contract |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/routing` | CONTRACT_OWNER | `RoutingRequest` | `RoutingResponse` | Configure routing (type, reviewers, external party, dates) and submit a Draft contract for internal/external review, creating Version 1 |
+| GET | `/api/v1/lifecycle/contracts/{contractId}/negotiation` | CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER, TENANT_ADMIN | `—` | `NegotiationTrackerResponse` | Retrieve the negotiation tracker: routing config, reviewers, status, current version, overdue flag, version history and comments |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/reviews` | LEGAL_REVIEWER, APPROVER | `SubmitReviewRequest` | `SubmitReviewResponse` | Submit an internal reviewer's redline/comment, incrementing the version and routing to next reviewer or external party |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/external-link` | CONTRACT_OWNER, LEGAL_REVIEWER | `—` | `GenerateExternalLinkResponse` | Generate a secure OTP-protected link for the external party once internal review completes |
+| POST | `/api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp` | EXTERNAL_PARTY | `VerifyOtpRequest` | `VerifyOtpResponse` | Verify the OTP for an external party secure link; locks link after three failed attempts |
+| POST | `/api/v1/lifecycle/negotiation/external/{linkToken}/submit` | EXTERNAL_PARTY | `ExternalSubmitRequest` | `ExternalSubmitResponse` | External party submits redlines/comments on the current version; triggers AI clause analysis and reverts status to With Internal |
+| GET | `/api/v1/lifecycle/contracts/{contractId}/negotiation/compare` | CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `—` | `CompareVersionsResponse` | Return a side-by-side redline comparison between two selected prior versions of the same contract and tenant |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/reminder` | CONTRACT_OWNER | `—` | `ReminderResponse` | Send a manual reminder email to an overdue reviewer; supplements the automatic daily reminder |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/mark-agreed` | LEGAL_REVIEWER | `—` | `MarkAgreedResponse` | Legal Reviewer explicitly marks negotiation as Agreed after at least one full review cycle |
+| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/comments` | LEGAL_REVIEWER, CONTRACT_OWNER, APPROVER | `CommentRequest` | `CommentResponse` | Add a free-text comment tied to a clause and the current negotiation version |
+
+Enforce the Roles column at the framework's authorization layer **and** with the owner/assignment check in business logic. Missing header → 401, disallowed role → 403.
+
+### DTOs (your request/response types must match these exactly)
+
+**`ClauseResponse`** *(response)*
+
+```
+  clauseId: uuid
+  clauseText: string
+  clauseCategory?: string
+  libraryMatchStatus: string
+  riskScore: string
+  aiExplanation?: string
+  suggestedText?: string
+  status: string
+  isMandatory: boolean
+  mandatoryClauseFlag: boolean
+  mandatoryClauseFlagLabel?: string
+  version: integer
+  updatedAt: datetime
+  updatedBy?: uuid
+```
+
+**`ContractMetadataResponse`** *(response)*
+
+```
+  parties?: string
+  partiesLabel: string
+  contractValue?: number
+  contractValueLabel: string
+  startDate?: date
+  startDateLabel: string
+  endDate?: date
+  endDateLabel: string
+  renewalTerms?: string
+  renewalTermsLabel: string
+  paymentTerms?: string
+  paymentTermsLabel: string
+  keyObligations?: string
+  keyObligationsLabel: string
+```
+
+**`ClauseAnalysisResponse`** *(response)*
+
+```
+  contractId: uuid
+  fileFormatSupported: boolean
+  analysisStatus: string
+  clauses: array
+  overallContractRiskScore: string
+  metadata?: ContractMetadataResponse
+  proceedToNegotiationEnabled: boolean
+  askAiEnabled: boolean
+```
+
+**`EditClauseRequest`** *(request)*
+
+```
+  clauseText: string
+  expectedVersion: integer
+```
+
+**`RejectClauseRequest`** *(request)*
+
+```
+  reason?: string
+```
+
+**`UpdateMetadataRequest`** *(request)*
+
+```
+  parties?: string
+  contractValue?: number
+  startDate?: date
+  endDate?: date
+  renewalTerms?: string
+  paymentTerms?: string
+  keyObligations?: string
+```
+
+**`AskAIRequest`** *(request)*
+
+```
+  question: string
+```
+
+**`AskAIResponse`** *(response)*
+
+```
+  answer: string
+  disclaimer: string
+  relatedClauseIds?: array
+```
+
+**`AuditLogEntryResponse`** *(response)*
+
+```
+  id: uuid
+  userId: uuid
+  userName: string
+  timestamp: datetime
+  clauseId?: uuid
+  actionType: string
+  fieldName?: string
+  beforeText?: string
+  afterText?: string
+```
+
+**`PagedAuditLogResponse`** *(response)*
+
+```
+  items: array
+  page: integer
+  pageSize: integer
+  totalCount: integer
+```
+
+**`ProceedToNegotiationResponse`** *(response)*
+
+```
+  contractId: uuid
+  negotiationStatus: string
+  routedAt?: datetime
+  clauses: array
+  overallContractRiskScore: string
+  metadata?: ContractMetadataResponse
+  askAiAvailable: boolean
+```
+
+**`ReviewerResponse`** *(response)*
+
+```
+  reviewerId: uuid
+  reviewerName: string
+  role?: string
+  isMandatory: boolean
+  reviewStatus: string
+  submittedAt?: datetime
+  sequenceOrder?: integer
+```
+
+**`RoutingRequest`** *(request)*
+
+```
+  routingType: string
+  internalReviewers: array
+  externalPartyName: string
+  externalPartyEmail: string
+  assignedDate: date
+  dueDate: date
+```
+
+**`RoutingResponse`** *(response)*
+
+```
+  contractId: uuid
+  routingType: string
+  internalReviewers: array
+  externalPartyName: string
+  externalPartyEmail: string
+  assignedDate: date
+  dueDate: date
+  negotiationStatus: string
+  versionNumber: integer
+```
+
+**`VersionSummaryResponse`** *(response)*
+
+```
+  versionNumber: integer
+  createdAt: datetime
+  createdBy: string
+  source: string
+```
+
+**`CommentResponse`** *(response)*
+
+```
+  commentId: uuid
+  clauseId?: string
+  commentText: string
+  authorName: string
+  createdAt: datetime
+  versionNumber: integer
+```
+
+**`CommentRequest`** *(request)*
+
+```
+  clauseId?: string
+  commentText: string
+```
+
+**`NegotiationTrackerResponse`** *(response)*
+
+```
+  contractId: uuid
+  routingType: string
+  internalReviewers: array
+  externalPartyName: string
+  externalPartyEmail: string
+  assignedDate: date
+  dueDate: date
+  negotiationStatus: string
+  versionNumber: integer
+  overdueFlag: boolean
+  versions: array
+  comments: array
+```
+
+**`SubmitReviewRequest`** *(request)*
+
+```
+  commentText?: string
+  redlineText?: string
+```
+
+**`SubmitReviewResponse`** *(response)*
+
+```
+  versionNumber: integer
+  negotiationStatus: string
+```
+
+**`GenerateExternalLinkResponse`** *(response)*
+
+```
+  linkToken: string
+  expiresAt: datetime
+  status: string
+```
+
+**`VerifyOtpRequest`** *(request)*
+
+```
+  otp: string
+```
+
+**`NegotiationExternalViewResponse`** *(response)*
+
+```
+  contractId: uuid
+  versionNumber: integer
+  documentText: string
+  commentBoxEnabled: boolean
+```
+
+**`VerifyOtpResponse`** *(response)*
+
+```
+  verified: boolean
+  negotiationData?: NegotiationExternalViewResponse
+```
+
+**`ExternalSubmitRequest`** *(request)*
+
+```
+  commentText?: string
+  redlineText: string
+```
+
+**`ExternalSubmitResponse`** *(response)*
+
+```
+  versionNumber: integer
+  negotiationStatus: string
+```
+
+**`ClauseDiffResponse`** *(response)*
+
+```
+  clauseId?: string
+  clauseCategory?: string
+  textA?: string
+  textB?: string
+  changeType: string
+```
+
+**`CompareVersionsResponse`** *(response)*
+
+```
+  versionA: VersionSummaryResponse
+  versionB: VersionSummaryResponse
+  differences: array
+  comments: array
+  negotiationStatus: string
+  routingType: string
+  internalReviewers: array
+  externalPartyName: string
+  externalPartyEmail: string
+  assignedDate: date
+  dueDate: date
+```
+
+**`ReminderResponse`** *(response)*
+
+```
+  sentTo: string
+  sentAt: datetime
+  reminderType: string
+```
+
+**`MarkAgreedResponse`** *(response)*
+
+```
+  negotiationStatus: string
+  versionNumber: integer
+  routingType: string
+  internalReviewers: array
+  externalPartyName: string
+  externalPartyEmail: string
+  assignedDate: date
+  dueDate: date
+```
+
+### Tables (models mirror these)
+
+**`contract_clauses`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `clause_category` | VARCHAR(50) | yes | — |
+| `library_match_status` | VARCHAR(20) | no | — |
+| `risk_score` | VARCHAR(10) | no | — |
+| `ai_explanation` | TEXT | yes | — |
+| `suggested_text` | TEXT | yes | — |
+| `clause_text` | TEXT | no | — |
+| `status` | VARCHAR(30) | no | — |
+| `is_mandatory` | BOOLEAN | no | — |
+| `mandatory_flag_cleared` | BOOLEAN | no | — |
+| `version` | INTEGER | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+| `deleted_at` | TIMESTAMPTZ | yes | — |
+| `deleted_by` | UUID | yes | — |
+
+**`contract_metadata`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `parties` | TEXT | yes | — |
+| `parties_label` | VARCHAR(20) | no | — |
+| `contract_value` | NUMERIC(18,2) | yes | — |
+| `contract_value_label` | VARCHAR(20) | no | — |
+| `start_date` | DATE | yes | — |
+| `start_date_label` | VARCHAR(20) | no | — |
+| `end_date` | DATE | yes | — |
+| `end_date_label` | VARCHAR(20) | no | — |
+| `renewal_terms` | TEXT | yes | — |
+| `renewal_terms_label` | VARCHAR(20) | no | — |
+| `payment_terms` | TEXT | yes | — |
+| `payment_terms_label` | VARCHAR(20) | no | — |
+| `key_obligations` | TEXT | yes | — |
+| `key_obligations_label` | VARCHAR(20) | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`clause_audit_log`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `clause_id` | UUID | yes | — |
+| `user_id` | UUID | no | — |
+| `action_type` | VARCHAR(30) | no | — |
+| `field_name` | VARCHAR(50) | yes | — |
+| `before_text` | TEXT | yes | — |
+| `after_text` | TEXT | yes | — |
+| `occurred_at` | TIMESTAMPTZ | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`ask_ai_interactions`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `user_id` | UUID | no | — |
+| `question` | TEXT | no | — |
+| `answer` | TEXT | yes | — |
+| `disclaimer` | TEXT | yes | — |
+| `related_clause_ids` | JSONB | yes | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`negotiation_routings`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `routing_type` | VARCHAR(20) | no | — |
+| `external_party_name` | VARCHAR(200) | no | — |
+| `external_party_email` | VARCHAR(200) | no | — |
+| `assigned_date` | DATE | no | — |
+| `due_date` | DATE | no | — |
+| `negotiation_status` | VARCHAR(20) | no | — |
+| `current_version_number` | INTEGER | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`negotiation_reviewers`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `negotiation_routing_id` | UUID | no | — |
+| `reviewer_id` | UUID | no | — |
+| `reviewer_name` | VARCHAR(200) | no | — |
+| `role` | VARCHAR(50) | yes | — |
+| `is_mandatory` | BOOLEAN | no | — |
+| `review_status` | VARCHAR(20) | no | — |
+| `sequence_order` | INTEGER | yes | — |
+| `submitted_at` | TIMESTAMPTZ | yes | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`negotiation_versions`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `negotiation_routing_id` | UUID | no | — |
+| `version_number` | INTEGER | no | — |
+| `source` | VARCHAR(10) | no | — |
+| `document_snapshot` | JSONB | yes | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`negotiation_comments`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `negotiation_version_id` | UUID | no | — |
+| `clause_id` | UUID | yes | — |
+| `comment_text` | TEXT | no | — |
+| `author_id` | UUID | no | — |
+| `author_name` | VARCHAR(200) | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`negotiation_external_links`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `negotiation_routing_id` | UUID | no | — |
+| `link_token` | VARCHAR(100) | no | — |
+| `otp_hash` | VARCHAR(255) | no | — |
+| `failed_attempts` | INTEGER | no | — |
+| `status` | VARCHAR(20) | no | — |
+| `expires_at` | TIMESTAMPTZ | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`negotiation_reminders`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `negotiation_routing_id` | UUID | no | — |
+| `reviewer_id` | UUID | yes | — |
+| `sent_at` | TIMESTAMPTZ | no | — |
+| `reminder_type` | VARCHAR(10) | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+### Migrations
+
+Create these with exactly these names, in this order:
+
+- `CreateContractClauses`
+- `CreateContractMetadata`
+- `CreateClauseAuditLog`
+- `CreateAskAiInteractions`
+- `CreateNegotiationRoutings`
+- `CreateNegotiationReviewers`
+- `CreateNegotiationVersions`
+- `CreateNegotiationComments`
+- `CreateNegotiationExternalLinks`
+- `CreateNegotiationReminders`
+
+Never edit or re-order a migration that already exists — add a new one.
+
+<!-- DIGEST
+Title: lifecycle uc4 uc5 (lifecycle-uc4-uc5)
+Components: (none)
+Endpoints: GET /api/v1/lifecycle/contracts/{contractId}/clause-analysis, POST /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/accept-suggestion, PUT /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}, POST /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/reject, PUT /api/v1/lifecycle/contracts/{contractId}/metadata, POST /api/v1/lifecycle/contracts/{contractId}/ask-ai, POST /api/v1/lifecycle/contracts/{contractId}/proceed-to-negotiation, POST /api/v1/lifecycle/contracts/{contractId}/retry-extraction, GET /api/v1/lifecycle/contracts/{contractId}/audit-log, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/routing, GET /api/v1/lifecycle/contracts/{contractId}/negotiation, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/reviews, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/external-link, POST /api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp, POST /api/v1/lifecycle/negotiation/external/{linkToken}/submit, GET /api/v1/lifecycle/contracts/{contractId}/negotiation/compare, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/reminder, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/mark-agreed, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/comments
+DTOs: ClauseResponse, ContractMetadataResponse, ClauseAnalysisResponse, EditClauseRequest, RejectClauseRequest, UpdateMetadataRequest, AskAIRequest, AskAIResponse, AuditLogEntryResponse, PagedAuditLogResponse, ProceedToNegotiationResponse, ReviewerResponse, RoutingRequest, RoutingResponse, VersionSummaryResponse, CommentResponse, CommentRequest, NegotiationTrackerResponse, SubmitReviewRequest, SubmitReviewResponse, GenerateExternalLinkResponse, VerifyOtpRequest, NegotiationExternalViewResponse, VerifyOtpResponse, ExternalSubmitRequest, ExternalSubmitResponse, ClauseDiffResponse, CompareVersionsResponse, ReminderResponse, MarkAgreedResponse
+DIGEST -->
+<!-- MODULE:lifecycle-uc4-uc5 END -->
