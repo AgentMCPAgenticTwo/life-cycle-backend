@@ -1,0 +1,378 @@
+name: api-gen
+
+# api-gen-workflow-version: 7
+
+on:
+  push:
+    branches:
+      - 'api-gen/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Node is always set up: Claude Code itself installs through npm.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install project dependencies
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; elif [ -f pyproject.toml ]; then pip install -e .; else echo 'no requirements.txt - skipping'; fi
+
+      - name: Run the coding agent for each task package
+        env:
+          IS_MODEL_RAIL: "false"
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKENS_JSON: ${{ secrets.CLAUDE_CODE_OAUTH_TOKENS_JSON }}
+          CLAUDE_CODE_OAUTH_TOKEN_LABELS_JSON: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_LABELS_JSON }}
+          MODEL_RAIL_URL: ${{ secrets.MODEL_RAIL_URL }}
+          MODEL_RAIL_ORG_ID: ${{ secrets.MODEL_RAIL_ORG_ID }}
+          MODEL_RAIL_PROJECT_ID: ${{ secrets.MODEL_RAIL_PROJECT_ID }}
+          MODEL_RAIL_TEAM_ID: ${{ secrets.MODEL_RAIL_TEAM_ID }}
+          MODEL_RAIL_POLICY_KEY: ${{ secrets.MODEL_RAIL_POLICY_KEY }}
+          MODEL_RAIL_PURPOSE: ${{ secrets.MODEL_RAIL_PURPOSE }}
+          LITELLM_DIRECT_URL: ${{ secrets.LITELLM_DIRECT_URL }}
+          LITELLM_DIRECT_API_KEY: ${{ secrets.LITELLM_DIRECT_API_KEY }}
+        run: |
+          set -uo pipefail
+          # OAUTH_ROTATE / TOKENS / token_idx: only the plain OAuth branch below (no Model
+          # Rail, no LiteLLM-direct) ever rotates tokens -- the other branches already unset
+          # CLAUDE_CODE_OAUTH_TOKEN and authenticate a different way entirely. Declared here,
+          # unconditionally, because `set -u` makes referencing an unset var/array an error.
+          OAUTH_ROTATE=false
+          TOKENS=()
+          TOKEN_LABELS=()
+          token_idx=0
+          if [ "${IS_MODEL_RAIL:-false}" != "true" ]; then
+            echo "IS_MODEL_RAIL=false — using CLAUDE_CODE_OAUTH_TOKEN (Model Rail/LiteLLM vars, if any, are ignored)"
+            OAUTH_ROTATE=true
+            # CLAUDE_CODE_OAUTH_TOKENS_JSON is the full fallback pool the runner resolved for
+            # this policy (see runner-api's resolveOauthCredentialPool); falls back to a
+            # single-element array built from the one static secret when the runner sent no
+            # pool (e.g. the policy has only one token, or a plain container env var is used).
+            if [ -n "${CLAUDE_CODE_OAUTH_TOKENS_JSON:-}" ]; then
+              mapfile -t TOKENS < <(printf '%s' "$CLAUDE_CODE_OAUTH_TOKENS_JSON" | jq -r '.[]')
+            else
+              TOKENS=("${CLAUDE_CODE_OAUTH_TOKEN:-}")
+            fi
+            # Parallel to TOKENS, same length, when the runner sent labels -- empty
+            # otherwise, so token_label() below always has a safe fallback to an index.
+            if [ -n "${CLAUDE_CODE_OAUTH_TOKEN_LABELS_JSON:-}" ]; then
+              mapfile -t TOKEN_LABELS < <(printf '%s' "$CLAUDE_CODE_OAUTH_TOKEN_LABELS_JSON" | jq -r '.[]')
+            else
+              TOKEN_LABELS=()
+            fi
+            # A malformed or empty pool secret leaves TOKENS empty, and `set -u` then aborts
+            # the job on ${TOKENS[$token_idx]} with "unbound variable" -- an error about bash,
+            # not about the credential. Fall back to the single token instead.
+            if [ "${#TOKENS[@]}" -eq 0 ]; then
+              echo "::warning::CLAUDE_CODE_OAUTH_TOKENS_JSON parsed to no tokens - using the single CLAUDE_CODE_OAUTH_TOKEN secret"
+              TOKENS=("${CLAUDE_CODE_OAUTH_TOKEN:-}")
+            fi
+          elif [ -n "${LITELLM_DIRECT_URL:-}" ]; then
+            # TEST-ONLY escape hatch: calls LiteLLM directly, skipping Model Rail's
+            # policy/budget/audit layer entirely -- for unblocking CI-mechanics testing
+            # (task packaging, push, build/test gate) while the rail's own passthrough
+            # route isn't deployed on a host this workflow can reach. LiteLLM's
+            # /v1/messages (confirmed live) resolves the model through LiteLLM's OWN
+            # per-model provider key, in Anthropic's native shape -- so --model must be a
+            # LiteLLM model-group name, not a literal Anthropic model string.
+            #
+            # Live-tested (2026-08-12, on ui-dev-agent-python) which model groups actually
+            # work with claude, which ALWAYS sends tool definitions for its
+            # Read/Write/Edit/Bash/Agent loop:
+            #   deepseek-v4-pro, gemini-flash  -> 200, real tool-capable streaming. USE THESE.
+            #   granite                        -> 404 "No endpoints found that support tool
+            #                                      use" -- its OpenRouter deployment can't do
+            #                                      function calling at all, tools or not.
+            #   claude-sonnet, claude-haiku     -> the stored Anthropic key itself is invalid.
+            #   llama-scout                     -> invalid Groq key.
+            #   kimi-k2, qwen-coder             -> insufficient OpenRouter credits.
+            # All of the above are LiteLLM/OpenRouter-side config or billing issues, not
+            # fixable here. Not governed, not audited -- remove LITELLM_DIRECT_URL once
+            # Model Rail's own route is reachable.
+            unset CLAUDE_CODE_OAUTH_TOKEN
+            export ANTHROPIC_BASE_URL="$LITELLM_DIRECT_URL"
+            export ANTHROPIC_AUTH_TOKEN="${LITELLM_DIRECT_API_KEY:-litellm}"
+            export ANTHROPIC_API_KEY=""
+            echo "TEST MODE: routing claude directly to LiteLLM ($LITELLM_DIRECT_URL), bypassing Model Rail"
+          elif [ -n "${MODEL_RAIL_URL:-}" ]; then
+            # Route claude through Model Rail instead of the subscription OAuth token: the
+            # rail resolves the concrete model, enforces budget/allowlist, and meters usage.
+            # Unset the OAuth token so the CLI can't fall back to subscription auth mid-run.
+            # Model Rail has no inbound auth of its own (no bearer token, no API key check) --
+            # ANTHROPIC_AUTH_TOKEN just has to be non-empty to satisfy the Anthropic client;
+            # the rail never inspects its value.
+            #
+            # Anthropic's own /v1/messages shape isn't Model Rail's native DTO -- it's a
+            # dedicated passthrough route (POST internal/llm/v1/messages) that resolves
+            # policy/budget from these X-Rail-* headers (there is no request-body field for
+            # them, unlike the native DTO), then forwards byte-for-byte to LiteLLM's own
+            # Anthropic-compatible endpoint. Hence the "/llm" appended to MODEL_RAIL_URL below:
+            # the CLI appends "/v1/messages" itself, landing on that exact route.
+            unset CLAUDE_CODE_OAUTH_TOKEN
+            export ANTHROPIC_BASE_URL="$MODEL_RAIL_URL/llm"
+            export ANTHROPIC_AUTH_TOKEN="model-rail"
+            export ANTHROPIC_API_KEY=""
+            # This run's actual org/project/team scope, if the agent attached one (see
+            # gitops._write_rail_scope) -- overrides the static secrets above so policy/budget
+            # resolve against the real run instead of a per-deployment guess. Absent on branches
+            # from before this file existed, or when the agent had no scope to attach.
+            if [ -f .api-gen/rail-scope.env ]; then
+              set -a; . .api-gen/rail-scope.env; set +a
+            fi
+            export ANTHROPIC_CUSTOM_HEADERS="$(printf 'X-Rail-Run-Id: %s\nX-Rail-Repo: %s\nX-Rail-Agent: api-dev-agent\nX-Rail-Stage: api-gen\nX-Rail-Org-Id: %s\nX-Rail-Project-Id: %s\nX-Rail-Team-Id: %s\nX-Rail-Policy-Key: %s\nX-Rail-Purpose: %s' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "${MODEL_RAIL_ORG_ID:-}" "${MODEL_RAIL_PROJECT_ID:-}" "${MODEL_RAIL_TEAM_ID:-}" "${MODEL_RAIL_POLICY_KEY:-}" "${MODEL_RAIL_PURPOSE:-}")"
+            echo "routing claude through Model Rail ($MODEL_RAIL_URL)"
+          fi
+          # A human-readable name for the token at index $1 ("Arun"), or "token #N/M" when
+          # this index has no label -- used so the rotation warning below names WHICH
+          # account hit its usage limit instead of a bare index.
+          token_label() {
+            local i="$1" l=""
+            if [ "$i" -lt "${#TOKEN_LABELS[@]}" ]; then l="${TOKEN_LABELS[$i]}"; fi
+            if [ -n "$l" ]; then printf '%s' "$l"; else printf 'token #%d/%d' "$((i + 1))" "${#TOKENS[@]}"; fi
+          }
+          # Every account in the pool, by name, so the log shows up front what a rotation
+          # has to fall back on -- and a pool of one reads as exactly that.
+          pool_names() {
+            local i out=""
+            for i in "${!TOKENS[@]}"; do out="${out:+$out, }$(token_label "$i")"; done
+            printf '%s' "$out"
+          }
+          if [ "$OAUTH_ROTATE" = "true" ]; then
+            echo "claude authenticating with the run's Claude Code OAuth pool (${#TOKENS[@]}): $(pool_names)"
+          fi
+          mkdir -p .api-gen/outputs .api-gen/transcripts .api-gen/usage .api-gen/rotations
+          if [ ! -d .api-gen/tasks ]; then
+            echo "no .api-gen/tasks - nothing to do"; exit 0
+          fi
+          for task in .api-gen/tasks/*/; do
+            id="$(basename "$task")"
+            echo "::group::$id"
+            # --print takes the prompt as its own argument or on stdin.
+            prompt="Read ${task}TASK.md and follow it exactly, including the self-verification steps. The repo-root CLAUDE.md is authoritative on stack, architecture, layering and dependencies: where it and TASK.md disagree on HOW to build, CLAUDE.md wins; TASK.md governs WHAT to build. This repo also ships module-specific skills under .claude/skills/<module>/SKILL.md -- when a skill's description matches the module you are building, load it and follow its endpoint/DTO/table contract exactly; do not invent routes or fields it does not list. If TASK.md describes work with no basis in this repo's existing modules, do not refuse it: implement it best-effort as a new module per CLAUDE.md's module-addition section, and set status to PARTIAL with blockers explaining what you inferred vs confirmed against the contract. Write your result to .api-gen/outputs/${id}.json following .api-gen/OUTPUT_SCHEMA.json. Work autonomously until done."
+            session_id=""
+            # Every rotation this task goes through, so it can ride the existing usage-file
+            # pipe back to runner-api/runner-ui with no new network call -- see
+            # .api-gen/rotations/$id.json below and ClaudeCodeUsage.token_rotations.
+            rotations_json='[]'
+            # tries: how many OTHER tokens this task has already rotated to, so each token
+            # in the pool is tried at most once per task. transient_used: whether this
+            # token's one patient retry on a bare 429 is spent. pool_exhausted: every
+            # token was tried and every one hit a limit -- the annotation says so.
+            tries=0
+            transient_used=false
+            pool_exhausted=false
+            while :; do
+              if [ "$OAUTH_ROTATE" = "true" ]; then
+                export CLAUDE_CODE_OAUTH_TOKEN="${TOKENS[$token_idx]}"
+              fi
+              # After the first attempt, --resume the same Claude Code session instead of
+              # restarting the task cold: session state lives locally on this runner, keyed
+              # by session_id, not on whichever account authenticated it -- so resuming under
+              # a NEW token is safe, and skips re-reading TASK.md / re-exploring the repo.
+              if [ -n "$session_id" ]; then
+                run_prompt="Continue exactly where you left off and finish this task. Write your result to .api-gen/outputs/${id}.json following .api-gen/OUTPUT_SCHEMA.json."
+                resume_args=(--resume "$session_id")
+              else
+                run_prompt="$prompt"
+                resume_args=()
+              fi
+              # GitHub Actions runs `run:` steps as `bash -e {0}`; combined with `pipefail`, a
+              # failing claude would abort the script right here -- before `status=$?` below, the
+              # transcript write, or the ::error:: message ever run. Wrapping in `if` avoids that:
+              # commands in an `if` condition don't trigger `set -e` even when they fail.
+              if printf '%s' "$run_prompt" | claude                 --print "${resume_args[@]}"                 --model "claude-sonnet-5"                 --permission-mode acceptEdits                 --allowedTools "Read,Write,Edit,Glob,Grep,TodoWrite,Bash(ls:*),Bash(mkdir:*),Bash(kill:*),Bash(curl:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(uvicorn:*),Bash(alembic:*),Bash(ruff:*)"                 --add-dir "$task"                 --output-format json                 > ".api-gen/usage/$id.json" 2> "/tmp/$id.stderr.log"; then
+                status=0
+              else
+                status=$?
+              fi
+              session_id="$(jq -r '.session_id // empty' ".api-gen/usage/$id.json" 2>/dev/null || true)"
+              # --output-format json prints only the final result object (with Claude Code's own cost/token accounting); reconstitute the plain-text transcript....
+              { jq -r '.result // empty' ".api-gen/usage/$id.json" 2>/dev/null || true;                 cat "/tmp/$id.stderr.log"; } > ".api-gen/transcripts/$id.log"
+              # Detected STRUCTURALLY, as legacy-modern-builder-agent does: only an is_error
+              # result is read, so the agent's own prose mentioning a limit can never trigger
+              # a rotation. The wording covers every limit Claude Code names -- "You've hit
+              # your session limit / weekly limit / Opus limit / Sonnet limit / monthly spend
+              # limit" -- plus the older "usage limit reached" form. "Opus limit" and "Sonnet
+              # limit" used to be missing, so a run on those models died on the first
+              # account with the rest of the pool never tried.
+              is_limit=false
+              RESULT_MSG=""
+              if [ "$status" -ne 0 ] && [ "$OAUTH_ROTATE" = "true" ]; then
+                RESULT_MSG="$(jq -r 'select(.is_error == true) | .result // empty' ".api-gen/usage/$id.json" 2>/dev/null || true)"
+                api_status="$(jq -r '.api_error_status // empty' ".api-gen/usage/$id.json" 2>/dev/null || true)"
+                if printf '%s' "$RESULT_MSG"                      | grep -qiE 'hit your .*limit|usage limit|session limit|weekly limit|opus limit|sonnet limit|5-hour limit|limit reached|out of extra usage'; then
+                  is_limit=true
+                elif [ "$api_status" = "429" ]; then
+                  # A bare 429 with no limit wording is throttling, not an exhausted account.
+                  # Rotating on it would retire a working token for the rest of the job, so
+                  # it gets one patient retry on the SAME token and only then counts as
+                  # exhaustion.
+                  if [ "$transient_used" = "false" ]; then
+                    transient_used=true
+                    echo "::warning::$id got a transient 429 on $(token_label "$token_idx") - retrying the same token in ${CLAUDE_TRANSIENT_BACKOFF_S:-30}s"
+                    sleep "${CLAUDE_TRANSIENT_BACKOFF_S:-30}"
+                    continue
+                  fi
+                  is_limit=true
+                fi
+              fi
+              # A usage limit with another token this task has not tried yet: rotate and
+              # retry the SAME task, resumed, instead of falling through to the abort below.
+              # Cyclic from wherever the job currently is, so a later task that exhausts the
+              # last token still gets the first one back if its 5-hour window has reset.
+              # Every later task in this job starts directly on the new token_idx too.
+              if [ "$is_limit" = "true" ]; then
+                if [ "$((tries + 1))" -lt "${#TOKENS[@]}" ]; then
+                  from_idx=$token_idx
+                  from_label="$(token_label "$from_idx")"
+                  token_idx=$(( (token_idx + 1) % ${#TOKENS[@]} ))
+                  to_label="$(token_label "$token_idx")"
+                  tries=$((tries + 1))
+                  transient_used=false
+                  rotations_json="$(printf '%s' "$rotations_json" | jq -c                     --argjson from "$from_idx" --argjson to "$token_idx"                     --arg from_label "$from_label" --arg to_label "$to_label"                     --arg session "${session_id:-}" --arg msg "${RESULT_MSG:0:300}"                     '. + [{from_token_idx: $from, to_token_idx: $to, from_label: $from_label, to_label: $to_label, session_id: $session, limit_message: $msg}]')"
+                  echo "::warning::$from_label hit a usage limit on $id, rotating to $to_label, resuming session ${session_id:-<none>}"
+                  continue
+                fi
+                pool_exhausted=true
+              fi
+              break
+            done
+            if [ "$rotations_json" != "[]" ]; then
+              printf '%s' "$rotations_json" > ".api-gen/rotations/$id.json"
+            fi
+            if [ "$status" -ne 0 ]; then
+              # claude's real failure reason (session limit, auth error, refusal, ...) is
+              # usually in the JSON result's "result" field on STDOUT, not stderr -- a
+              # session-limit exit still prints valid --output-format json with is_error:true
+              # and nothing on stderr at all.
+              #
+              # Print the transcript written just above: it already merges that jq'd .result
+              # field WITH stderr, so it cannot miss either source, and it is byte-for-byte
+              # what the invoke API surfaces as error_message (gitops.transcript_error reads
+              # this same file out of the uploaded artifact). Deriving both from one file is
+              # the point -- the run page and the API response can never disagree about why a
+              # run failed. Falls back to the raw usage file only when the transcript came out
+              # empty because the JSON never parsed (e.g. process killed mid-write).
+              echo "--- claude error for $id ---"
+              if [ -s ".api-gen/transcripts/$id.log" ]; then
+                cat ".api-gen/transcripts/$id.log"
+              elif [ -s ".api-gen/usage/$id.json" ]; then
+                cat ".api-gen/usage/$id.json"
+              else
+                echo "(claude produced no output at all -- likely killed by the job timeout)"
+              fi
+              echo "-----------------------------"
+            fi
+            echo "::endgroup::"
+            if [ "$status" -ne 0 ]; then
+              # Same single source as the block above, flattened to one line: ::error:: renders
+              # on the run's summary page, where only the first line of an annotation shows.
+              RESULT_MSG="$(tr '\n' ' ' < ".api-gen/transcripts/$id.log" 2>/dev/null || true)"
+              # With more than one token, say that rotation DID happen and every account
+              # ran out -- otherwise the last account's limit message reads as if the first
+              # one simply stopped and the rest of the pool was never tried.
+              pool_note=""
+              if [ "$pool_exhausted" = "true" ] && [ "${#TOKENS[@]}" -gt 1 ]; then
+                pool_note=" (every token in the OAuth pool hit a usage limit: $(pool_names))"
+              fi
+              if [ -n "${RESULT_MSG// /}" ]; then
+                echo "::error::claude exited $status for $id$pool_note: ${RESULT_MSG:0:400}"
+              else
+                echo "::error::claude exited $status for $id$pool_note"
+              fi
+              exit "$status"
+            fi
+          done
+
+      - name: Validate outputs against OUTPUT_SCHEMA.json
+        run: |
+          python3 - <<'PY'
+          import json, sys, pathlib
+          out = pathlib.Path('.api-gen/outputs')
+          files = sorted(out.glob('*.json')) if out.exists() else []
+          if not files:
+              print('::error::agent produced no outputs'); sys.exit(1)
+          bad = 0
+          for f in files:
+              raw = f.read_text()
+              try:
+                  # strict=False tolerates RAW control characters (a literal newline/tab) inside string values.
+                  d = json.loads(raw, strict=False)
+              except Exception as e:
+                  print(f'::error::{f.name} is not valid JSON: {e}'); bad += 1; continue
+              missing = [k for k in ('status', 'summary', 'task_id', 'story_id', 'pr')
+                         if k not in d]
+              for k in missing:
+                  print(f'::error::{f.name} missing required key {k!r}'); bad += 1
+              if 'blockers' not in d:
+                  print(f'::error::{f.name} missing blockers (empty list is valid)'); bad += 1
+              if not missing:
+                  # Normalise: re-serialise with escaped control characters.
+                  canonical = json.dumps(d, indent=2, ensure_ascii=False) + chr(10)
+                  if canonical != raw:
+                      f.write_text(canonical)
+                      print(f'{f.name}: normalised to canonical JSON')
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Build and test the generated code
+        run: |
+          set -uo pipefail
+          python -m compileall app
+          pytest -q || true
+
+      - name: Commit generated code and outputs
+        run: |
+          git config user.name  "api-gen[bot]"
+          git config user.email "api-gen@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "feat(api-gen): generated API for ${GITHUB_REF_NAME}"
+            git push origin HEAD:"${GITHUB_REF_NAME}"
+          fi
+
+      - name: Upload agent transcripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-transcripts
+          path: .api-gen/transcripts/
+          if-no-files-found: ignore
+
+      - name: Open draft PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh pr view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "PR already open"
+          else
+            gh pr create \
+              --draft \
+              --base "${{ github.event.repository.default_branch }}" \
+              --head "${GITHUB_REF_NAME}" \
+              --title "feat(api-gen): ${GITHUB_REF_NAME}" \
+              --body "Generated by api-dev-agent. See .api-gen/outputs/ for per-task results and blockers." \
+              || echo "gh pr create failed — continuing"
+          fi

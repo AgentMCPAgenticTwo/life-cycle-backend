@@ -1,0 +1,114 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented all 6 clauses endpoints (GET/POST /api/v1/clauses, PUT/deactivate/reactivate/versions on /api/v1/clauses/{id}) on the Python/FastAPI/PostgreSQL stack CLAUDE.md specifies, following its router/service/repository layering. Added app/schemas/clause.py (ClauseResponse, ClauseListResponse, CreateClauseRequest, UpdateClauseRequest, VersionHistoryItemResponse, VersionHistoryResponse matching context.json field-for-field, camelCase), app/repositories/clauses.py (tenant-scoped queries and version snapshotting), app/services/clauses.py (blank-name validation with the exact 'Clause Name is required.' message, Draft->Active completeness logic, diff-based versioning that skips a new version when nothing changed, optimistic-concurrency conflict detection, and the Active<->Inactive lifecycle), and app/routers/clauses.py wired into app/main.py. Also extended app/auth.py with a `current_tenant_id` dependency: the header-auth stub only asserts a role and a user id, and every tenant-scoped resource needs the tenant that id belongs to, so this is the one place that `users` lookup happens. Fixed a real dependency-ordering bug along the way: declaring `db: Depends(get_db)` before the role-check dependency meant a request with no auth headers at all hit a DB error before the 401 check ever ran; reordered so role/tenant resolution happens first on every route. Added 17 new tests (tests/test_clauses.py) plus two new fixtures in tests/conftest.py (`db_session`, `db_client`) that back a real FastAPI TestClient with an in-memory SQLite database via StaticPool, exercising true persistence end-to-end rather than mocking the repository layer: happy-path create/update/deactivate/reactivate/versions, the full role matrix (401/403), blank-name rejection, invalid-enum rejection, tenant isolation, Contract-Owner's Active-only view, version-on-change-only, and the concurrent-save 409. `python -m compileall app` and `pytest -q` both pass (37/37, including the pre-existing 20). Verified live against uvicorn: all 6 routes appear in /openapi.json with the right methods, and 401/403 behave correctly end-to-end without a database. Could not verify the DB-backed 200/201/404/409 paths against a live server (see blockers) -- that behavior is instead proven by the TestClient suite, which exercises the identical FastAPI dependency graph and ORM models.",
+  "task_id": "T-CLAUSES-API",
+  "story_id": "UC3-AF-001",
+  "code_files": [
+    {
+      "file_path": "app/schemas/clause.py",
+      "file_name": "clause.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "ClauseResponse, ClauseListResponse, CreateClauseRequest, UpdateClauseRequest, VersionHistoryItemResponse, VersionHistoryResponse -- camelCase fields matching context.json exactly, plus the additive `expectedVersion` field on UpdateClauseRequest (see blockers)."
+    },
+    {
+      "file_path": "app/repositories/clauses.py",
+      "file_name": "clauses.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped queries for clauses/clause_versions (get_by_id, list_by_tenant, list_versions) and snapshot_version, which copies a clause's current field values into an immutable clause_versions row. No business rules -- data access only."
+    },
+    {
+      "file_path": "app/repositories/__init__.py",
+      "file_name": "__init__.py",
+      "language": "python",
+      "file_type": "other",
+      "description": "Package marker for app/repositories."
+    },
+    {
+      "file_path": "app/services/clauses.py",
+      "file_name": "clauses.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: blank-name/blank-text validation (UC3-AF-001/FV-002), Draft->Active completeness (UC3-BR-011), diff-based versioning that only creates a new clause_versions row when a tracked field actually changed (UC3-BR-014), optimistic-concurrency conflict check (UC3-AF-006), and the Active<->Inactive deactivate/reactivate transitions (UC3-BR-012/013)."
+    },
+    {
+      "file_path": "app/services/__init__.py",
+      "file_name": "__init__.py",
+      "language": "python",
+      "file_type": "other",
+      "description": "Package marker for app/services."
+    },
+    {
+      "file_path": "app/routers/clauses.py",
+      "file_name": "clauses.py",
+      "language": "python",
+      "file_type": "controller",
+      "description": "Thin HTTP binding for all 6 owned routes: GET/POST /api/v1/clauses, PUT/POST-deactivate/POST-reactivate/GET-versions on /api/v1/clauses/{id}, with per-endpoint role enforcement via require_roles(...) exactly as named in the endpoint table."
+    },
+    {
+      "file_path": "app/routers/__init__.py",
+      "file_name": "__init__.py",
+      "language": "python",
+      "file_type": "other",
+      "description": "Package marker for app/routers."
+    },
+    {
+      "file_path": "app/auth.py",
+      "file_name": "auth.py",
+      "language": "python",
+      "file_type": "middleware",
+      "description": "Modified: added `current_tenant_id`, a dependency that resolves the caller's tenant by looking X-User-Id up in `users` -- the only piece of shared auth infra every tenant-scoped resource needs that the foundation task had not yet added. Existing current_user/require_roles are unchanged."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Modified: registered app.routers.clauses.router under the /api/v1 prefix."
+    },
+    {
+      "file_path": "tests/conftest.py",
+      "file_name": "conftest.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Modified: added `db_session` (in-memory SQLite via StaticPool, standing in for the unreachable Postgres in this sandbox) and `db_client` (a TestClient with get_db overridden to that session) fixtures for resource tests that need real persistence."
+    },
+    {
+      "file_path": "tests/test_clauses.py",
+      "file_name": "test_clauses.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "17 tests covering the role matrix (401/403), create/update/deactivate/reactivate/versions happy paths, blank-name and invalid-enum rejection, tenant isolation, Contract-Owner's Active-only view, version-created-only-on-change, the concurrent-save 409, and 404 on an unknown id."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/429f84a3f422",
+    "title": "feat(uc123): clauses -- CRUD, lifecycle and version history endpoints",
+    "body": "Implements T-CLAUSES-API: GET/POST /api/v1/clauses, PUT/deactivate/reactivate/versions on /api/v1/clauses/{id}. Adds the clauses router/service/repository layers plus a `current_tenant_id` auth dependency the foundation task hadn't added yet. See blockers for judgement calls (an added `expectedVersion` field for optimistic concurrency, two acceptance criteria this module's endpoint contract cannot express, and a sandbox verification gap with no reachable Postgres).",
+    "draft": true,
+    "linked_story": "UC3-AF-001",
+    "linked_task": "T-CLAUSES-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/auth.py",
+      "app/main.py",
+      "app/schemas/clause.py",
+      "app/repositories/clauses.py",
+      "app/services/clauses.py",
+      "app/routers/clauses.py",
+      "tests/conftest.py",
+      "tests/test_clauses.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "Added one field beyond context.json's UpdateClauseRequest: `expectedVersion` (optional integer). UC3-AF-006 requires blocking a save that conflicts with another user's already-committed change, but neither the endpoint contract nor any DTO gives the client a way to say which version it started editing from, and ClauseResponse itself does not expose a version number (only GET /clauses/{id}/versions does, via versionNumber). I added `expectedVersion` as optional -- omitting it skips the conflict check entirely, so a caller unaware of the field still works -- and compare it against the clause's internal current_version column before applying an edit, returning 409 with the exact message UC3-AF-006 names when they differ.",
+    "UC3-AF-003 and UC3-BR-001 require blocking removal of a Mandatory clause 'from a contract built from a template' and disabling the 'Remove Clause' UI control in UC2's contract builder. This module's endpoint contract (and T-CLAUSES-API specifically) owns no endpoint for attaching/detaching a clause to/from a contract -- there is no such route in context.json's endpoints list, and per TASK.md's own guidance a missing endpoint must not be invented. Implemented what this task does own (the `mandatory` flag itself: settable on create/update, returned on every ClauseResponse so a consuming UI/module can enforce the UI-level restriction), but the actual contract-side removal block is unimplemented here and belongs to whichever module owns UC2's contract-builder endpoints.",
+    "UC3-BR-012 requires blocking Deactivate when a template or clause is attached to an active, unsigned contract. No table in context.json (nor the `contracts` table the foundation task already wrote, which links only to `template_id`) records a clause-to-template or clause-to-contract attachment -- clauses are referenced only as free text inside a template's rich-text body, never as a modeled relationship. There is no persisted state this task can query to implement that specific check, so deactivate_clause() transitions Active -> Inactive unconditionally (guarded only by 'must currently be Active', a 409 on any other state, which is an inferred guard not explicit in any acceptance criterion but prevents a no-op transition from being reported as success).",
+    "Tenant scoping: the header-auth stub (X-User-Role/X-User-Id) names no tenant directly, so I added `current_tenant_id` to app/auth.py, which resolves the tenant by looking the caller's X-User-Id up in `users`. This is additive (current_user/require_roles are unchanged) and will very likely be needed identically by every other tenant-scoped resource task (templates, contracts, counterparties); duplicating it per-task instead of sharing it here seemed like the wrong call, but flagging it in case another task's agent independently reinvents the same dependency under a different name.",
+    "Could not exercise the DB-backed response bodies (200/201/404/409) against a live uvicorn+curl session: this sandbox has no reachable Postgres (connection to localhost:5432 refused), and the in-sandbox alternative -- pointing DATABASE_URL at a SQLite file and letting `alembic upgrade head` run the foundation task's migrations -- fails on INSERT with `unknown function: now()`, because those migrations hard-code `server_default=sa.text(\"now()\")` (Postgres-only SQL text) rather than the dialect-aware `sa.func.now()` the ORM models themselves use. That migration file belongs to the foundation task, not this one, and is harmless in production (Postgres always has `now()`), so I did not touch it. Verified instead: (1) all 6 routes appear in /openapi.json with the right methods via a live uvicorn boot; (2) the 401/403 role-matrix live, end-to-end, with no database at all (those checks run before any DB dependency resolves); (3) every DB-backed behavior -- happy paths, 404, 409, field-by-field response shape -- through tests/test_clauses.py's 17 tests against a real FastAPI TestClient wired to an in-memory SQLite session through the identical `get_db`/`current_tenant_id` dependency chain production uses.",
+    "Status 'Draft' is modeled and handled (is_complete() check, BR-011's transition logic) but is practically unreachable through these endpoints: CreateClauseRequest/UpdateClauseRequest already require clauseName, clauseCategory, standardText, riskLevel and mandatory as non-nullable fields, so any request that clears Pydantic's own validation is already complete and lands as Active on create. This matches the letter of BR-011/FV-002 (a request missing a mandatory field is blocked, same outcome as 'remains in Draft') but means a persisted Draft row is not something this API can produce by itself."
+  ]
+}

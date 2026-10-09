@@ -1,0 +1,291 @@
+{
+  "status": "SUCCESS",
+  "summary": "Built the shared foundation layer for the uc123 module on the Python/FastAPI/PostgreSQL stack CLAUDE.md specifies (TASK.md's own verification steps referenced `dotnet`, which does not apply here -- CLAUDE.md wins on HOW per the task's own precedence rule). Added SQLAlchemy ORM entities for all 10 contract tables with mixins for the shared audit/soft-delete columns, one hand-written Alembic migration per required name in the exact required order (verified via alembic's offline --sql rendering: correct Postgres types, FKs and indexes end to end), migrations-at-startup wiring in app/main.py's lifespan hook, a centralized error layer (404/409/400/500 all resolving to the one {error, details} body), and paging primitives (PageParams/PagedResponse) for later `is_paged` endpoints. Also found and fixed a real bug in the pre-existing app/auth.py: both X-User-Role/X-User-Id APIKeyHeader dependencies lacked an explicit scheme_name, so FastAPI collapsed them into one OpenAPI security scheme and only one header was ever documented -- exactly the Swagger-UI failure CLAUDE.md calls out. Added 20 passing tests (health, auth 401/403/200, centralized error shapes, pagination, and ORM-metadata-vs-contract equivalence). `python -m compileall app` and `pytest -q` both pass; the health route was verified live against a running uvicorn instance. No business endpoints were added, per scope.",
+  "task_id": "T-00-FOUNDATION-API",
+  "story_id": "00-foundation",
+  "code_files": [
+    {
+      "file_path": "app/db.py",
+      "file_name": "db.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "SQLAlchemy engine/session wiring; Base is None-safe when DATABASE_URL is unset so importing models never requires a live database."
+    },
+    {
+      "file_path": "app/errors.py",
+      "file_name": "errors.py",
+      "language": "python",
+      "file_type": "middleware",
+      "description": "NotFoundError/ConflictError/ValidationFailedError -- shared HTTPException subclasses resource tasks raise to get 404/409/400 through the one error body."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "other",
+      "description": "Modified: added a lifespan hook that runs `alembic upgrade head` at startup (no-op without DATABASE_URL), a catch-all Exception handler for 500, and details passthrough on the shared error body."
+    },
+    {
+      "file_path": "app/auth.py",
+      "file_name": "auth.py",
+      "language": "python",
+      "file_type": "middleware",
+      "description": "Modified: gave each APIKeyHeader dependency an explicit, distinct scheme_name so X-User-Role and X-User-Id both appear in the OpenAPI security schemes instead of colliding on the same auto-generated name."
+    },
+    {
+      "file_path": "app/schemas/__init__.py",
+      "file_name": "__init__.py",
+      "language": "python",
+      "file_type": "other",
+      "description": "Package marker for app/schemas."
+    },
+    {
+      "file_path": "app/schemas/pagination.py",
+      "file_name": "pagination.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "PageParams (page/pageSize/search/sortBy/sortOrder query binding) and a generic PagedResponse for endpoints marked is_paged."
+    },
+    {
+      "file_path": "app/models/mixins.py",
+      "file_name": "mixins.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "TimestampMixin (created_at/created_by/updated_at/updated_by) and SoftDeleteMixin (deleted_at/deleted_by) shared by every entity."
+    },
+    {
+      "file_path": "app/models/tenant.py",
+      "file_name": "tenant.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "Tenant ORM entity for the `tenants` table."
+    },
+    {
+      "file_path": "app/models/user.py",
+      "file_name": "user.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "User ORM entity for the `users` table, with idx_users_tenant_role."
+    },
+    {
+      "file_path": "app/models/counterparty.py",
+      "file_name": "counterparty.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "Counterparty ORM entity for the `counterparties` table, with idx_counterparties_tenant_gst."
+    },
+    {
+      "file_path": "app/models/uploaded_file.py",
+      "file_name": "uploaded_file.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "UploadedFile ORM entity for the `uploaded_files` table."
+    },
+    {
+      "file_path": "app/models/template.py",
+      "file_name": "template.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "Template and TemplateVersion ORM entities for `templates` and `template_versions`."
+    },
+    {
+      "file_path": "app/models/clause.py",
+      "file_name": "clause.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "Clause and ClauseVersion ORM entities for `clauses` and `clause_versions`."
+    },
+    {
+      "file_path": "app/models/contract.py",
+      "file_name": "contract.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "Contract and ContractTask ORM entities for `contracts` and `contract_tasks`, with all three contract indexes."
+    },
+    {
+      "file_path": "app/models/__init__.py",
+      "file_name": "__init__.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "Imports every entity so Base.metadata is fully populated for Alembic and for tests."
+    },
+    {
+      "file_path": "alembic.ini",
+      "file_name": "alembic.ini",
+      "language": "ini",
+      "file_type": "config",
+      "description": "Alembic configuration; sqlalchemy.url is deliberately left unset here and wired in at runtime from DATABASE_URL."
+    },
+    {
+      "file_path": "alembic/env.py",
+      "file_name": "env.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Alembic environment: reads DATABASE_URL via app.config.settings, imports app.models so target_metadata is complete."
+    },
+    {
+      "file_path": "alembic/script.py.mako",
+      "file_name": "script.py.mako",
+      "language": "python",
+      "file_type": "config",
+      "description": "Alembic revision template."
+    },
+    {
+      "file_path": "alembic/versions/0001_create_tenants.py",
+      "file_name": "0001_create_tenants.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateTenants -- creates the `tenants` table."
+    },
+    {
+      "file_path": "alembic/versions/0002_create_users.py",
+      "file_name": "0002_create_users.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateUsers -- creates the `users` table with FK to tenants and idx_users_tenant_role."
+    },
+    {
+      "file_path": "alembic/versions/0003_create_counterparties.py",
+      "file_name": "0003_create_counterparties.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateCounterparties -- creates the `counterparties` table with FK to tenants and idx_counterparties_tenant_gst."
+    },
+    {
+      "file_path": "alembic/versions/0004_create_uploaded_files.py",
+      "file_name": "0004_create_uploaded_files.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateUploadedFiles -- creates the `uploaded_files` table with FK to tenants."
+    },
+    {
+      "file_path": "alembic/versions/0005_create_templates.py",
+      "file_name": "0005_create_templates.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateTemplates -- creates the `templates` table with FK to tenants and idx_templates_tenant_type_industry_status."
+    },
+    {
+      "file_path": "alembic/versions/0006_create_template_versions.py",
+      "file_name": "0006_create_template_versions.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateTemplateVersions -- creates the `template_versions` table with FKs to templates and users."
+    },
+    {
+      "file_path": "alembic/versions/0007_create_clauses.py",
+      "file_name": "0007_create_clauses.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateClauses -- creates the `clauses` table with FK to tenants and idx_clauses_tenant_status."
+    },
+    {
+      "file_path": "alembic/versions/0008_create_clause_versions.py",
+      "file_name": "0008_create_clause_versions.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateClauseVersions -- creates the `clause_versions` table with FKs to clauses and users."
+    },
+    {
+      "file_path": "alembic/versions/0009_create_contracts.py",
+      "file_name": "0009_create_contracts.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateContracts -- creates the `contracts` table with FKs to tenants/templates/uploaded_files/counterparties/users and its three indexes."
+    },
+    {
+      "file_path": "alembic/versions/0010_create_contract_tasks.py",
+      "file_name": "0010_create_contract_tasks.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateContractTasks -- creates the `contract_tasks` table with FKs to contracts/users and idx_contract_tasks_assignee_current."
+    },
+    {
+      "file_path": "tests/conftest.py",
+      "file_name": "conftest.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Shared TestClient fixture."
+    },
+    {
+      "file_path": "tests/test_health.py",
+      "file_name": "test_health.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Health route returns 200."
+    },
+    {
+      "file_path": "tests/test_auth.py",
+      "file_name": "test_auth.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "401 on missing role header, 403 on disallowed/unknown role, 200 on a permitted role; regression test that X-User-Role and X-User-Id are declared as distinct OpenAPI security schemes."
+    },
+    {
+      "file_path": "tests/test_errors.py",
+      "file_name": "test_errors.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "404/409/400/500 all resolve to the shared {error, details} body, including an unhandled exception and a framework RequestValidationError."
+    },
+    {
+      "file_path": "tests/test_pagination.py",
+      "file_name": "test_pagination.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "PageParams defaults, overrides, and sortOrder validation."
+    },
+    {
+      "file_path": "tests/test_persistence.py",
+      "file_name": "test_persistence.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Every context.json table/column/index is mirrored exactly by Base.metadata; the migration chain resolves to the exact required order; the full upgrade renders as valid offline SQL without a live database."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/429f84a3f422",
+    "title": "feat(uc123): foundation -- persistence layer, migrations, auth/error/paging infra",
+    "body": "Implements T-00-FOUNDATION-API: SQLAlchemy entities for all 10 uc123 tables, one Alembic migration per required name in the exact required order, migrations-applied-at-startup wiring, a centralized error-handling layer (404/409/400/500 -> one shared body), paging primitives for `is_paged` endpoints, and a fix to a real header-auth/OpenAPI bug in app/auth.py. No business endpoints implemented, per scope -- see blockers for judgement calls and the one verification gap (no reachable Postgres in this sandbox).",
+    "draft": true,
+    "linked_story": "00-foundation",
+    "linked_task": "T-00-FOUNDATION-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/db.py",
+      "app/errors.py",
+      "app/main.py",
+      "app/auth.py",
+      "app/schemas/pagination.py",
+      "app/models/mixins.py",
+      "app/models/tenant.py",
+      "app/models/user.py",
+      "app/models/counterparty.py",
+      "app/models/uploaded_file.py",
+      "app/models/template.py",
+      "app/models/clause.py",
+      "app/models/contract.py",
+      "alembic/env.py",
+      "alembic/versions/0001_create_tenants.py",
+      "alembic/versions/0002_create_users.py",
+      "alembic/versions/0003_create_counterparties.py",
+      "alembic/versions/0004_create_uploaded_files.py",
+      "alembic/versions/0005_create_templates.py",
+      "alembic/versions/0006_create_template_versions.py",
+      "alembic/versions/0007_create_clauses.py",
+      "alembic/versions/0008_create_clause_versions.py",
+      "alembic/versions/0009_create_contracts.py",
+      "alembic/versions/0010_create_contract_tasks.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "Could not verify 'migrations apply cleanly against a fresh database' against a live PostgreSQL instance: this sandbox has no reachable Postgres (connection to localhost:5432 refused) and Bash is restricted to ls/mkdir/kill/curl/python/python3/pip/pytest/uvicorn/alembic/ruff, so I could not start one (docker run, apt-get, pg_isready, service postgresql all require approval and were not available). Mitigated by: (1) running the full upgrade chain through alembic's offline `--sql` mode, which renders every CREATE TABLE/INDEX statement without a live connection -- manually reviewed and matches context.json's types, nullability, FKs and indexes exactly for all 10 tables; (2) an automated test (tests/test_persistence.py) asserting the ORM metadata matches context.json table-for-table, column-for-column, index-for-index, and that the migration chain resolves to the exact required order; (3) booting the actual app with uvicorn and confirming /health and the shared error body work live (DATABASE_URL unset, so migration startup is a documented no-op in that mode). A real Postgres run is still recommended before this is trusted in production.",
+    "TASK.md's own verification steps (`dotnet build Api.sln`, `dotnet test Api.sln`, `dotnet run --project src/Api`) assume a .NET stack. This repo's CLAUDE.md specifies Python/FastAPI/PostgreSQL, and the task instructions say CLAUDE.md wins on HOW. I substituted CLAUDE.md's own checks instead: `python -m compileall app` and `pytest -q` (20/20 passing), plus `uvicorn app.main:app --port 5199` for the live health-route check.",
+    "IDs are generated at the app layer (SQLAlchemy column default=uuid.uuid4 in app/models/mixins.py and each entity's `id` column) rather than via a Postgres server default such as gen_random_uuid(). Both are explicitly permitted by CLAUDE.md ('a database default ... or the app layer at insert time'); I chose the app layer so no pgcrypto/uuid-ossp extension needs to be enabled as a migration side effect. Any resource task that inserts rows via raw SQL bypassing the ORM must supply an id explicitly.",
+    "Found and fixed a pre-existing bug in app/auth.py (not introduced by this task but squarely inside the shared auth infrastructure this task owns): both the X-User-Role and X-User-Id APIKeyHeader() instances lacked an explicit `scheme_name`, so FastAPI's OpenAPI generation collapsed them to the same auto-derived component name ('APIKeyHeader') and only one header ended up declared in the generated docs -- the exact Swagger 'Authorize' failure CLAUDE.md calls out by name. Fixed by setting distinct `scheme_name` values and added tests/test_auth.py::test_openapi_declares_both_auth_headers_as_distinct_security_schemes as a regression guard.",
+    "Added app/errors.py (NotFoundError/ConflictError/ValidationFailedError) as the minimum shared exception vocabulary resource tasks need to hit 404/409/400 through the one error body -- context.json does not enumerate an exception hierarchy, so this was derived directly from CLAUDE.md's 'Status codes' and 'Errors use ONE shared body' sections, not invented business logic.",
+    "No business endpoints, services, or repositories were implemented -- out of scope per TASK.md ('You do NOT implement any business endpoint'). The only runtime route is the existing /health check; a handful of routes defined inline inside pytest test modules (tests/test_auth.py, tests/test_errors.py, tests/test_pagination.py) exist solely to exercise the shared auth/error/paging infrastructure end-to-end through TestClient and are never registered outside the test process."
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented all 6 templates endpoints (GET/POST /api/v1/templates, PUT/deactivate/reactivate/versions on /api/v1/templates/{id}) on the Python/FastAPI/PostgreSQL stack CLAUDE.md specifies, reusing the foundation task's Template/TemplateVersion models and the clauses/contracts tasks' auth/db/error infrastructure unchanged. Added app/schemas/template.py (TemplateResponse, TemplateListResponse, CreateTemplateRequest, UpdateTemplateRequest, VersionHistoryItemResponse, VersionHistoryResponse matching context.json field-for-field, camelCase), app/repositories/templates.py (tenant-scoped queries, version snapshotting, and an unexecuted-contract attachment check against the contracts table's template_id column), app/services/templates.py (blank-field validation with the exact 'Template Name is required.' message, an unsupported-document-format check with UC3-AF-005's exact message, Draft->Active completeness logic, diff-based versioning that skips a new version when nothing changed, optimistic-concurrency conflict detection, the Active<->Inactive lifecycle, and the deactivation-blocked-while-in-use guard), and app/routers/templates.py wired into app/main.py. Added 26 tests (tests/test_templates.py) against the existing db_session/db_client SQLite fixtures, exercising true persistence end-to-end: happy-path create/update/deactivate/reactivate/versions, the full role matrix (401/403), blank-name and unsupported-format rejection, tenant isolation, Contract-Owner's Active-only view, version-on-change-only, the concurrent-save 409, 404 on an unknown id, and the deactivation-blocked-by-attached-unexecuted-contract 409 (built against a real seeded Contract row, since unlike clauses this module's templates table is directly referenced by contracts.template_id). `python -m compileall app` and `pytest -q` both pass (132/132, including the pre-existing 106). Verified live against uvicorn: all 6 routes appear in /openapi.json with the right methods, and the 401/403 role-matrix behaves correctly end-to-end without a database. Could not verify the DB-backed 200/201/404/409 paths against a live server (see blockers, same sandbox gap already recorded by T-CLAUSES-API/T-CONTRACTS-API) -- that behavior is instead proven by the TestClient suite, which exercises the identical FastAPI dependency graph and ORM models.",
+  "task_id": "T-TEMPLATES-API",
+  "story_id": "UC2-AF-002",
+  "code_files": [
+    {
+      "file_path": "app/schemas/template.py",
+      "file_name": "template.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "TemplateResponse, TemplateListResponse, CreateTemplateRequest, UpdateTemplateRequest, VersionHistoryItemResponse, VersionHistoryResponse -- camelCase fields matching context.json exactly, plus the additive `expectedVersion` field on UpdateTemplateRequest (see blockers). documentFormat is typed `str` rather than a Literal so the service layer can surface UC3-AF-005's exact rejection message instead of a generic 400 (see blockers)."
+    },
+    {
+      "file_path": "app/repositories/templates.py",
+      "file_name": "templates.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped queries for templates/template_versions (get_by_id, list_by_tenant with optional status/contractType filters, list_versions), snapshot_version (copies a template's current field values into an immutable template_versions row), and has_unexecuted_contract (checks the contracts table's template_id/status columns for the deactivation guard). No business rules -- data access only."
+    },
+    {
+      "file_path": "app/services/templates.py",
+      "file_name": "templates.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: blank-field validation (UC3-AF-001/FV-001) with the exact 'Template Name is required.' message, unsupported-document-format rejection (UC3-AF-005) with its exact message, Draft->Active completeness (UC3-BR-011), diff-based versioning that only creates a new template_versions row when a tracked field actually changed (UC3-BR-014), optimistic-concurrency conflict check (UC3-AF-006), the Active<->Inactive deactivate/reactivate transitions (UC3-BR-013), and the deactivation-blocked-while-attached-to-an-unexecuted-contract guard (UC3-AF-004/UC3-BR-003/UC3-BR-012)."
+    },
+    {
+      "file_path": "app/routers/templates.py",
+      "file_name": "templates.py",
+      "language": "python",
+      "file_type": "controller",
+      "description": "Thin HTTP binding for all 6 owned routes: GET/POST /api/v1/templates, PUT/POST-deactivate/POST-reactivate/GET-versions on /api/v1/templates/{id}, with per-endpoint role enforcement via require_roles(...) exactly as named in the endpoint table, plus additive `status`/`contractType` query filters on the list endpoint (see blockers)."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Modified: registered app.routers.templates.router under the /api/v1 prefix."
+    },
+    {
+      "file_path": "tests/test_templates.py",
+      "file_name": "test_templates.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "26 tests covering the role matrix (401/403), create/update/deactivate/reactivate/versions happy paths, blank-name and unsupported-document-format rejection, tenant isolation, Contract-Owner's Active-only view, version-created-only-on-change, the concurrent-save 409, 404 on an unknown id, and the deactivation-blocked-by-attached-unexecuted-contract 409."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/429f84a3f422",
+    "title": "feat(uc123): templates -- CRUD, lifecycle and version history endpoints",
+    "body": "Implements T-TEMPLATES-API: GET/POST /api/v1/templates, PUT/deactivate/reactivate/versions on /api/v1/templates/{id}. Adds the templates router/service/repository layers reusing the foundation task's models and the clauses/contracts tasks' auth/db/error infrastructure unchanged. Unlike clauses, the deactivation-blocked-while-in-use guard (UC3-AF-004/BR-003/BR-012) is fully implemented here because contracts.template_id gives this task a real, queryable attachment relationship. See blockers for judgement calls: an added `expectedVersion` field for optimistic concurrency, a documented Industry-filtering gap in GET /templates, an unimplementable merge-field-provenance rule, and a sandbox verification gap with no reachable Postgres.",
+    "draft": true,
+    "linked_story": "UC2-AF-002",
+    "linked_task": "T-TEMPLATES-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/main.py",
+      "app/schemas/template.py",
+      "app/repositories/templates.py",
+      "app/services/templates.py",
+      "app/routers/templates.py",
+      "tests/test_templates.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "Added one field beyond context.json's UpdateTemplateRequest: `expectedVersion` (optional integer). UC3-AF-006 requires blocking a save that conflicts with another user's already-committed change, but neither the endpoint contract nor any DTO gives the client a way to say which version it started editing from, and TemplateResponse itself does not expose a version number (only GET /templates/{id}/versions does, via versionNumber). I added `expectedVersion` as optional -- omitting it skips the conflict check entirely, so a caller unaware of the field still works -- and compare it against the template's internal current_version column before applying an edit, returning 409 with the exact message UC3-AF-006 names when they differ. This mirrors the identical judgement call already made and recorded by T-CLAUSES-API.",
+    "UC2-BR-001/UC2-BR-002 and this endpoint's own summary ('filtered by Contract Type, Industry and/or Status') require the Template dropdown to filter by Contract Type AND Industry. The `templates` table this task owns (per context.json, written by the foundation task and not alterable here) has no `industry` column -- only `template_category`, `document_format` and `status`. GET /templates also has no documented query parameters in context.json. I added additive, undocumented query params `status` and `contractType` (mirroring T-CONTRACTS-API's precedent of additive list filters), filtering `contractType` against `template_category` as the closest available column, and left true Industry filtering unimplemented since no table in this task's contract can hold it. CONTRACT_OWNER requests are still forced to Active-only regardless of the `status` param, per UC3-BR-009.",
+    "UC3-BR-006 (merge fields must come only from a predefined list; manually typed '{Custom Field}' text must not be treated as live) describes document-generation-time behavior, not anything this task's DTOs or tables record: templateBody is stored as a single opaque text blob with no metadata distinguishing an inserted merge field from free-typed curly-brace text, and no endpoint in this task's contract exposes a merge-field list or a generate/render action. Implemented what this task does own (templateBody is stored and returned verbatim); the actual merge/no-merge decision at document-generation time belongs to whichever future module owns contract document generation.",
+    "Could not exercise the DB-backed response bodies (200/201/404/409) against a live uvicorn+curl session: this sandbox has no reachable Postgres (DATABASE_URL unset, so get_db() raises rather than connecting), matching the identical gap T-CLAUSES-API and T-CONTRACTS-API already recorded. Verified instead: (1) all 6 routes appear in /openapi.json with the right methods via a live uvicorn boot; (2) the 401/403 role-matrix live, end-to-end, with no database at all (those checks run before any DB dependency resolves); (3) every DB-backed behavior -- happy paths, 404, 409, field-by-field response shape -- through tests/test_templates.py's 26 tests against a real FastAPI TestClient wired to an in-memory SQLite session through the identical get_db/current_tenant_id dependency chain production uses.",
+    "Status 'Draft' is modeled and handled (is_complete() check, BR-011's transition logic) but is practically unreachable through these endpoints: CreateTemplateRequest/UpdateTemplateRequest already require templateName, templateCategory, documentFormat and templateBody as non-nullable fields, and the service layer's own blank-field validation blocks any request missing one of them before it is persisted. This matches the letter of BR-011/FV-001 (a request missing a mandatory field is blocked, same outcome as 'remains in Draft') but means a persisted Draft row is not something this API can produce by itself -- the identical situation already recorded by T-CLAUSES-API for clauses."
+  ]
+}

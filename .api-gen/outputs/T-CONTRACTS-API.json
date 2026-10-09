@@ -1,0 +1,88 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented all 3 contracts endpoints this task owns (GET /api/v1/contracts (paged), GET /api/v1/contracts/{id}, POST /api/v1/contracts) on the Python/FastAPI/PostgreSQL stack CLAUDE.md specifies, reusing the foundation task's `contracts`/`contract_tasks` ORM models and the clauses task's router/service/repository layering and auth/db/error infrastructure unchanged. Added app/schemas/contract.py (ContractListItemResponse, ContractListResponse, ContractResponse, CreateContractRequest matching context.json field-for-field, camelCase, exact nullability), app/repositories/contracts.py (tenant-scoped list/get plus read-only lookups into users/counterparties/templates/uploaded_files that a contract references), app/services/contracts.py (the full Create validation chain -- mandatory fields, counterparty resolution/creation, Contract Owner role validation, Template/Third-Party-Paper mutual exclusivity and Active-template check, End/Start and Due/Assigned date ordering, Renewal-Type-conditional Notice Period -- plus the UC1-AF-006 permitted-access check on contract detail), and app/routers/contracts.py wired into app/main.py. Added one new shared error class, `ForbiddenError` (app/errors.py), for the 403 'You do not have access to this contract' case, which is distinct from require_roles' coarse role-list check. Added 31 new tests (tests/test_contracts.py) against the existing db_client/db_session fixtures: the role matrix (401/403), tenant isolation, list filtering and paging, the full Create validation chain (one test per acceptance criterion named in TASK.md), and the detail permitted-access matrix (Tenant Admin/Contract Owner/Approver, assigned vs. unassigned). `python -m compileall app` and `pytest -q` both pass (68/68, including the pre-existing 37). Verified live against uvicorn: both GET routes and the POST route appear in /openapi.json with the right methods and request/response schemas, and 401/403 behave correctly end-to-end without a database (role/tenant resolution happens before any DB dependency runs). Could not verify the DB-backed 200/201/403/404 paths against a live server (no reachable Postgres in this sandbox, same gap T-CLAUSES-API already documented) -- that behavior is instead proven by the 31-test TestClient suite, which exercises the identical FastAPI dependency graph and ORM models.",
+  "task_id": "T-CONTRACTS-API",
+  "story_id": "UC1-AF-006",
+  "code_files": [
+    {
+      "file_path": "app/schemas/contract.py",
+      "file_name": "contract.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "ContractListItemResponse, ContractListResponse, ContractResponse, CreateContractRequest -- camelCase fields matching context.json exactly, including nullability (CreateContractRequest keeps contractType/industry/contractOwnerId/contractValue/currency/startDate/endDate/renewalType/dueDate required and everything context.json marks nullable:true optional)."
+    },
+    {
+      "file_path": "app/repositories/contracts.py",
+      "file_name": "contracts.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped queries for `contracts` (get_by_id, list_by_tenant with status/type/department/counterparty/owner/date-range filters, search and sort), insert_contract, and read-only lookups into users/counterparties/templates/uploaded_files/contract_tasks that a contract's fields reference. No business rules -- data access only."
+    },
+    {
+      "file_path": "app/services/contracts.py",
+      "file_name": "contracts.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: tenant-scoped list assembly, the UC1-AF-006 permitted-access check on contract detail (Tenant Admin always; Contract Owner only for contracts they own; Legal Reviewer/Approver/Signer only while a contract_tasks row currently assigns them the pending step), and the full Create validation chain -- mandatory fields (UC2-AF-001/FV-001), counterparty resolution or inline creation with email-format validation (UC2-BR-011/FV-002), Contract Owner role validation (UC2-BR-003/012), Template/Third-Party-Paper mutual exclusivity and Active-template check (UC2-BR-008, UC2-AF-002), End/Start and Due/Assigned date ordering with the stories' exact error messages (UC2-AF-003/004, UC2-BR-005/006/007), Renewal-Type-conditional Notice Period (UC2-BR-004), and the Draft-only status on save (UC2-BR-010/014/015)."
+    },
+    {
+      "file_path": "app/routers/contracts.py",
+      "file_name": "contracts.py",
+      "language": "python",
+      "file_type": "controller",
+      "description": "Thin HTTP binding for all 3 owned routes: GET/POST /api/v1/contracts, GET /api/v1/contracts/{id}, with per-endpoint role enforcement via require_roles(...) exactly as named in the endpoint table, and GET list's status/contractType/department/counterpartyId/ownerId/startDate/endDate filter query params (see blockers)."
+    },
+    {
+      "file_path": "app/errors.py",
+      "file_name": "errors.py",
+      "language": "python",
+      "file_type": "middleware",
+      "description": "Modified: added `ForbiddenError` (403), for UC1-AF-006's 'no permitted actions on this contract' case -- distinct from require_roles' coarse endpoint-level role check. NotFoundError/ConflictError/ValidationFailedError are unchanged."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Modified: registered app.routers.contracts.router under the /api/v1 prefix."
+    },
+    {
+      "file_path": "tests/test_contracts.py",
+      "file_name": "test_contracts.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "31 tests covering the role matrix (401/403), malformed-id 400, Create's full validation chain (mandatory fields, counterparty resolution/creation and email format, template/third-party-paper mutual exclusivity and Active check, Contract Owner role validation, End/Start and Due/Assigned date ordering, Notice Period's conditional requirement), list tenant-isolation/filtering/paging, and the detail permitted-access matrix (Tenant Admin, Contract Owner own/not-own, Approver assigned/unassigned, 404 on unknown id)."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/429f84a3f422",
+    "title": "feat(uc123): contracts -- repository list, detail and creation endpoints",
+    "body": "Implements T-CONTRACTS-API: GET /api/v1/contracts (paged), GET /api/v1/contracts/{id}, POST /api/v1/contracts. Adds the contracts router/service/repository layers reusing the foundation task's contracts/contract_tasks models and the clauses task's auth/db/error infrastructure unchanged, plus one new shared error class (ForbiddenError, 403) for UC1-AF-006's permitted-access check. See blockers for judgement calls: an inferred detail-access permission matrix, a derived contractName field, two acceptance-criteria messages not literally reproducible without breaking DTO/shared-error-body fidelity, additive list filter query params, a template contractType/industry matching gap outside this task's tables, and a sandbox verification gap with no reachable Postgres.",
+    "draft": true,
+    "linked_story": "UC1-AF-006",
+    "linked_task": "T-CONTRACTS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/errors.py",
+      "app/main.py",
+      "app/schemas/contract.py",
+      "app/repositories/contracts.py",
+      "app/services/contracts.py",
+      "app/routers/contracts.py",
+      "tests/test_contracts.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "Added one field beyond context.json's DTOs: `contract_name` is required (nullable:false) on ContractResponse/ContractListItemResponse, but no story or DTO field in CreateContractRequest ever lets the caller set a contract name -- the UC2 stories' full mandatory-field lists never mention 'Contract Name'. I derive it server-side as `f\"{contractType} - {counterpartyCompany}\"` at create time (the two values always known by then) and persist it as-is. No story names a specific naming convention, so this is a judgement call.",
+    "UC2-AF-001 names the exact message 'Please fill all mandatory fields' for any blank mandatory field. CreateContractRequest's contractType/industry/contractOwnerId/contractValue/currency/startDate/endDate/renewalType/dueDate are all nullable:false in context.json, so I kept them as truly required Pydantic fields to preserve request-shape fidelity; a missing one of these is caught by FastAPI's own validation and surfaces via the shared global handler as `{\"error\": \"validation failed\", \"details\": [...]}` (400, per-field detail) rather than the story's literal copy. I did reproduce the exact message for the fields context.json already marks nullable:true but that become conditionally mandatory by business rule -- counterpartyName/Email/Company when no counterpartyId is given, and noticePeriod when renewalType is Auto or Manual -- since those are legitimately optional at the DTO level and the business-rule validation layer (ValidationFailedError) is the right place for story-specific copy, per CLAUDE.md's own distinction between request-shape errors and business-rule validation.",
+    "UC2-AF-007 names the exact message 'You do not have permission to create a contract' for a disallowed-role POST attempt. I did not reproduce it: CLAUDE.md requires errors to come from a single shared error-handling layer and never be hand-rolled per endpoint, and `require_roles` (shared auth infrastructure every resource in this module uses) already returns a generic, consistent 403 body ('role X is not permitted for this endpoint'). Overriding it just for this endpoint would reintroduce per-endpoint error bodies project-wide convention explicitly avoids. The status code (403) and the actual behavior (blocked, no contract record created) match the story; only the message text differs.",
+    "UC1-AF-006 requires blocking contract detail access when 'the logged-in user's role has no permitted actions' on that contract, naming only one concrete example (an Approver not assigned to the contract). No story or DTO spells out the full permission matrix, so I inferred one consistent with the `contract_tasks` table's own purpose (tracking the current pending reviewer/approver/signer): Tenant Admin always permitted; Contract Owner permitted only for contracts they own (contract_owner_id == caller); Legal Reviewer/Approver/Signer permitted only while a contract_tasks row currently assigns them that contract's pending step (is_current=true). The repository list endpoint itself is NOT restricted this way -- UC1-AF-006 and its sibling dashboard stories only ever describe the restriction on opening detail, never on the list/card counts, so GET /api/v1/contracts remains tenant-scoped only for every allowed role.",
+    "Contract Owner validation (UC2-BR-003/012): I require `contractOwnerId` to resolve to a user in the same tenant whose `role` is exactly CONTRACT_OWNER. UC2-BR-012 says a Tenant Admin can reassign the Contract Owner field 'to any user within the current tenant, not just myself', which read literally could mean any role at all; I read it as 'any *eligible* (Contract-Owner-role) user, not just myself' instead, consistent with BR-003's dropdown restriction ('only users holding the Contract Owner role... are listed'). A looser reading would let a contract be 'owned' by e.g. a Signer, which no story anywhere describes.",
+    "POST /api/v1/contracts creates a new `counterparties` row inline when no `counterpartyId` is given (CreateContractRequest's own counterpartyName/Email/Company/Address/GstTaxId fields require this per UC2-BR-011/UC2-FV-002) -- `counterparties` is not in TASK.md's 'tables you may read' list (only `contracts`/`contract_tasks` are), but the table already exists (created by the foundation task) and the request DTO I own explicitly carries these fields, so writing to it is this endpoint's own behavior, not a reuse of another task's endpoint. I do not apply GST/Tax-ID duplicate blocking here: UC2-FV-002 says this flow should only 'flag' a duplicate (not block), and neither CreateContractRequest nor ContractResponse has a field to carry such a flag back to the caller -- that stronger blocking behavior belongs to the dedicated `POST /api/v1/counterparties` endpoint (a different task, T-COUNTERPARTIES-API), which the module contract says blocks duplicates outright.",
+    "GET /api/v1/contracts' filter query params (`status`, `contractType`, `department`, `counterpartyId`, `ownerId`, `startDate`, `endDate`) are an addition: context.json's endpoint entry says the list is 'filterable by status, Contract Type, Department, Counterparty, Owner and Date Range' in its summary but defines no explicit query-parameter names/types. I named them to mirror the matching response/request DTO fields; `startDate`/`endDate` filter on the contract's own start_date >=/end_date <= bounds (an assumption -- the stories describe a 'Date Range Filter' without specifying which contract date field(s) it bounds). Dates are accepted as ISO 8601 (YYYY-MM-DD) on the wire; the stories' DD/MM/YYYY format is a frontend display/input concern, not a wire-format one, consistent with every other `date` field in this contract.",
+    "UC2-AF-002 requires detecting 'no active templates exist for this Contract Type/Industry combination'. The `templates` table (owned by a different task, T-TEMPLATES-API) has no contract_type/industry columns in context.json -- only `template_category` -- so there is no persisted relationship this task can query to match a template against the selected contractType+industry. POST /api/v1/contracts instead validates only that a given `templateId` resolves to an existing, Active template in the caller's tenant (reusing UC2-AF-002's exact message text for that narrower check), and records this gap rather than inventing a contract_type/industry column on a table this task does not own.",
+    "Sandbox has no reachable Postgres (connection to localhost:5432 refused), the same gap T-CLAUSES-API already documented. Verified instead: (1) all 3 routes appear in /openapi.json with the right methods and request/response schemas via a live uvicorn boot; (2) the 401/403 role-matrix live, end-to-end, with no database at all (role/tenant resolution runs before any DB dependency resolves); (3) every DB-backed behavior -- list tenant-isolation/filtering/paging, detail's permitted-access matrix, and every Create validation branch -- through tests/test_contracts.py's 31 tests against a real FastAPI TestClient wired to an in-memory SQLite session through the identical get_db/current_tenant_id dependency chain production uses."
+  ]
+}
