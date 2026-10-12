@@ -17,13 +17,18 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
 from app.routers import (
+    approval_matrix,
+    approvals,
     clauses,
     contracts,
     contracts_third_party_paper,
     counterparties,
+    esignature_settings,
     lifecycle_clauses,
     lifecycle_negotiation,
     lookups,
+    signers,
+    signing_sessions,
     templates,
 )
 
@@ -92,12 +97,17 @@ def health() -> dict[str, str]:
 
 
 # Feature routers are included here as modules are implemented.
+app.include_router(approval_matrix.router, prefix="/api/v1")
+app.include_router(approvals.router, prefix="/api/v1")
 app.include_router(clauses.router, prefix="/api/v1")
 app.include_router(contracts.router, prefix="/api/v1")
 app.include_router(contracts_third_party_paper.router, prefix="/api/v1")
 app.include_router(counterparties.router, prefix="/api/v1")
+app.include_router(esignature_settings.router, prefix="/api/v1")
 app.include_router(lifecycle_clauses.router, prefix="/api/v1")
 app.include_router(lifecycle_negotiation.router, prefix="/api/v1")
 app.include_router(lifecycle_negotiation.external_router, prefix="/api/v1")
 app.include_router(lookups.router, prefix="/api/v1")
+app.include_router(signers.router, prefix="/api/v1")
+app.include_router(signing_sessions.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")

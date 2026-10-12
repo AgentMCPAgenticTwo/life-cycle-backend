@@ -23,7 +23,25 @@ ContractType = Literal[
 Industry = Literal["Product", "Service"]
 Currency = Literal["USD", "EUR", "GBP", "INR"]
 RenewalType = Literal["Auto", "Manual", "None"]
-ContractStatus = Literal["Draft", "In Negotiation", "Pending Approval", "Pending Signature", "Executed"]
+# "Rejected" and "Ready For Signature" were added here (additively, nothing removed or
+# renamed) by T-APPROVALS-API: the approvals workflow (UC6) needs to persist these two
+# terminal/near-terminal contract states to the same `contracts.status` column the uc123
+# module already reads/writes, and that module's `ContractResponse.status` is validated
+# against this Literal -- an unlisted value would 500 on every contract GET. See this
+# task's `blockers` for the full contradiction this resolves.
+# "Sent" was added here (additively) by T-CONTRACTS-API (UC7 e-signature): Send for Signature
+# persists this status to the same shared `contracts.status` column. See this task's
+# `blockers`.
+ContractStatus = Literal[
+    "Draft",
+    "In Negotiation",
+    "Pending Approval",
+    "Pending Signature",
+    "Executed",
+    "Rejected",
+    "Ready For Signature",
+    "Sent",
+]
 
 
 class ContractListItemResponse(BaseModel):

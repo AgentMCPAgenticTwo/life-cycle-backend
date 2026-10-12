@@ -1,0 +1,76 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented GET/PUT /api/v1/approval-matrix-config (TENANT_ADMIN only) on top of the foundation task's approval_matrix_configs/approval_matrix_steps models: app/schemas/approval_matrix.py (ApprovalMatrixStepConfig, ApprovalMatrixConfigResponse, ApprovalMatrixConfigListResponse, UpdateApprovalMatrixConfigRequest), app/repositories/approval_matrix.py, app/services/approval_matrix.py (validation + full-replace save), app/routers/approval_matrix.py, wired into app/main.py. GET returns the tenant's configured rules (contract type, value range, risk band, ordered steps); PUT validates the submitted rule set (blank Contract Type, inverted value/risk-band ranges, an empty step list, a step missing both approverRole and approverUserId, duplicate step numbers within a rule, and an approverUserId that is not a user of the caller's tenant) and then replaces the tenant's entire rule set in one transaction, returning the new state. Added tests/test_approval_matrix.py covering the role matrix (401/403), the GET/PUT happy path and round-trip, full-replace semantics, and every validation rule above. No live Postgres is reachable in this sandbox, so behavioral verification used the same approach as the foundation task: pytest against the sqlite-backed db_session/db_client fixtures (186 passed, including this task's 12 new tests) plus an in-process FastAPI TestClient session exercising the real routes end-to-end (401 missing-header, 403 wrong-role, 200 GET empty list, 200 PUT happy path, 400 validation failure, 200 GET-after-PUT round trip) and `app.openapi()` confirming both GET and PUT appear under the exact path with the UserRoleHeader/UserIdHeader security schemes declared. `python -m compileall app` also passed.",
+  "task_id": "T-APPROVAL-MATRIX-CONFIG-API",
+  "story_id": "UC6-BR-002",
+  "code_files": [
+    {
+      "file_path": "app/schemas/approval_matrix.py",
+      "file_name": "approval_matrix.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "Pydantic request/response models for ApprovalMatrixStepConfig, ApprovalMatrixConfigResponse, ApprovalMatrixConfigListResponse and UpdateApprovalMatrixConfigRequest, camelCase on the wire."
+    },
+    {
+      "file_path": "app/repositories/approval_matrix.py",
+      "file_name": "approval_matrix.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Data access for approval_matrix_configs/approval_matrix_steps: list by tenant, list steps for a set of configs, delete-all-for-tenant, insert config/step."
+    },
+    {
+      "file_path": "app/services/approval_matrix.py",
+      "file_name": "approval_matrix.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: payload validation (blank contract type, inverted ranges, empty/duplicate/under-specified steps, cross-tenant approver user) and the full-replace save transaction behind PUT."
+    },
+    {
+      "file_path": "app/routers/approval_matrix.py",
+      "file_name": "approval_matrix.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin APIRouter for GET/PUT /api/v1/approval-matrix-config, enforcing TENANT_ADMIN via require_roles and resolving tenant_id via current_tenant_id."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new approval_matrix router alongside the existing feature routers."
+    },
+    {
+      "file_path": "tests/test_approval_matrix.py",
+      "file_name": "test_approval_matrix.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Role-matrix, happy-path round-trip, full-replace semantics, and every validation-rule test for this resource."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/cd5a5d1423ba",
+    "title": "Implement approval-matrix-config endpoints (UC6-BR-002, UC6-BR-016)",
+    "body": "Adds GET/PUT /api/v1/approval-matrix-config for TENANT_ADMIN: schemas, repository, service (validation + full-replace save) and router, plus tests covering the role matrix and every acceptance-criterion validation rule. Builds on the approval_matrix_configs/approval_matrix_steps models and migrations already added by the foundation task.",
+    "draft": true,
+    "linked_story": "UC6-BR-002",
+    "linked_task": "T-APPROVAL-MATRIX-CONFIG-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/approval_matrix.py",
+      "app/repositories/approval_matrix.py",
+      "app/services/approval_matrix.py",
+      "app/routers/approval_matrix.py",
+      "app/main.py",
+      "tests/test_approval_matrix.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "context.json's UpdateApprovalMatrixConfigRequest.items reuses the ApprovalMatrixConfigResponse DTO, whose `id` field is non-nullable -- but CLAUDE.md forbids accepting a client-supplied id on create. Resolved by adding a distinct ApprovalMatrixConfigItemRequest with `id` made optional: present it is treated as matching an existing rule (informational only, since the PUT fully replaces the set anyway), omitted a new server-generated id is assigned. This added-field deviation is recorded here per TASK.md's 'a missing field' guidance.",
+    "Neither context.json nor the UC6-BR-002/UC6-BR-016 acceptance criteria specify merge-vs-replace semantics for PUT /api/v1/approval-matrix-config. Implemented as a full replace (the tenant's entire rule set is deleted and re-inserted from the submitted `items` in one transaction) to match the Settings-screen 'save the whole matrix' framing in the stories ('I can define rules...for routing contracts'). A partial-merge alternative (update/insert only the contractType rules present in the payload, leave others untouched) was not chosen because the contract gives no way to express deletion of a rule otherwise.",
+    "Added business-rule validation beyond the literal DTO shape, derived from the acceptance criteria rather than invented: Contract Type required/non-blank; valueMin <= valueMax and riskBandMin <= riskBandMax when both given; at least one step per rule; each step requires a non-blank stepName and either approverRole or approverUserId; step numbers unique within a rule; an approverUserId must resolve to a non-deleted user in the caller's own tenant (supports UC6-BR-002's 'Delegate To / assignments respect the roles/users defined in the tenant-configured approval matrix rules').",
+    "TASK.md's verification steps reference `dotnet build`/`dotnet test`/`dotnet run`, which contradict this repo's actual Python/FastAPI stack per CLAUDE.md and the existing codebase -- ran `python -m compileall app`, `pytest -q`, and an in-process FastAPI boot instead, per CLAUDE.md's authority on HOW to build.",
+    "No live Postgres instance is reachable in this sandbox (filesystem access is restricted to the repo working directory and host network inspection commands require approval this autonomous run cannot grant itself), so the curl-against-a-booted-server step in TASK.md's verification list was instead performed via an in-process FastAPI TestClient against the real app with a sqlite-backed session (same substitution already in place in tests/conftest.py and used by the foundation task's prior output)."
+  ]
+}

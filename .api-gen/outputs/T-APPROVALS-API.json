@@ -1,0 +1,84 @@
+{
+  "status": "PARTIAL",
+  "summary": "Implemented all 5 `/api/v1/approvals` endpoints (list, detail, actions, delegate, history) per context.json: role enforcement, sequential-step gating, mandatory-comments-on-Reject/SendBack, Contract Owner self-approval block, time-bound delegation with eligibility checks, auto-advance/auto-ready-for-signature, immutable 7-year-retention audit log, and tenant/role-scoped visibility. 27 new tests cover the role matrix, every status code (200/400/401/403/404/409), and the BR/AF criteria named in TASK.md. Full suite (213 tests) and compileall pass. Live uvicorn+curl verification could not be run in this sandbox (sudo/background-process commands were denied); verified instead via pytest's FastAPI TestClient against a real database plus an OpenAPI-spec check confirming all 5 owned routes and both auth security schemes are registered correctly.",
+  "task_id": "T-APPROVALS-API",
+  "story_id": "UC6-AF-001",
+  "code_files": [
+    {
+      "file_path": "app/schemas/approval.py",
+      "file_name": "approval.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "ApprovalResponse, ApprovalListItemResponse, ApprovalListResponse, ApprovalActionRequest/Response, DelegateRequest/Response, ApprovalHistoryEntryResponse/ListResponse -- camelCase, matching context.json exactly."
+    },
+    {
+      "file_path": "app/repositories/approvals.py",
+      "file_name": "approvals.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped data access for approvals joined to contracts, current-step instance lookup, active-delegation lookup, audit-log insert/list, history paging."
+    },
+    {
+      "file_path": "app/services/approvals.py",
+      "file_name": "approvals.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: visibility per role, eligibility/action-flag computation, Approve/Reject/SendBack transitions with sequence + mandatory-comments + ownership enforcement, delegation eligibility, immutable audit-log writes with 7-year retention, contract-status mapping."
+    },
+    {
+      "file_path": "app/routers/approvals.py",
+      "file_name": "approvals.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI bindings for GET /approvals, GET /approvals/{approvalId}, POST /approvals/{approvalId}/actions, POST /approvals/{approvalId}/delegate, GET /approvals/{approvalId}/history."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new approvals router alongside the existing approval-matrix-config router."
+    },
+    {
+      "file_path": "app/schemas/contract.py",
+      "file_name": "contract.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "Additive extension of the shared ContractStatus Literal with 'Rejected' and 'Ready For Signature' so this task can persist approval/rejection outcomes to the shared contracts.status column without breaking the uc123 module's response validation."
+    },
+    {
+      "file_path": "tests/test_approvals.py",
+      "file_name": "test_approvals.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "27 tests: role/auth matrix, list visibility per role and empty-state, detail fields and eligibility flags, sequence enforcement, mandatory comments, owner self-approval block, stale/terminal-state conflict, auto-advance and ready-for-signature transition, send-back reset, delegate eligibility and ownership, delegated action attribution in history."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/cd5a5d1423ba",
+    "title": "Implement approvals workflow API (UC6)",
+    "body": "Implements the 5 `/api/v1/approvals` endpoints owned by T-APPROVALS-API: list, detail, actions (Approve/Reject/SendBack), delegate, and history. Enforces sequential-step gating, mandatory comments on Reject/SendBack, Contract Owner self-approval exclusion, time-bound delegate eligibility, auto-advance to the next step, auto-transition to Ready for Signature on final approval, and an immutable 7-year-retention audit log. See `blockers` for judgement calls: this task has no endpoint to create an Approval (lazily resolves/creates the current step's `approval_step_instances` row from the approval matrix the first time it's needed), and the shared `contracts.status` enum was extended additively to carry this module's outcomes without breaking the uc123 module's existing contract responses.",
+    "draft": true,
+    "linked_story": "UC6-AF-001",
+    "linked_task": "T-APPROVALS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/approval.py",
+      "app/repositories/approvals.py",
+      "app/services/approvals.py",
+      "app/routers/approvals.py",
+      "app/main.py",
+      "app/schemas/contract.py",
+      "tests/test_approvals.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "No endpoint in this task's context.json creates an Approval or its per-step ApprovalStepInstance rows -- that belongs to whatever upstream workflow routes a contract out of Negotiation (UC5) into the approval matrix, which is out of this task's scope. This service assumes an Approval row already exists and lazily resolves/creates the current step's ApprovalStepInstance from approval_matrix_steps (explicit approverUserId, or the first tenant User with the matching approverRole excluding the Contract Owner) the first time it is needed (GET detail or an action). If no matrix step/role can be resolved, it falls back to the contract's owner as a non-null placeholder even though UC6-BR-011 excludes the owner from ever acting -- a tenant with a misconfigured matrix would need a Tenant Admin to fix the approval-matrix-config before any real approver could act.",
+    "Contradiction: context.json's ApprovalActionResponse.contractStatus enum is 'InNegotiation'/'PendingApproval'/'Approved'/'Rejected'/'ReadyForSignature' (no spaces), but the shared contracts.status column is already written/read by the uc123 module via app/schemas/contract.py's ContractStatus Literal using a space-separated convention ('In Negotiation', 'Pending Approval', ...) that FastAPI validates every /api/v1/contracts/{id} response against. Writing this module's no-space strings directly into contracts.status would 500 every existing contract-detail response. Resolved by persisting the existing space-separated convention (additively extended with 'Rejected' and 'Ready For Signature', nothing renamed or removed) and mapping to this module's own no-space wire format only inside this module's own responses (see app/services/approvals.py's _CONTRACT_STATUS_TO_WIRE).",
+    "UC6-AF-003 ('user without Approver/Delegate role for this step' denied screen access with 'You do not have permission to approve this contract.') is only partially enforced: GET /approvals/{approvalId} denies a CONTRACT_OWNER who does not own the contract (403), but for the APPROVER/TENANT_ADMIN/LEGAL_REVIEWER roles it allows tenant-wide read access to the detail screen (consistent with UC6-BR-016/018's 'view tenant-wide approvals' / 'view approval status as Legal Reviewer' stories) rather than hiding the record entirely from an Approver with no assignment anywhere on the contract -- doing the latter correctly would require tracking every future step's assignment up front, which the available tables do not populate ahead of time (see the first blocker). The stricter 'cannot even view' behavior for a wholly uninvolved Approver is not implemented; canApprove/canReject/canSendBack/canDelegate correctly read false for such a user instead.",
+    "Added fields beyond context.json: none were required beyond what's already listed in ApprovalResponse/ApprovalListItemResponse/etc. -- all DTOs are implemented field-for-field as given.",
+    "Live behavioral verification (`uvicorn` + `curl` against a running Postgres instance) could not be completed: this sandbox denied every command needed to start Postgres or run uvicorn as a background process (sudo service postgresql start, backgrounded uvicorn, psql). Verification instead used (1) the full pytest suite (213 tests, including 27 new ones) running FastAPI's TestClient against a real in-memory database over actual HTTP request/response cycles for every status code this task owns (200/400/401/403/404/409), and (2) a direct inspection of /openapi.json confirming all 5 owned routes, their methods, and the X-User-Role/X-User-Id security schemes are correctly registered."
+  ]
+}

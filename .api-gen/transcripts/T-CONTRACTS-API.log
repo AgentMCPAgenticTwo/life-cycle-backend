@@ -1,0 +1,9 @@
+Implementation complete. Summary:
+
+Implemented the 6 signer/audit-certificate endpoints under `/api/v1/contracts/{contractId}/...` that this task owns (list, add, update, delete signers; send-for-signature; audit certificate download), reusing the foundation task's existing `signers`/`audit_certificates`/`esignature_settings` tables and models. Added `app/schemas/signer.py`, `app/repositories/signers.py`, `app/services/signers.py`, `app/routers/signers.py`, wired into `app/main.py`, and extended the shared `ContractStatus` Literal additively with `"Sent"`.
+
+- `python -m compileall app` and `pytest -q` pass (247/247, including 34 new tests in `tests/test_signers.py`)
+- Verified live via uvicorn: all 5 routes appear in `/openapi.json`; 401/403 confirmed end-to-end
+- Key judgement calls documented in `blockers`: the "Approved" vs "Ready For Signature" precondition contradiction, an added `"Pending"` pre-send signer status, deterministic (not random) integrated-provider-failure simulation for AF-005, lazy audit-certificate generation, and the pre-existing no-Postgres sandbox gap
+
+Result written to `.api-gen/outputs/T-CONTRACTS-API.json`.

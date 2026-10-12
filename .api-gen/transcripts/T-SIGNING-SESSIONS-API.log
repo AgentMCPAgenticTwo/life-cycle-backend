@@ -1,0 +1,9 @@
+Implementation complete. Summary of work on T-SIGNING-SESSIONS-API:
+
+- Added `app/schemas/signing_session.py`, `app/repositories/signing_sessions.py`, `app/services/signing_sessions.py`, `app/routers/signing_sessions.py`, wired into `app/main.py`.
+- Implemented all 5 endpoints (`GET /signing-sessions/{sessionId}`, `otp/verify`, `otp/resend`, `sign`, `decline`) against the existing `signers`/`contracts` tables (no new table, per contract).
+- Treated `sessionId` as the signer row's own id since no dedicated session table exists, and skipped tenant-scoped auth for the SIGNER role since external signers have no `users` row — both documented as blockers.
+- Encoded sequencing (BR-001), OTP lockout (AF-001), decline-halts-routing (AF-002/BR-008/018), auto-expiry (BR-020), and auto-Executed-on-final-signature (BR-007/019) as code, each with a test.
+- Added 23 tests in `tests/test_signing_sessions.py`; full suite passes (280 passed), `compileall` clean.
+- Verified every endpoint via an in-process TestClient (no Postgres available in this sandbox, consistent with every prior task on this branch) — checked status codes and response bodies field-by-field against the contract, and confirmed all 5 routes plus the auth security schemes appear in the OpenAPI doc.
+- Wrote `.api-gen/outputs/T-SIGNING-SESSIONS-API.json` with status `PARTIAL` and detailed blockers for the judgement calls made (no session table, non-tenant-scoped SIGNER auth, best-effort IP capture, enum literal spelling, etc.).
