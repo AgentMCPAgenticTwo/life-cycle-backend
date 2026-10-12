@@ -20,6 +20,7 @@ from app.routers import (
     approval_matrix,
     approvals,
     clauses,
+    contract_lifecycle,
     contracts,
     contracts_third_party_paper,
     counterparties,
@@ -101,6 +102,8 @@ app.include_router(approval_matrix.router, prefix="/api/v1")
 app.include_router(approvals.router, prefix="/api/v1")
 app.include_router(clauses.router, prefix="/api/v1")
 app.include_router(contracts.router, prefix="/api/v1")
+app.include_router(contract_lifecycle.router, prefix="/api/v1")
+app.include_router(contract_lifecycle.folder_tags_router, prefix="/api/v1")
 app.include_router(contracts_third_party_paper.router, prefix="/api/v1")
 app.include_router(counterparties.router, prefix="/api/v1")
 app.include_router(esignature_settings.router, prefix="/api/v1")
