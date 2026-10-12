@@ -1,9 +1,0 @@
-Implemented T-TEMPLATES-API: all 6 `/api/v1/templates*` endpoints (GET/POST list+create, PUT/deactivate/reactivate/versions on `{id}`), following the existing clauses module's router/service/repository pattern.
-
-Key points:
-- Added `app/schemas/template.py`, `app/repositories/templates.py`, `app/services/templates.py`, `app/routers/templates.py`, and wired the router into `app/main.py`.
-- Implemented the full behavioral spec: blank-field rejection with exact messages (UC3-AF-001), unsupported document-format rejection with its exact message (UC3-AF-005), Draft→Active completeness, diff-based versioning (UC3-BR-002/014), optimistic-concurrency conflict detection (UC3-AF-006, via an added `expectedVersion` field), and deactivate/reactivate lifecycle — including the attached-unexecuted-contract guard (UC3-AF-004/BR-003/BR-012), which is fully implementable here since `contracts.template_id` gives a real queryable relationship (unlike the clauses module, which couldn't).
-- Added 26 tests in `tests/test_templates.py`; full suite passes 132/132. `compileall` clean. Verified live via uvicorn: all 6 routes in `/openapi.json`, 401/403 role-matrix correct end-to-end.
-- Recorded judgement calls in `blockers`: the added `expectedVersion` field, a documented gap where GET /templates can't filter by Industry (no such column on the foundation-owned `templates` table), BR-006's merge-field provenance rule being out of this task's scope, the sandbox's unreachable-Postgres limitation, and the practically-unreachable Draft status.
-
-Output written to `.api-gen/outputs/T-TEMPLATES-API.json` and validated against `OUTPUT_SCHEMA.json`.

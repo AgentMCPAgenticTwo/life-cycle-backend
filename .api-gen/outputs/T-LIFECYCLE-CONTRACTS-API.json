@@ -1,0 +1,213 @@
+{
+  "status": "PARTIAL",
+  "summary": "Implemented all 19 lifecycle-uc4-uc5 endpoints (AI Clause Analysis + Negotiation & Routing) against the 10 contract tables, with role enforcement, the UC4 risk/mandatory-clause/audit rules, and the UC5 routing/versioning/OTP-external-party flow. 35 new tests pass alongside the existing 132 (167 total); python -m compileall and pytest -q are clean. The server was booted on port 5199 and its OpenAPI document confirmed all 19 routes with the correct methods; role-based 401/403 were verified live. Full DB-backed happy paths were exercised via the in-memory SQLite test suite only, since no reachable Postgres instance exists in this sandbox (same limitation test_persistence.py already documents).",
+  "task_id": "T-LIFECYCLE-CONTRACTS-API",
+  "story_id": "UC4-AF-001,UC4-AF-002,UC4-AF-003,UC4-AF-004,UC4-AF-005,UC4-AF-006,UC4-BR-001,UC4-BR-002,UC4-BR-003,UC4-BR-004,UC4-BR-005,UC4-BR-006,UC4-BR-007,UC4-BR-008,UC4-BR-009,UC4-BR-010,UC4-BR-011,UC4-BR-012,UC4-BR-013,UC4-BR-014,UC4-BR-015,UC4-BR-016,UC4-BR-017,UC4-BR-018,UC4-FV-001,UC4-FV-002,UC4-FV-003,UC4-FV-004,UC4-FV-005,UC4-GC-001,UC4-MF-001,UC5-AF-001,UC5-AF-004,UC5-AF-005,UC5-AF-006,UC5-BR-001,UC5-BR-002,UC5-BR-003,UC5-BR-004,UC5-BR-005,UC5-BR-007,UC5-BR-008,UC5-BR-009,UC5-BR-010,UC5-BR-011,UC5-BR-012,UC5-BR-013,UC5-BR-014,UC5-BR-015,UC5-BR-016,UC5-BR-017,UC5-BR-018,UC5-BR-019,UC5-BR-020,UC5-BR-021,UC5-BR-022,UC5-BR-023,UC5-FV-001,UC5-FV-002,UC5-FV-003,UC5-MF-001",
+  "code_files": [
+    {
+      "file_path": "app/models/lifecycle_clause.py",
+      "file_name": "lifecycle_clause.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "ContractClause, ContractMetadata, ClauseAuditLog, AskAiInteraction ORM models for contract_clauses/contract_metadata/clause_audit_log/ask_ai_interactions."
+    },
+    {
+      "file_path": "app/models/lifecycle_negotiation.py",
+      "file_name": "lifecycle_negotiation.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "NegotiationRouting, NegotiationReviewer, NegotiationVersion, NegotiationComment, NegotiationExternalLink, NegotiationReminder ORM models for the six negotiation_* tables."
+    },
+    {
+      "file_path": "alembic/versions/0011_create_contract_clauses.py",
+      "file_name": "0011_create_contract_clauses.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateContractClauses migration."
+    },
+    {
+      "file_path": "alembic/versions/0012_create_contract_metadata.py",
+      "file_name": "0012_create_contract_metadata.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateContractMetadata migration."
+    },
+    {
+      "file_path": "alembic/versions/0013_create_clause_audit_log.py",
+      "file_name": "0013_create_clause_audit_log.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateClauseAuditLog migration."
+    },
+    {
+      "file_path": "alembic/versions/0014_create_ask_ai_interactions.py",
+      "file_name": "0014_create_ask_ai_interactions.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateAskAiInteractions migration."
+    },
+    {
+      "file_path": "alembic/versions/0015_create_negotiation_routings.py",
+      "file_name": "0015_create_negotiation_routings.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateNegotiationRoutings migration."
+    },
+    {
+      "file_path": "alembic/versions/0016_create_negotiation_reviewers.py",
+      "file_name": "0016_create_negotiation_reviewers.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateNegotiationReviewers migration."
+    },
+    {
+      "file_path": "alembic/versions/0017_create_negotiation_versions.py",
+      "file_name": "0017_create_negotiation_versions.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateNegotiationVersions migration."
+    },
+    {
+      "file_path": "alembic/versions/0018_create_negotiation_comments.py",
+      "file_name": "0018_create_negotiation_comments.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateNegotiationComments migration."
+    },
+    {
+      "file_path": "alembic/versions/0019_create_negotiation_external_links.py",
+      "file_name": "0019_create_negotiation_external_links.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateNegotiationExternalLinks migration."
+    },
+    {
+      "file_path": "alembic/versions/0020_create_negotiation_reminders.py",
+      "file_name": "0020_create_negotiation_reminders.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateNegotiationReminders migration."
+    },
+    {
+      "file_path": "app/schemas/lifecycle_clause.py",
+      "file_name": "lifecycle_clause.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "ClauseResponse, ContractMetadataResponse, ClauseAnalysisResponse, EditClauseRequest, RejectClauseRequest, UpdateMetadataRequest, AskAIRequest/Response, AuditLogEntryResponse, PagedAuditLogResponse, ProceedToNegotiationResponse."
+    },
+    {
+      "file_path": "app/schemas/lifecycle_negotiation.py",
+      "file_name": "lifecycle_negotiation.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "ReviewerResponse, RoutingRequest/Response, VersionSummaryResponse, CommentRequest/Response, NegotiationTrackerResponse, SubmitReviewRequest/Response, GenerateExternalLinkResponse, VerifyOtpRequest/Response, NegotiationExternalViewResponse, ExternalSubmitRequest/Response, ClauseDiffResponse, CompareVersionsResponse, ReminderResponse, MarkAgreedResponse."
+    },
+    {
+      "file_path": "app/repositories/lifecycle_clauses.py",
+      "file_name": "lifecycle_clauses.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Data access for contract_clauses, contract_metadata, clause_audit_log, ask_ai_interactions."
+    },
+    {
+      "file_path": "app/repositories/lifecycle_negotiation.py",
+      "file_name": "lifecycle_negotiation.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Data access for the six negotiation_* tables."
+    },
+    {
+      "file_path": "app/services/lifecycle_clauses.py",
+      "file_name": "lifecycle_clauses.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "AI Clause Analysis business rules: lazy extraction, risk rollup, mandatory-clause flagging, accept/edit/reject transitions, metadata relabelling, Ask AI, Proceed to Negotiation gate, audit log."
+    },
+    {
+      "file_path": "app/services/lifecycle_negotiation.py",
+      "file_name": "lifecycle_negotiation.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Negotiation & Routing business rules: routing precondition/validation, mandatory reviewer auto-add, sequential/parallel review submission, status transitions, versioning, OTP-secured external party flow, Compare Versions, reminders, Mark Agreed, comments."
+    },
+    {
+      "file_path": "app/routers/lifecycle_clauses.py",
+      "file_name": "lifecycle_clauses.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "/api/v1/lifecycle/contracts/{contractId}/... AI Clause Analysis endpoints."
+    },
+    {
+      "file_path": "app/routers/lifecycle_negotiation.py",
+      "file_name": "lifecycle_negotiation.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "/api/v1/lifecycle/contracts/{contractId}/negotiation/... and /api/v1/lifecycle/negotiation/external/{linkToken}/... endpoints."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Wired the two new routers alongside the existing ones."
+    },
+    {
+      "file_path": "app/models/__init__.py",
+      "file_name": "__init__.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new entities on Base.metadata / __all__."
+    },
+    {
+      "file_path": "tests/test_lifecycle_clauses.py",
+      "file_name": "test_lifecycle_clauses.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Role matrix, extraction/mandatory-flag/risk rollup, accept/edit/reject + audit trail, concurrency conflict, metadata relabelling, Ask AI, Proceed to Negotiation gate."
+    },
+    {
+      "file_path": "tests/test_lifecycle_negotiation.py",
+      "file_name": "test_lifecycle_negotiation.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Routing precondition/validation, mandatory reviewer auto-add, review submission + status transitions, external OTP flow + lockout, Compare Versions, reminders, Mark Agreed, comments."
+    },
+    {
+      "file_path": "tests/test_persistence.py",
+      "file_name": "test_persistence.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Pre-existing shared persistence checks (index/migration-chain assertions) generalized by the foundation task so this module's tables/migrations validate against context.json; not otherwise modified by this task."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/743974d04bad",
+    "title": "feat(lifecycle-uc4-uc5): AI Clause Analysis + Negotiation & Routing API",
+    "body": "Implements all 19 endpoints of the lifecycle-uc4-uc5 module: AI Clause Analysis (clause review/accept/edit/reject, contract metadata, Ask AI, Proceed to Negotiation, audit log) and Negotiation & Routing (routing, tracker, reviewer submissions, OTP-secured external party flow, Compare Versions, reminders, Mark Agreed, comments). See this task's `blockers` for judgement calls made where the real AI pipeline, an email service, or a background scheduler is absent from this sandbox.",
+    "draft": true,
+    "linked_story": "UC4,UC5",
+    "linked_task": "T-LIFECYCLE-CONTRACTS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/services/lifecycle_clauses.py",
+      "app/services/lifecycle_negotiation.py",
+      "app/routers/lifecycle_clauses.py",
+      "app/routers/lifecycle_negotiation.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "Task ownership conflict: a separate task file, .api-gen/tasks/T-LIFECYCLE-NEGOTIATION-API/TASK.md, claims ownership of the same two paths this task's own TASK.md assigns to me -- POST /api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp and .../submit -- but with auth_required=no instead of this task's auth_required=yes for the same paths. I implemented both endpoints under this task (T-LIFECYCLE-CONTRACTS-API) exactly as its own endpoint table specifies (EXTERNAL_PARTY role, auth required), since that is the contract this task names as mine. If T-LIFECYCLE-NEGOTIATION-API is also run, its generator must not re-create these two routes/services or the app will have duplicate route registrations.",
+    "No real AI/document-parsing pipeline exists in this sandbox. 'AI Clause Analysis' is simulated: the first time a contract's clause-analysis is opened, every mandatory Active clause category from the tenant's UC123 clause library that is not yet represented is seeded as a Missing clause (risk_score=High, no suggested text), and a blank 'AI-suggested'-labelled contract_metadata row is created. Clauses whose library match is Standard/Deviated/Non-standard with real suggested text/AI explanations are never fabricated, since there is no document text to analyze; Accept Suggestion is therefore only reachable once a future task supplies that content. Ask AI's answer is a templated summary referencing the current overall risk score rather than a real LLM call.",
+    "UC4-AF-001's file-format check can only inspect the contract's Third Party Paper upload (the one uploaded-document reference this contract model carries) -- a contract built from a Template has no uploaded document for this module to validate, so it is always treated as a supported format.",
+    "UC4-BR-016 (re-flag Accepted/Edited clauses to Re-flagged after a tenant clause-library update) is not implemented: there is no trigger/event mechanism connecting UC123 clause-library edits to already-extracted contract_clauses rows in this codebase, and building one is out of this task's scope (clause library mutation endpoints belong to the uc123 module).",
+    "UC5-BR-001/002's mandatory-reviewer auto-add (Finance Head above INR 10,00,000; Legal Reviewer for High Risk contracts) adds a reviewer by name/role label when no matching user is already in the selected reviewer list; since 'Finance Head' is not one of this contract's five permitted X-User-Role values, there is no guaranteed real user to attach, so a synthetic reviewer_id is generated (negotiation_reviewers.reviewer_id has no FK constraint in the table contract, so this is schema-legal).",
+    "GenerateExternalLinkResponse gained one field not in context.json: `otp` (optional string). There is no email-sending infrastructure anywhere in this codebase to deliver UC5-BR-016's OTP to the External Party's inbox, so the OTP is returned directly in this response as the only way to drive the verify/submit flow end-to-end; `otp_hash` is still the persisted, compared value.",
+    "GET .../negotiation/compare has no request DTO in context.json (its endpoint entry is '-'), but UC5-FV-002/BR-012 require two prior version numbers as input. Added two required query parameters, `versionA` and `versionB` (integers), rather than inventing a request body DTO the contract never named.",
+    "Automatic daily overdue-reviewer reminders (UC5-AF-006/BR-010) are not implemented: there is no background scheduler/cron mechanism anywhere in this codebase to run a recurring job. Only the manual 'Send Reminder' endpoint (negotiation_reminders rows, reminder_type='Manual') is implemented.",
+    "UC5-AF-001/FV-001 describe blocking routing submission when neither a reviewer nor an external party is supplied, but RoutingRequest's externalPartyName/externalPartyEmail are typed as required (non-optional) strings in context.json, not optional alternatives to reviewer selection. Kept the contract's required-string typing and enforced 'at least one internal reviewer' as the AF-001/FV-001 validation instead of an OR-with-external-party check, since the DTO shape already makes the external party mandatory on every routing call.",
+    "Sequential/Parallel reviewer notification (UC5-BR-003/004) and the OTP email/secure-link delivery to the External Party are simulated via persisted state only (review_status, sequence_order, negotiation_external_links) -- no email/notification service exists in this codebase to actually dispatch anything.",
+    "UC5-BR-006 (triggering AI clause analysis automatically on an External Party's submitted redlines) is not implemented beyond persisting the new version/status transition, for the same reason noted above: there is no real AI pipeline in this sandbox to re-run."
+  ]
+}

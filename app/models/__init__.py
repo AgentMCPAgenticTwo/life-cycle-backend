@@ -5,6 +5,20 @@ and for `Base.metadata.create_all()` in tests.
 from app.models.clause import Clause, ClauseVersion
 from app.models.contract import Contract, ContractTask
 from app.models.counterparty import Counterparty
+from app.models.lifecycle_clause import (
+    AskAiInteraction,
+    ClauseAuditLog,
+    ContractClause,
+    ContractMetadata,
+)
+from app.models.lifecycle_negotiation import (
+    NegotiationComment,
+    NegotiationExternalLink,
+    NegotiationReminder,
+    NegotiationReviewer,
+    NegotiationRouting,
+    NegotiationVersion,
+)
 from app.models.tenant import Tenant
 from app.models.template import Template, TemplateVersion
 from app.models.uploaded_file import UploadedFile
@@ -21,4 +35,14 @@ __all__ = [
     "ClauseVersion",
     "Contract",
     "ContractTask",
+    "ContractClause",
+    "ContractMetadata",
+    "ClauseAuditLog",
+    "AskAiInteraction",
+    "NegotiationRouting",
+    "NegotiationReviewer",
+    "NegotiationVersion",
+    "NegotiationComment",
+    "NegotiationExternalLink",
+    "NegotiationReminder",
 ]

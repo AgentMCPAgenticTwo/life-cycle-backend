@@ -8,29 +8,29 @@ breakage. Keep it building at every step.
 
 **The persistence layer**, from the `tables` in `context.json` (full column definitions
 there):
-- `tenants`
-- `users`
-- `counterparties`
-- `uploaded_files`
-- `templates`
-- `template_versions`
-- `clauses`
-- `clause_versions`
-- `contracts`
-- `contract_tasks`
+- `contract_clauses`
+- `contract_metadata`
+- `clause_audit_log`
+- `ask_ai_interactions`
+- `negotiation_routings`
+- `negotiation_reviewers`
+- `negotiation_versions`
+- `negotiation_comments`
+- `negotiation_external_links`
+- `negotiation_reminders`
 
 Create the ORM entities, the database context/connection wiring, and one migration per
 entry in `migrations` (use these exact names):
-- `CreateTenants`
-- `CreateUsers`
-- `CreateCounterparties`
-- `CreateUploadedFiles`
-- `CreateTemplates`
-- `CreateTemplateVersions`
-- `CreateClauses`
-- `CreateClauseVersions`
-- `CreateContracts`
-- `CreateContractTasks`
+- `CreateContractClauses`
+- `CreateContractMetadata`
+- `CreateClauseAuditLog`
+- `CreateAskAiInteractions`
+- `CreateNegotiationRoutings`
+- `CreateNegotiationReviewers`
+- `CreateNegotiationVersions`
+- `CreateNegotiationComments`
+- `CreateNegotiationExternalLinks`
+- `CreateNegotiationReminders`
 
 **The shared infrastructure** the resource tasks will lean on:
 - centralized error handling that maps validation failures to 400, missing resources to
@@ -51,7 +51,7 @@ to prove wiring is fine.
 - Generate ids server-side: a database default (`gen_random_uuid()`, `newid()`) or the app layer at insert time.
 - **Never accept an id from the client on create.** A POST body carries no id; the generated id comes back in the response (201 + `Location`).
 - Never hard-code a specific id, in code or in seed data. Seed only reference/lookup rows, keep seeding idempotent (guard every insert with an existence check), and let ids come from the database default rather than literals that could contradict the column type.
-- The only roles this task may enforce are `TENANT_ADMIN`, `CONTRACT_OWNER`, `LEGAL_REVIEWER`, `APPROVER`, `SIGNER` — exactly as spelled in the endpoint table. Missing `X-User-Role` → **401**; a role outside that set → **403**. Do not carry over role names from another project, and do not invent one the contract does not name.
+- The only roles this task may enforce are `LEGAL_REVIEWER`, `CONTRACT_OWNER`, `TENANT_ADMIN`, `APPROVER`, `EXTERNAL_PARTY` — exactly as spelled in the endpoint table. Missing `X-User-Role` → **401**; a role outside that set → **403**. Do not carry over role names from another project, and do not invent one the contract does not name.
 
 # How to work.
 

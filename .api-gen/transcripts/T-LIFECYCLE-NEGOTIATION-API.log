@@ -1,0 +1,8 @@
+Done. Summary:
+
+- Discovered the two endpoints I own (`verify-otp`, `submit`) had already been built by the sibling `T-LIFECYCLE-CONTRACTS-API` task, but under a conflicting `auth_required=true` contract for the same paths (that task's own output already flagged this conflict).
+- Fixed the two routes in `app/routers/lifecycle_negotiation.py` to drop header-auth entirely, matching my task's `auth_required: false` contract — confirmed via OpenAPI that both routes now carry no `security` entry.
+- Implemented the missing acceptance criteria in `app/services/lifecycle_negotiation.py`: the exact `'Invalid OTP. Link locked, please request a new link.'` message on the 3rd failed attempt (UC5-AF-002), denial with no data on re-accessing a locked link, an expired-link path with UC5-AF-003's message, and a lazy With Counterparty → With Internal transition on expiry (UC5-BR-020).
+- Added 9 new tests scoped to these two endpoints; full suite is 174 passing, `compileall` clean.
+- Verified live: booted the server, confirmed route registration and no-auth OpenAPI schema, and confirmed the only remaining failure (500) is the pre-existing "no Postgres in this sandbox" limitation, not an auth or code defect.
+- Wrote `.api-gen/outputs/T-LIFECYCLE-NEGOTIATION-API.json` with status `PARTIAL` and blockers covering the task-ownership conflict, the TASK.md self-contradiction on auth, the Due-Date-vs-link-TTL expiry judgment call, and the unimplemented UC5-BR-006 AI-reanalysis trigger.

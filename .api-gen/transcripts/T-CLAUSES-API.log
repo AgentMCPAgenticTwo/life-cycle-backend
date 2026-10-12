@@ -1,9 +1,0 @@
-All checks pass (37/37 tests, clean compile). Summary of what I did for **T-CLAUSES-API**:
-
-- **New**: `app/schemas/clause.py`, `app/repositories/clauses.py`, `app/services/clauses.py`, `app/routers/clauses.py` (+ package `__init__.py` files) implementing all 6 contract endpoints (`GET/POST /api/v1/clauses`, `PUT/deactivate/reactivate/versions` on `/{id}`).
-- **Modified**: `app/auth.py` (added `current_tenant_id` dependency resolving tenant from `X-User-Id` via `users`), `app/main.py` (wired the router), `tests/conftest.py` (added SQLite-backed `db_session`/`db_client` fixtures).
-- **New tests**: `tests/test_clauses.py`, 17 cases covering the role matrix, happy paths, blank-name/invalid-enum rejection, tenant isolation, Contract-Owner's Active-only view, change-only versioning, and the concurrent-save 409.
-- Fixed a real dependency-ordering bug found along the way: `db` was resolved before the role check, turning missing-auth requests into 500s instead of 401s.
-- `python -m compileall app` and `pytest -q` pass (37/37); live-verified via uvicorn that all 6 routes are in `/openapi.json` and 401/403 work end-to-end.
-
-Key blockers recorded in the output (`.api-gen/outputs/T-CLAUSES-API.json`): an added `expectedVersion` field on `UpdateClauseRequest` for optimistic concurrency (contract gives no other way to detect conflicting saves), two acceptance criteria (mandatory-clause removal from a contract, deactivate-blocked-by-contract-attachment) that need endpoints/tables this module doesn't own, and a sandbox limitation — no reachable Postgres, so DB-backed response verification relied on an in-memory SQLite TestClient rather than live curl.
