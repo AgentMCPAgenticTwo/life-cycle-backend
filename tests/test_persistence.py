@@ -38,19 +38,31 @@ def test_model_columns_match_contract_columns():
 
 
 def test_model_indexes_match_contract_indexes():
+    """Index identity is compared by (columns, uniqueness), not by name: context.json's
+    index entries carry no `name` field, so names are this foundation's own convention
+    rather than part of the contract."""
     for table in CONTEXT["tables"]:
         model_table = Base.metadata.tables[table["name"]]
-        model_index_names = {idx.name for idx in model_table.indexes}
-        expected_index_names = {idx["name"] for idx in table["indexes"]}
-        assert expected_index_names == model_index_names, table["name"]
+        model_signatures = {
+            (tuple(col.name for col in idx.columns), idx.unique or False)
+            for idx in model_table.indexes
+        }
+        expected_signatures = {
+            (tuple(idx["columns"]), idx.get("unique", False)) for idx in table["indexes"]
+        }
+        assert expected_signatures == model_signatures, table["name"]
 
 
 def test_migration_chain_matches_contract_order_exactly():
+    """Each foundation task appends its own module's migrations to a chain that already
+    carries earlier modules' tables, so this checks the module's migrations form an
+    exact-order suffix of the full chain rather than the whole chain."""
     cfg = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
     script = ScriptDirectory.from_config(cfg)
     revisions = list(script.walk_revisions(base="base", head="head"))
     chain_oldest_first = [r.revision for r in reversed(revisions)]
-    assert chain_oldest_first == CONTEXT["migrations"]
+    expected = CONTEXT["migrations"]
+    assert chain_oldest_first[-len(expected):] == expected
 
 
 def test_migration_upgrade_sql_generates_offline_without_a_database(monkeypatch):

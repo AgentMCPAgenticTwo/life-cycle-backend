@@ -21,6 +21,8 @@ from app.routers import (
     contracts,
     contracts_third_party_paper,
     counterparties,
+    lifecycle_clauses,
+    lifecycle_negotiation,
     lookups,
     templates,
 )
@@ -94,5 +96,8 @@ app.include_router(clauses.router, prefix="/api/v1")
 app.include_router(contracts.router, prefix="/api/v1")
 app.include_router(contracts_third_party_paper.router, prefix="/api/v1")
 app.include_router(counterparties.router, prefix="/api/v1")
+app.include_router(lifecycle_clauses.router, prefix="/api/v1")
+app.include_router(lifecycle_negotiation.router, prefix="/api/v1")
+app.include_router(lifecycle_negotiation.external_router, prefix="/api/v1")
 app.include_router(lookups.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")

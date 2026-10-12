@@ -1,0 +1,1 @@
+I need user approval to kill the background uvicorn process (started for verification). Could you approve the `pkill -f 'uvicorn app.main:app'` command, or should I stop it another way?
