@@ -1,9 +1,0 @@
-Implementation is complete. Summary:
-
-- Added `app/schemas/counterparty.py`, `app/repositories/counterparties.py`, `app/services/counterparties.py`, `app/routers/counterparties.py` implementing `GET /api/v1/counterparties` (search by name/company/GST-Tax-ID, with a duplicate-warning when the search string exactly matches an existing GST/Tax ID) and `POST /api/v1/counterparties` (mandatory-field + email validation, 409 Conflict on a duplicate GST/Tax ID), reusing the foundation's `Counterparty` model/table.
-- Wired the new router into `app/main.py`.
-- Added 24 tests in `tests/test_counterparties.py`; full suite is 94/94 passing, `compileall` clean.
-- Verified live via uvicorn: both routes in `/openapi.json` with exact DTO field names/casing and both auth header security schemes declared; 401/403 confirmed end-to-end (DB-backed paths proven via the TestClient suite since this sandbox has no reachable Postgres, same limitation documented by prior tasks).
-- Flagged in `blockers`: TASK.md's own text (opaque-string ids, a `dotnet`/.NET verification toolchain) contradicts this repo's actual Python/FastAPI/UUID stack and this module's own `context.json`/skill — followed CLAUDE.md per the stated precedence rule instead.
-
-Output written to `.api-gen/outputs/T-COUNTERPARTIES-API.json` with `status: SUCCESS`.

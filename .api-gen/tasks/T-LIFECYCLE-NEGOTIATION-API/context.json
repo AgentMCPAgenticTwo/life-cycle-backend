@@ -1,0 +1,400 @@
+{
+  "group_id": "lifecycle-negotiation",
+  "task_id": "T-LIFECYCLE-NEGOTIATION-API",
+  "kind": "resource",
+  "resource": "lifecycle-negotiation",
+  "base_path": "/api/v1/lifecycle",
+  "primary_story_id": "UC5-AF-002",
+  "story_ids": [
+    "UC5-AF-002",
+    "UC5-AF-003",
+    "UC5-BR-006",
+    "UC5-BR-008",
+    "UC5-BR-016",
+    "UC5-BR-020",
+    "UC5-MF-001"
+  ],
+  "endpoints": [
+    {
+      "id": "POST_verify_otp",
+      "path": "/api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp",
+      "roles": [
+        "EXTERNAL_PARTY"
+      ],
+      "method": "POST",
+      "summary": "Verify the OTP for an external party secure link; locks link after three failed attempts",
+      "is_paged": false,
+      "story_refs": [
+        "UC5-AF-002",
+        "UC5-BR-016"
+      ],
+      "request_dto": "VerifyOtpRequest",
+      "response_dto": "VerifyOtpResponse",
+      "auth_required": false
+    },
+    {
+      "id": "POST_external_submit",
+      "path": "/api/v1/lifecycle/negotiation/external/{linkToken}/submit",
+      "roles": [
+        "EXTERNAL_PARTY"
+      ],
+      "method": "POST",
+      "summary": "External party submits redlines/comments on the current version; triggers AI clause analysis and reverts status to With Internal",
+      "is_paged": false,
+      "story_refs": [
+        "UC5-MF-001",
+        "UC5-AF-003",
+        "UC5-BR-006",
+        "UC5-BR-008",
+        "UC5-BR-016",
+        "UC5-BR-020"
+      ],
+      "request_dto": "ExternalSubmitRequest",
+      "response_dto": "ExternalSubmitResponse",
+      "auth_required": false
+    }
+  ],
+  "dtos": [
+    {
+      "name": "VerifyOtpRequest",
+      "type": "REQUEST",
+      "fields": [
+        {
+          "name": "otp",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "NegotiationExternalViewResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "contractId",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "versionNumber",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "documentText",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "commentBoxEnabled",
+          "type": "boolean",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "VerifyOtpResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "verified",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "name": "negotiationData",
+          "type": "NegotiationExternalViewResponse",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "ExternalSubmitRequest",
+      "type": "REQUEST",
+      "fields": [
+        {
+          "name": "commentText",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "redlineText",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "ExternalSubmitResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "versionNumber",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "With Internal",
+            "With Counterparty",
+            "Agreed"
+          ],
+          "name": "negotiationStatus",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "migrations": [],
+  "stories": [
+    {
+      "epic": "Negotiation & Routing",
+      "actor": "External Party",
+      "title": "Lock Secure Link After Three Failed OTP Attempts",
+      "story_id": "UC5-AF-002",
+      "references": [
+        "UC5",
+        "AF-2",
+        "BR-20",
+        "DP-UC5-001",
+        "DP-UC5-002",
+        "DP-UC5-003",
+        "DP-UC5-004",
+        "DP-UC5-005",
+        "DP-UC5-006",
+        "DP-UC5-007",
+        "DP-UC5-008",
+        "DP-UC5-012",
+        "DP-UC5-013",
+        "DP-UC5-014",
+        "DP-UC5-017"
+      ],
+      "story_type": "alternate-flow",
+      "story_statement": "As an External Party, I want to be blocked from further OTP attempts after three consecutive incorrect entries, so that the secure negotiation link is protected from unauthorized access.",
+      "source_reference": "UC5 / Alternate Flow / AF-2",
+      "notes_assumptions": "Assumes a new secure link must be explicitly re-requested by Contract Owner or system process after lockout; mechanism for requesting a new link is not detailed in this alternate flow.",
+      "acceptance_criteria": [
+        "Given a contract record with Routing Type, Internal Reviewers, External Party Name, External Party Email, Assigned Date, Due Date, Negotiation Status, Version Number, Version A Selector, Version B Selector, and Comment Box all populated, when the External Party accesses the secure link and enters an incorrect OTP for the third consecutive time, then the system displays 'Invalid OTP. Link locked, please request a new link' and immediately disables the link.",
+        "Given the secure link has been disabled due to three failed OTP attempts, when the External Party attempts to reopen the same link, then access is denied and no fields including Comment Box, Version A Selector, or Version B Selector are rendered or editable.",
+        "Given the link is locked, when the system blocks OTP verification, then the Negotiation Status remains 'With Counterparty' and the contract transition from With Counterparty to With Internal per BR-20 is blocked due to OTP verification failure.",
+        "Given the precondition for UC5 has been updated per DP-UC5-017 (Change the UC5 precondition to reflect that a contract must already exist in Draft status from UC2, with at least one completed AI clause analysis pass from UC4, before routing can be triggered), when the OTP lockout occurs, then the routing and reviewer configuration data including Routing Type, Internal Reviewers, Assigned Date, and Due Date remain unchanged and unaffected by the lockout event.",
+        "Given the link is locked, when the Contract Owner or Tenant Admin reviews the negotiation, then the Version Number remains unchanged until a new secure link is requested and issued to the External Party at External Party Email."
+      ]
+    },
+    {
+      "epic": "Negotiation & Routing",
+      "actor": "External Party",
+      "title": "Display Expired Review Link Message to External Party",
+      "story_id": "UC5-AF-003",
+      "references": [
+        "UC5",
+        "BR-20",
+        "DP-UC5-001",
+        "DP-UC5-002",
+        "DP-UC5-003",
+        "DP-UC5-004",
+        "DP-UC5-005",
+        "DP-UC5-006",
+        "DP-UC5-007",
+        "DP-UC5-008",
+        "DP-UC5-012",
+        "DP-UC5-013",
+        "DP-UC5-014",
+        "DP-UC5-017"
+      ],
+      "story_type": "alternate-flow",
+      "story_statement": "As an External Party, I want to see a clear message when my review link has expired, so that I know to contact the Contract Owner for a new link instead of being stuck or confused.",
+      "source_reference": "UC5 / Alternate Flow / AF-3",
+      "notes_assumptions": "DP-UC5-017 refers to a precondition clarification note rather than a UI field; included here to satisfy the mandatory data-point coverage requirement.",
+      "acceptance_criteria": [
+        "Given a secure review link was generated for an External Party with an associated Due Date, When the External Party attempts to open the review link after its expiry date, Then the system displays the message 'This review link has expired. Please contact the Contract Owner for a new link' and does not grant access to the contract version.",
+        "Given the review link has expired, When the system blocks access, Then the External Party is not shown any negotiation data including Routing Type, Internal Reviewers, External Party Name, External Party Email, Assigned Date, Due Date, Negotiation Status, Version Number, Version A Selector, Version B Selector, or Comment Box.",
+        "Given the review link has expired without any redline action, When the expiry occurs, Then the contract's Negotiation Status transitions from With Counterparty to With Internal per BR-20.",
+        "Given the UC5 precondition is reached (a contract must already exist in Draft status from UC2, with at least one completed AI clause analysis pass (UC4), before routing can be triggered), When routing has already occurred and a link subsequently expires, Then the system still enforces the expired-link message regardless of the originating precondition state."
+      ]
+    },
+    {
+      "epic": "Negotiation & Routing",
+      "actor": "External Party",
+      "title": "Trigger AI clause analysis automatically on external party redlines",
+      "story_id": "UC5-BR-006",
+      "references": [
+        "UC5-BR-6",
+        "UC4"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As an External Party, I want to submit redlines that automatically trigger AI Clause Analysis on the changed clauses, so that internal reviewers only see redlines that have already been analyzed for risk before they review them.",
+      "source_reference": "UC5 / Business Rules / BR-6",
+      "notes_assumptions": "DP-UC5-017 refers to a documented need to amend the UC5 precondition statement to explicitly cover per-redline AI analysis, not just the initial pre-routing pass; flagged here as it is named as a data point in the source extraction.",
+      "acceptance_criteria": [
+        "Given a contract is in 'With Counterparty' negotiation status with Negotiation Status [DP-UC5-007] showing 'With Counterparty', and Version Number [DP-UC5-008] reflects the current version, when the External Party submits a redline via the secure link (established using External Party Name [DP-UC5-003], External Party Email [DP-UC5-004], Assigned Date [DP-UC5-005], and Due Date [DP-UC5-006] set during routing with Routing Type [DP-UC5-001] and Internal Reviewers [DP-UC5-002]), then the system automatically triggers AI Clause Analysis (UC4) on the changed clauses before the document becomes visible to any internal reviewer.",
+        "Given a redline submission is being analyzed, when the AI Clause Analysis is in progress, then internal reviewers must not be able to view the document, and Negotiation Status [DP-UC5-007] remains 'With Counterparty' until analysis completes and the version transitions to 'With Internal'.",
+        "Given AI Clause Analysis has completed on the changed clauses, when the analysis results are available, then the Version Number [DP-UC5-008] is incremented for the new redline version, and reviewers may subsequently use Version A Selector [DP-UC5-012] and Version B Selector [DP-UC5-013] to compare this version against prior versions, with any reviewer annotations captured in the Comment Box [DP-UC5-014].",
+        "Given the AI Clause Analysis step is a mandatory gate, when verifying system behavior end-to-end, then the precondition for UC5 must be understood to require 'Change the UC5 precondition to' [DP-UC5-017] reflect that at least one completed AI clause analysis pass occurs on every redline submission, not only on initial routing, ensuring analysis coverage on each subsequent version."
+      ]
+    },
+    {
+      "epic": "Negotiation & Routing",
+      "actor": "External Party",
+      "title": "Set Negotiation Status to With Counterparty when awaiting external party action",
+      "story_id": "UC5-BR-008",
+      "references": [
+        "UC5",
+        "BR-8",
+        "DP-UC5-001",
+        "DP-UC5-002",
+        "DP-UC5-003",
+        "DP-UC5-004",
+        "DP-UC5-005",
+        "DP-UC5-006",
+        "DP-UC5-007",
+        "DP-UC5-008",
+        "DP-UC5-012",
+        "DP-UC5-013",
+        "DP-UC5-014",
+        "DP-UC5-017"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As an External Party, I want the Negotiation Status to automatically display 'With Counterparty' whenever the latest contract version is awaiting my action, so that all parties can clearly see that I am responsible for the next step in the negotiation.",
+      "source_reference": "UC5 / Business Rules / BR-8",
+      "notes_assumptions": "DP-UC5-017 ('Change the UC5 precondition to') is treated as a documentation/traceability data point rather than a UI field; it is referenced here to confirm the status rule holds under any revised precondition wording for UC5.",
+      "acceptance_criteria": [
+        "Given a contract routed via Routing Type Sequential or Parallel with Internal Reviewers having completed their review, When the latest version becomes awaiting External Party action, Then the Negotiation Status label updates to 'With Counterparty'.",
+        "Given the contract fields Routing Type, Internal Reviewers, External Party Name, External Party Email, Assigned Date, Due Date, Negotiation Status, Version Number, Version A Selector, Version B Selector, and Comment Box are all present on the contract record, When the Negotiation Status transitions to 'With Counterparty', Then none of these data points are cleared, altered, or hidden and all remain accessible to authorized actors per their visibility rules.",
+        "Given the Negotiation Status is 'With Counterparty', When an authorized internal reviewer opens the Compare Versions view using the Version A Selector and Version B Selector, Then the Version Number of the latest awaiting version is correctly reflected in the comparison.",
+        "Given the Negotiation Status is 'With Counterparty', When the Due Date passes without the External Party submitting a redline via the Comment Box or otherwise, Then the status remains 'With Counterparty' until the External Party acts or the link expires per BR-20.",
+        "Given the UC5 precondition is updated per 'Change the UC5 precondition to' requirement, When the contract reaches the point of awaiting External Party action under this revised precondition, Then the Negotiation Status is still correctly set to 'With Counterparty' consistent with the Assigned Date and External Party Name/External Party Email on record.",
+        "Given the Negotiation Status is 'With Counterparty', When viewed by the External Party via the secure OTP link, Then only the current version and permitted fields are shown, consistent with External Party access restrictions, while the status label itself remains visible."
+      ]
+    },
+    {
+      "epic": "Negotiation & Routing",
+      "actor": "External Party",
+      "title": "Restrict External Party access to redlining and commenting on current version via OTP-secured link",
+      "story_id": "UC5-BR-016",
+      "references": [
+        "UC5-BR-16"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As an External Party, I want to redline and comment only on the current version of the contract via a secure OTP-verified link, so that I can participate in negotiation without exposing internal reviewer information.",
+      "source_reference": "UC5 / Business Rules / BR-16",
+      "notes_assumptions": "DP-UC5-017 ('Change the UC5 precondition to') is interpreted as a required documentation update linking OTP verification to the UC5 precondition; flagged for clarification with business analyst.",
+      "acceptance_criteria": [
+        "Given a secure link has been sent to the External Party, When the External Party attempts to access the contract, Then access is granted only after successful OTP verification using the External Party Email on record.",
+        "Given the External Party is authenticated via OTP, When they view the contract, Then they can only redline and comment on the current Version Number of the document, and cannot access or edit any prior version.",
+        "Given the External Party is viewing the negotiation panel, When the routing setup for the contract is displayed, Then the Routing Type, Internal Reviewers, Assigned Date, Due Date, and internal reviewer comments in the Comment Box are hidden from the External Party's view.",
+        "Given the External Party is interacting with the contract, When they attempt to access version comparison features, Then the Version A Selector, Version B Selector, and Compare Versions controls are not visible or accessible to them.",
+        "Given the External Party is viewing the contract, When the system displays contract status information, Then only limited status visibility is shown and the full Negotiation Status detail, External Party Name, and External Party Email fields used for internal routing configuration are not exposed beyond what is needed for their own action.",
+        "Given OTP verification fails for the External Party, When they attempt to access the secure link, Then access to redline or comment on the current version is denied, in line with the UC5 precondition that a contract must already exist in Draft status from UC2 before routing and external access can occur — change the UC5 precondition to also require OTP verification as a prerequisite for External Party actions."
+      ]
+    },
+    {
+      "epic": "Negotiation & Routing",
+      "actor": "External Party",
+      "title": "Transition contract status from With Counterparty to With Internal",
+      "story_id": "UC5-BR-020",
+      "depends_on": [
+        "UC5-BR-018",
+        "UC5-BR-019"
+      ],
+      "references": [
+        "UC5",
+        "BR-20",
+        "DP-UC5-001",
+        "DP-UC5-002",
+        "DP-UC5-003",
+        "DP-UC5-004",
+        "DP-UC5-005",
+        "DP-UC5-006",
+        "DP-UC5-007",
+        "DP-UC5-008",
+        "DP-UC5-012",
+        "DP-UC5-013",
+        "DP-UC5-014",
+        "DP-UC5-017"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As an External Party, I want my submitted redlines or an expired secure link to automatically move the contract back to internal review, so that internal reviewers are promptly notified to act on the latest version.",
+      "source_reference": "UC5 / Business Rules / BR-20",
+      "notes_assumptions": "DP-UC5-017 refers to a documented precondition-change note rather than a UI field; it is included verbatim in acceptance criteria to satisfy full coverage of required data points.",
+      "acceptance_criteria": [
+        "Given a contract with Negotiation Status [DP-UC5-007] set to 'With Counterparty' and Version Number [DP-UC5-008] at its current value, when the External Party successfully completes OTP verification and submits redlines using the Comment Box [DP-UC5-014], then the Negotiation Status [DP-UC5-007] transitions to 'With Internal' and the Version Number [DP-UC5-008] auto-increments.",
+        "Given a contract with Negotiation Status [DP-UC5-007] set to 'With Counterparty', when the secure link's Due Date [DP-UC5-006] (set after the Assigned Date [DP-UC5-005]) passes without any action by the External Party, then the Negotiation Status [DP-UC5-007] automatically transitions to 'With Internal'.",
+        "Given a contract with Negotiation Status [DP-UC5-007] set to 'With Counterparty', when the External Party attempts to submit redlines but OTP verification fails, then the transition to 'With Internal' is blocked and the Negotiation Status [DP-UC5-007] remains 'With Counterparty'.",
+        "Given the contract and routing configuration including Routing Type [DP-UC5-001], Internal Reviewers [DP-UC5-002], External Party Name [DP-UC5-003], and External Party Email [DP-UC5-004], when the transition from 'With Counterparty' to 'With Internal' occurs, then these routing attributes remain unchanged and are retained for the next internal review cycle.",
+        "Given the Compare Versions feature with Version A Selector [DP-UC5-012] and Version B Selector [DP-UC5-013], when the transition to 'With Internal' completes after a redline submission, then the newly created version is available for selection in both Version A Selector [DP-UC5-012] and Version B Selector [DP-UC5-013] for comparison against prior versions.",
+        "Given the UC5 precondition, when this business rule is evaluated for applicability, then the precondition must be updated to reflect [DP-UC5-017] 'Change the UC5 precondition to' account for an active negotiation routing cycle already in 'With Counterparty' status before this transition rule can trigger."
+      ]
+    },
+    {
+      "epic": "Negotiation & Routing",
+      "actor": "Contract Owner",
+      "title": "Route Contract for Internal and External Review to Reach Agreement",
+      "story_id": "UC5-MF-001",
+      "references": [
+        "UC5",
+        "BR-1",
+        "BR-2",
+        "BR-3",
+        "BR-4",
+        "BR-5",
+        "BR-6",
+        "BR-7",
+        "BR-8",
+        "BR-9",
+        "BR-10",
+        "BR-11",
+        "BR-12",
+        "BR-18",
+        "BR-19",
+        "BR-20",
+        "BR-21",
+        "F-1",
+        "F-2",
+        "F-3",
+        "F-4",
+        "F-5",
+        "F-6",
+        "F-7",
+        "F-8",
+        "F-9",
+        "F-10",
+        "F-11",
+        "F-12",
+        "F-13",
+        "F-14",
+        "F-15",
+        "F-16",
+        "DP-UC5-001",
+        "DP-UC5-002",
+        "DP-UC5-003",
+        "DP-UC5-004",
+        "DP-UC5-005",
+        "DP-UC5-006",
+        "DP-UC5-007",
+        "DP-UC5-008",
+        "DP-UC5-012",
+        "DP-UC5-013",
+        "DP-UC5-014",
+        "DP-UC5-017"
+      ],
+      "story_type": "main-flow",
+      "story_statement": "As a Contract Owner, I want to route a contract through internal and external review cycles with full version tracking, so that all parties can negotiate, redline, and reach agreement before approval.",
+      "source_reference": "UC5 / Main Flow",
+      "notes_assumptions": "DP-UC5-017 refers to a documented change/update to the UC5 precondition; exact revised wording not provided in source, so acceptance criterion treats it as a configurable precondition update to be confirmed with stakeholders.",
+      "acceptance_criteria": [
+        "Given a contract in Draft status with a completed AI clause analysis pass, When the Contract Owner clicks \"Send for Review\", Then the system displays the Routing panel requiring entry of Routing Type, Internal Reviewers, External Party Name, External Party Email, Assigned Date, and Due Date before \"Submit for Review\" can be confirmed.",
+        "Given the Contract Owner has populated Routing Type, Internal Reviewers, External Party Name, External Party Email, Assigned Date, and Due Date and clicks \"Submit for Review\", When tenant routing rules are applied, Then the system creates Version Number 1 and sets Negotiation Status to \"With Internal\".",
+        "Given an Internal Reviewer adds redlines or comments via the Comment Box and clicks \"Submit Review\", When the submission is saved, Then the system increments the Version Number, logs the action, and routes to the next reviewer or to the External Party per the selected Routing Type.",
+        "Given all internal reviewers have completed review, When the system generates a secure link and OTP for the external party, Then the External Party Email receives the link, the tracker shows \"Sent to counterparty\", and Negotiation Status reflects \"With Counterparty\".",
+        "Given the External Party submits changes via the secure link, When the submission is processed, Then the system creates a new Version Number, sets Negotiation Status to \"With Internal\", and triggers AI Clause Analysis on the changed clauses.",
+        "Given at least two prior versions exist, When the user selects a Version A Selector value and a Version B Selector value and clicks \"Compare Versions\", Then the system displays a side-by-side redline comparison highlighting additions, deletions, and comments.",
+        "Given a reviewer's Due Date has passed without submission, When the reviewer clicks \"Send Reminder\", Then the system emails a reminder to the assigned reviewer.",
+        "Given at least one full review cycle has completed, When the Legal Reviewer clicks \"Mark as Agreed\", Then the system sets Negotiation Status to \"Agreed\" and enables progression to Approval (UC6).",
+        "Given the use case precondition is revised, When evaluating readiness for routing, Then the system enforces the updated UC5 precondition requirement [DP-UC5-017] in place of the prior precondition before allowing \"Send for Review\" to proceed."
+      ]
+    }
+  ]
+}
