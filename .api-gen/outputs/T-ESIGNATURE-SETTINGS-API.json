@@ -1,0 +1,77 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented GET/PUT /api/v1/esignature-settings (TENANT_ADMIN only) on top of the foundation task's esignature_settings model/migration: app/schemas/esignature_settings.py (EsignatureSettingsResponse, UpdateEsignatureSettingsRequest), app/repositories/esignature_settings.py, app/services/esignature_settings.py (defaulting + validation), app/routers/esignature_settings.py, wired into app/main.py. GET returns the tenant's configured reminderFrequencyDays/defaultSignatureProvider, or the defaults (3 days, 'In-built E-signature') per UC7-FV-004 when no row exists yet without persisting one. PUT validates reminderFrequencyDays is a positive whole number when supplied (non-integer values are already rejected by Pydantic's int type as a 400) and defaultSignatureProvider is one of the four contract enum values, then creates the tenant's row on first save (filling any omitted field with its default) or updates only the fields supplied on subsequent saves -- both fields stay optional per UC7-FV-004's 'blank field, save succeeds' criterion. Added tests/test_esignature_settings.py covering the role matrix (401/403), the default-when-unconfigured GET, PUT/GET round trip, blank-body defaulting, partial-update (only the supplied field changes), the reminder-frequency validation rules (non-positive, non-whole-number), the signature-provider enum rule, and disallowed-role PUT. `python -m compileall app` passed; `pytest -q` passed (257 passed, including this task's 10 new tests). No live Postgres is reachable in this sandbox (same constraint noted by every prior task output on this branch), so behavioral verification used an in-process FastAPI TestClient against the real app with a sqlite-backed session plus `app.openapi()`: 401 missing-header, 403 wrong-role, 200 GET default, 200 PUT happy path, 400 invalid reminder frequency, 400 invalid signature provider, 400 malformed (non-integer) reminder frequency via the shared RequestValidationError handler, and confirmation that both GET and PUT appear under /api/v1/esignature-settings in the OpenAPI document with the UserRoleHeader/UserIdHeader security schemes declared.",
+  "task_id": "T-ESIGNATURE-SETTINGS-API",
+  "story_id": "UC7-AF-006",
+  "code_files": [
+    {
+      "file_path": "app/schemas/esignature_settings.py",
+      "file_name": "esignature_settings.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "Pydantic request/response models for EsignatureSettingsResponse and UpdateEsignatureSettingsRequest, camelCase on the wire, matching context.json exactly."
+    },
+    {
+      "file_path": "app/repositories/esignature_settings.py",
+      "file_name": "esignature_settings.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Data access for esignature_settings: get the single row for a tenant, insert a new row."
+    },
+    {
+      "file_path": "app/services/esignature_settings.py",
+      "file_name": "esignature_settings.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: default reminderFrequencyDays=3 / defaultSignatureProvider='In-built E-signature' when unconfigured, reminder-frequency whole-number/positive validation, signature-provider enum validation, and create-or-partial-update save semantics behind PUT."
+    },
+    {
+      "file_path": "app/routers/esignature_settings.py",
+      "file_name": "esignature_settings.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin APIRouter for GET/PUT /api/v1/esignature-settings, enforcing TENANT_ADMIN via require_roles and resolving tenant_id via current_tenant_id."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new esignature_settings router alongside the existing feature routers."
+    },
+    {
+      "file_path": "tests/test_esignature_settings.py",
+      "file_name": "test_esignature_settings.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Role-matrix, default-when-unconfigured, happy-path round-trip, partial-update, and every validation-rule test for this resource."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/cd5a5d1423ba",
+    "title": "Implement esignature-settings endpoints (UC7-BR-013, UC7-FV-004)",
+    "body": "Adds GET/PUT /api/v1/esignature-settings for TENANT_ADMIN: schema, repository, service (defaulting + validation) and router, plus tests covering the role matrix and every acceptance-criterion validation rule. Builds on the esignature_settings model/migration already added by the foundation task.",
+    "draft": true,
+    "linked_story": "UC7-BR-013",
+    "linked_task": "T-ESIGNATURE-SETTINGS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/esignature_settings.py",
+      "app/repositories/esignature_settings.py",
+      "app/services/esignature_settings.py",
+      "app/routers/esignature_settings.py",
+      "app/main.py",
+      "tests/test_esignature_settings.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "UC7-AF-006 and UC7-BR-006's acceptance criteria describe an automatic reminder-email scheduler (send an email every reminderFrequencyDays to signers in 'Sent'/'Viewed' status, stop on Signed/Declined/withdrawal) -- that is background/worker behavior with no endpoint in this task's `endpoints` list (`GET`/`PUT /api/v1/esignature-settings` only configure the frequency and provider value). Per TASK.md's 'a missing endpoint is different: never invent one', no scheduler, email-sending code, or new route was added; this task implements only the configuration surface (storing and validating reminderFrequencyDays/defaultSignatureProvider) that the scheduler would read. The actual send-reminder logic belongs to the signers resource/a background job, outside this task's ownership.",
+    "context.json's UpdateEsignatureSettingsRequest.reminderFrequencyDays is typed integer/nullable but does not state a minimum; UC7-FV-004's 'When the value is not a whole number, Then the system rejects the entry' and BR-13's 'save the new value as a whole number (default 3)' are read together with ordinary common sense (a reminder interval of 0 or negative days is meaningless) to also reject non-positive values with a 400. This additional bound is a judgement call, not literally spelled out in a criterion, recorded here per TASK.md's 'a missing field'/'spec incomplete' guidance -- no DTO field was added, only a validation rule.",
+    "Neither context.json nor the stories specify whether GET should persist a settings row with the defaults the first time it is read with none configured yet, or only PUT should create one. Implemented GET as read-only (returns the computed defaults without writing a row) and PUT as the only path that creates/updates the row, so that an unconfigured tenant's first write only happens when a Tenant Admin actually saves settings, matching BR-13's 'when they update the Reminder Frequency, the system must save the new value' framing.",
+    "TASK.md's verification steps reference `dotnet build`/`dotnet test`/`dotnet run`, which contradict this repo's actual Python/FastAPI stack per CLAUDE.md and the existing codebase -- ran `python -m compileall app`, `pytest -q`, and an in-process FastAPI boot (plus a TestClient session) instead, per CLAUDE.md's authority on HOW to build.",
+    "No live Postgres instance is reachable in this sandbox, so the curl-against-a-booted-server step in TASK.md's verification list was instead performed via an in-process FastAPI TestClient against the real app with a sqlite-backed session (same substitution already used by every prior task's output on this branch).",
+    "This is a re-run per the human reviewer's 're run' feedback; no prior output file or prior esignature-settings router/service/repository/schema/test code existed on this branch to revise (only the foundation task's model and migration were already present), so this run is the first implementation of the endpoints themselves."
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented all 6 endpoints this task owns under /api/v1/contracts/{contractId}/signers and /api/v1/contracts/{contractId}/audit-certificate (UC7 e-signature) on the Python/FastAPI/PostgreSQL stack CLAUDE.md specifies, reusing the foundation task's `signers`/`audit_certificates`/`esignature_settings` ORM models and migrations (already created, unmodified) plus the approvals task's auth/db/error/router conventions. Added app/schemas/signer.py (SignerResponse, SignerListResponse, AddSignerRequest, UpdateSignerRequest, SendForSignatureRequest, SendForSignatureResponse, AuditCertificateSignerEntry, AuditCertificateResponse matching context.json field-for-field, camelCase), app/repositories/signers.py (tenant-scoped contract lookup, signer CRUD, audit-certificate read/insert -- data access only), app/services/signers.py (role+ownership enforcement, mandatory-field/email-format/signing-order-uniqueness validation on Add, the Signer List lock after the first 'Signed' status with the exact AF-004 blocking message, the Executed-document lock, Send for Signature's empty-list and precondition-status gates plus the integrated-provider-always-fails/in-built-always-succeeds AF-005 behavior with retry-via-signatureMethod-override, and the Executed-only audit-certificate gate with lazy certificate generation), and app/routers/signers.py wired into app/main.py. Extended app/schemas/contract.py's shared `ContractStatus` Literal additively with \"Sent\" (the one new value this task's own Send-for-Signature transition persists to the shared `contracts.status` column), following the same pattern T-APPROVALS-API used for \"Rejected\"/\"Ready For Signature\". Added 34 tests (tests/test_signers.py) against the existing db_client/db_session fixtures covering the role/ownership matrix (401/403/404), every Add-signer validation rule, the reorder/edit/delete lock after the first signature, Send for Signature's empty-list (400)/precondition (409)/Executed (403) gates and both its success and provider-connection-failure paths including retry, and the audit certificate's pre-Executed 404 and post-Executed 200 (Contract Owner + Legal Reviewer) and role/ownership denials. `python -m compileall app` and `pytest -q` both pass (247/247, including the pre-existing 213). Verified live against uvicorn: all 5 routes appear in /openapi.json with the right methods, and 401/403 behave correctly end-to-end without a database (role/tenant resolution happens before any DB dependency runs); every DB-backed 200/400/403/404/409 path is instead proven by the 34-test TestClient suite -- this sandbox has no reachable Postgres (same gap T-CLAUSES-API/T-CONTRACTS-API(uc123)/T-APPROVALS-API already documented), confirmed by reproducing the identical 500 on a syntactically valid contract id, not just a malformed one.",
+  "task_id": "T-CONTRACTS-API",
+  "story_id": "UC7-AF-004",
+  "code_files": [
+    {
+      "file_path": "app/schemas/signer.py",
+      "file_name": "signer.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "SignerResponse, SignerListResponse, AddSignerRequest, UpdateSignerRequest, SendForSignatureRequest, SendForSignatureResponse, AuditCertificateSignerEntry, AuditCertificateResponse -- camelCase fields matching context.json exactly, including nullability. SignerType/SignatureMethod are typed as Literal to enforce the dropdown-restriction business rules (UC7-FV-001) at the request-shape layer."
+    },
+    {
+      "file_path": "app/repositories/signers.py",
+      "file_name": "signers.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped contract lookup, signer CRUD (list/get/insert/delete) scoped to a contract, and audit-certificate read/insert. No business rules -- data access only."
+    },
+    {
+      "file_path": "app/services/signers.py",
+      "file_name": "signers.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: the CONTRACT_OWNER ownership check (role list is enforced at the router, ownership here) on every mutating endpoint and the Contract-Owner/Legal-Reviewer/Tenant-Admin view check on list/certificate; Add Signer's mandatory-field/email-format/enum/signing-order-uniqueness validation and tenant-reminder-frequency default (UC7-FV-001); the Signer-List lock once any signer reaches 'Signed' with AF-004's exact reorder message and BR-004's broader field-edit block; the Executed-document lock (BR-009); Send for Signature's empty-Signer-List block (BR-002), status-precondition check, and the integrated-provider-always-fails / in-built-always-succeeds connection behavior with signatureMethod-override retry (AF-005); and the Executed-only audit certificate gate with signer-detail snapshot (BR-005/BR-019/FV-005)."
+    },
+    {
+      "file_path": "app/routers/signers.py",
+      "file_name": "signers.py",
+      "language": "python",
+      "file_type": "controller",
+      "description": "Thin HTTP binding for all 6 owned routes: GET/POST .../signers, PUT/DELETE .../signers/{signerId}, POST .../signers/send, GET .../audit-certificate, with per-endpoint role enforcement via require_roles(...) exactly as named in the endpoint table."
+    },
+    {
+      "file_path": "app/schemas/contract.py",
+      "file_name": "contract.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "Modified: extended the shared `ContractStatus` Literal additively with \"Sent\" (nothing removed or renamed) -- Send for Signature persists this value to the same `contracts.status` column the uc123 module's ContractResponse validates against."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Modified: registered app.routers.signers.router under the /api/v1 prefix."
+    },
+    {
+      "file_path": "tests/test_signers.py",
+      "file_name": "test_signers.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "34 tests covering the role/ownership matrix (401/403/404), Add Signer's full validation chain (mandatory fields, email format, type/method enums, signing-order uniqueness, lock/Executed blocks), Update/Delete's reorder-lock and field-lock behavior after the first signature, Send for Signature's empty-list/precondition/Executed gates plus its success and provider-connection-failure/retry paths, and the audit certificate's pre/post-Executed availability and role/ownership denials."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/cd5a5d1423ba",
+    "title": "feat(uc6-uc7-combined): contracts signers -- list, add, update, remove, send, audit certificate",
+    "body": "Implements T-CONTRACTS-API: GET/POST /api/v1/contracts/{contractId}/signers, PUT/DELETE /api/v1/contracts/{contractId}/signers/{signerId}, POST /api/v1/contracts/{contractId}/signers/send, GET /api/v1/contracts/{contractId}/audit-certificate. Reuses the foundation task's signers/audit_certificates/esignature_settings models and migrations unchanged, extends the shared ContractStatus Literal additively with \"Sent\", and adds the full signer-management/send/audit-certificate business logic with tests. See blockers for judgement calls: the precondition-status contradiction between 'Approved' (story text) and 'Ready For Signature' (what the approvals module actually persists), the added 'Pending' pre-send signer-status value, the simulated integrated-provider-always-fails connection behavior (no real DocuSign/Adobe Sign/Aadhaar eSign integration exists in this repo), lazy audit-certificate generation on first read, and the sandbox's unreachable-Postgres verification gap.",
+    "draft": true,
+    "linked_story": "UC7-AF-004",
+    "linked_task": "T-CONTRACTS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/signer.py",
+      "app/repositories/signers.py",
+      "app/services/signers.py",
+      "app/routers/signers.py",
+      "app/schemas/contract.py",
+      "app/main.py",
+      "tests/test_signers.py"
+    ],
+    "openapi_endpoint": "/openapi.json"
+  },
+  "blockers": [
+    "Precondition contradiction: UC7-FV-001/BR-002/BR-012/BR-013/GC-001 name the UC7 precondition as contract status 'Ready for Signature' (the status T-APPROVALS-API's UC6-BR-024 auto-transition actually persists to the shared `contracts.status` column), while UC7-BR-015/MF-001 instead describe the transition this endpoint performs as 'Approved' -> 'Sent'. No endpoint anywhere in this codebase ever persists the literal value 'Approved' to `contracts.status`. I accept EITHER 'Ready For Signature' or 'Approved' as the Send-for-Signature precondition (a 409 Conflict otherwise) so the behavior matches what the approvals module actually does without silently dropping the story's literal wording; a true fix needs product clarification on which status string is authoritative.",
+    "Added one enum value beyond context.json's documented SignerResponse.signerStatus set (Sent/Viewed/Signed/Declined/Expired): a newly added signer is given a 'Pending' status before it has been sent, since none of the five documented values describe a not-yet-sent signer and UC7-BR-015's acceptance criteria explicitly require 'each signer row shows Signer Status as a default pre-send value' distinct from the post-send states.",
+    "UC7-AF-005 describes a transient 'integrated e-signature provider connection failure' as an alternate flow, implying the failure is sometimes-but-not-always triggered by a real third-party call. No DocuSign/Adobe Sign/Aadhaar eSign SDK is an already-declared dependency in this repo (CLAUDE.md's Dependencies section forbids adding packages), so there is no real connection to attempt or fail. I made this deterministic instead of random: Send for Signature always fails with AF-005's exact message when any signer's effective Signature Method is not 'In-built E-signature', and always succeeds when it is -- this keeps the story's two named outcomes (works via in-built, fails via any integrated provider) reproducible and testable rather than approximating a flaky external dependency that does not exist in this sandbox. `SendForSignatureResponse.contractStatus`'s 'SignatureConnectionFailed' enum value is returned on the wire for this case while the underlying `contracts.status` column is left unchanged, per AF-005's 'contract status remains unchanged' criterion -- the DTO's enum member and the persisted value are intentionally different things.",
+    "`AuditCertificateResponse`/`audit_certificates` row generation: this task owns the GET (download) endpoint only -- no endpoint in this task's `context.json` creates an AuditCertificate, and the row's natural creation point (the last signer's Signature Pad submission, UC7-BR-019/MF-001) belongs to the sibling T-SIGNING-SESSIONS-API task, out of this task's scope. So that the GET endpoint is independently testable and usable once a contract reaches Executed by any means, this service lazily materializes the AuditCertificate row (and its `downloadUrl`, built the same deterministic-by-id way T-CONTRACTS-THIRD-PARTY-PAPER-API's `storageUrl` is, since no object-storage dependency is configured) on first read rather than 404ing forever until the sibling task's endpoint has run.",
+    "GET audit-certificate returns 404 (not 409) when the contract has not yet reached Executed status, on the reasoning that the certificate genuinely does not exist yet rather than that the request conflicts with current state; CLAUDE.md's status-code list does not disambiguate 'not yet created' from 'not found' for a derived/generated resource like this.",
+    "Sandbox has no reachable Postgres (connection to localhost:5432 refused), the same gap T-CLAUSES-API/T-CONTRACTS-API(uc123)/T-APPROVALS-API already documented. Verified instead: (1) all 5 routes appear in /openapi.json with the right methods via a live uvicorn boot; (2) the 401/403 role-matrix live, end-to-end, with no database at all (role/tenant resolution runs before any DB dependency resolves) -- confirmed the identical 500 reproduces on both a malformed and a syntactically valid contract id, isolating the failure to the missing DATABASE_URL rather than any id-validation bug; (3) every DB-backed behavior -- the full CRUD/lock/send/audit-certificate matrix -- through tests/test_signers.py's 34 tests against a real FastAPI TestClient wired to an in-memory SQLite session through the identical get_db/current_tenant_id dependency chain production uses."
+  ]
+}

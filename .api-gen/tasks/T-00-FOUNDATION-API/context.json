@@ -3,436 +3,445 @@
   "task_id": "T-00-FOUNDATION-API",
   "kind": "foundation",
   "resource": "",
-  "base_path": "/api/v1/lifecycle",
+  "base_path": "/api/v1",
   "primary_story_id": "00-foundation",
   "story_ids": [],
   "endpoints": [
     {
-      "id": "GET_clause_analysis",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/clause-analysis",
+      "id": "GET_approvals_list",
+      "path": "/api/v1/approvals",
       "roles": [
-        "LEGAL_REVIEWER",
+        "APPROVER",
+        "TENANT_ADMIN",
         "CONTRACT_OWNER",
-        "TENANT_ADMIN"
-      ],
-      "method": "GET",
-      "summary": "Retrieve AI-extracted clauses, risk scores, mandatory flags and contract metadata for the Clause Analysis screen",
-      "is_paged": false,
-      "story_refs": [
-        "UC4-MF-001",
-        "UC4-AF-001",
-        "UC4-AF-002",
-        "UC4-AF-003",
-        "UC4-BR-001",
-        "UC4-BR-002",
-        "UC4-BR-003",
-        "UC4-BR-004",
-        "UC4-BR-005",
-        "UC4-BR-009",
-        "UC4-BR-010",
-        "UC4-BR-011",
-        "UC4-BR-012",
-        "UC4-BR-013",
-        "UC4-BR-016",
-        "UC4-BR-017",
-        "UC4-BR-018",
-        "UC4-FV-001",
-        "UC4-FV-002",
-        "UC4-FV-003",
-        "UC4-FV-005",
-        "UC4-GC-001"
-      ],
-      "response_dto": "ClauseAnalysisResponse",
-      "auth_required": true
-    },
-    {
-      "id": "POST_accept_suggestion",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/accept-suggestion",
-      "roles": [
-        "LEGAL_REVIEWER",
-        "CONTRACT_OWNER"
-      ],
-      "method": "POST",
-      "summary": "Accept the AI-suggested text for a clause, replacing current text and logging the action",
-      "is_paged": false,
-      "story_refs": [
-        "UC4-MF-001",
-        "UC4-BR-006",
-        "UC4-BR-009",
-        "UC4-BR-010",
-        "UC4-BR-014",
-        "UC4-BR-016",
-        "UC4-BR-017",
-        "UC4-BR-018",
-        "UC4-FV-002"
-      ],
-      "response_dto": "ClauseResponse",
-      "auth_required": true
-    },
-    {
-      "id": "PUT_edit_clause",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}",
-      "roles": [
         "LEGAL_REVIEWER"
       ],
-      "method": "PUT",
-      "summary": "Save a manual rewrite of a clause via the Clause Edit Box; blocked on stale version per concurrency check",
-      "is_paged": false,
-      "story_refs": [
-        "UC4-MF-001",
-        "UC4-AF-002",
-        "UC4-AF-004",
-        "UC4-BR-006",
-        "UC4-BR-009",
-        "UC4-BR-015",
-        "UC4-BR-016",
-        "UC4-BR-017",
-        "UC4-FV-002"
-      ],
-      "request_dto": "EditClauseRequest",
-      "response_dto": "ClauseResponse",
-      "auth_required": true
-    },
-    {
-      "id": "POST_reject_clause",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/reject",
-      "roles": [
-        "LEGAL_REVIEWER"
-      ],
-      "method": "POST",
-      "summary": "Reject a clause suggestion, logging user, timestamp and before/after text",
-      "is_paged": false,
-      "story_refs": [
-        "UC4-BR-006"
-      ],
-      "request_dto": "RejectClauseRequest",
-      "response_dto": "ClauseResponse",
-      "auth_required": true
-    },
-    {
-      "id": "PUT_contract_metadata",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/metadata",
-      "roles": [
-        "LEGAL_REVIEWER",
-        "CONTRACT_OWNER"
-      ],
-      "method": "PUT",
-      "summary": "Update AI-extracted contract metadata fields; relabels edited fields as User-confirmed",
-      "is_paged": false,
-      "story_refs": [
-        "UC4-MF-001",
-        "UC4-BR-006",
-        "UC4-BR-007",
-        "UC4-FV-003"
-      ],
-      "request_dto": "UpdateMetadataRequest",
-      "response_dto": "ContractMetadataResponse",
-      "auth_required": true
-    },
-    {
-      "id": "POST_ask_ai",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/ask-ai",
-      "roles": [
-        "LEGAL_REVIEWER",
-        "CONTRACT_OWNER"
-      ],
-      "method": "POST",
-      "summary": "Submit a free-text question about the contract and receive an AI answer with verification disclaimer",
-      "is_paged": false,
-      "story_refs": [
-        "UC4-MF-001",
-        "UC4-AF-005",
-        "UC4-BR-006",
-        "UC4-BR-008",
-        "UC4-BR-009",
-        "UC4-BR-010",
-        "UC4-BR-011",
-        "UC4-FV-004"
-      ],
-      "request_dto": "AskAIRequest",
-      "response_dto": "AskAIResponse",
-      "auth_required": true
-    },
-    {
-      "id": "POST_proceed_to_negotiation",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/proceed-to-negotiation",
-      "roles": [
-        "LEGAL_REVIEWER",
-        "CONTRACT_OWNER"
-      ],
-      "method": "POST",
-      "summary": "Finalize clause set and metadata and route the contract to Negotiation & Routing (UC5), blocked if mandatory clauses remain missing",
-      "is_paged": false,
-      "story_refs": [
-        "UC4-MF-001",
-        "UC4-AF-006",
-        "UC4-BR-005",
-        "UC4-BR-013",
-        "UC4-FV-005"
-      ],
-      "response_dto": "ProceedToNegotiationResponse",
-      "auth_required": true
-    },
-    {
-      "id": "POST_retry_extraction",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/retry-extraction",
-      "roles": [
-        "LEGAL_REVIEWER",
-        "CONTRACT_OWNER"
-      ],
-      "method": "POST",
-      "summary": "Retry AI clause extraction after a failure or timeout",
-      "is_paged": false,
-      "story_refs": [
-        "UC4-AF-002"
-      ],
-      "response_dto": "ClauseAnalysisResponse",
-      "auth_required": true
-    },
-    {
-      "id": "GET_audit_log",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/audit-log",
-      "roles": [
-        "LEGAL_REVIEWER",
-        "CONTRACT_OWNER",
-        "TENANT_ADMIN"
-      ],
       "method": "GET",
-      "summary": "Retrieve the immutable audit trail of Accept/Edit/Reject/Metadata/AskAI actions for a contract",
+      "summary": "List approvals visible to the current user (pending, delegated, or tenant-wide for Tenant Admin), with empty-state when none pending",
       "is_paged": true,
       "story_refs": [
-        "UC4-BR-006",
-        "UC4-AF-004"
+        "UC6-AF-006",
+        "UC6-BR-016",
+        "UC6-BR-017",
+        "UC6-BR-018"
       ],
-      "response_dto": "PagedAuditLogResponse",
+      "response_dto": "ApprovalListResponse",
       "auth_required": true
     },
     {
-      "id": "POST_negotiation_routing",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/routing",
+      "id": "GET_approval_detail",
+      "path": "/api/v1/approvals/{approvalId}",
       "roles": [
-        "CONTRACT_OWNER"
-      ],
-      "method": "POST",
-      "summary": "Configure routing (type, reviewers, external party, dates) and submit a Draft contract for internal/external review, creating Version 1",
-      "is_paged": false,
-      "story_refs": [
-        "UC5-MF-001",
-        "UC5-AF-001",
-        "UC5-AF-004",
-        "UC5-BR-001",
-        "UC5-BR-002",
-        "UC5-BR-003",
-        "UC5-BR-004",
-        "UC5-BR-013",
-        "UC5-BR-017",
-        "UC5-BR-018",
-        "UC5-BR-023",
-        "UC5-FV-001"
-      ],
-      "request_dto": "RoutingRequest",
-      "response_dto": "RoutingResponse",
-      "auth_required": true
-    },
-    {
-      "id": "GET_negotiation_tracker",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation",
-      "roles": [
-        "CONTRACT_OWNER",
-        "LEGAL_REVIEWER",
         "APPROVER",
-        "TENANT_ADMIN"
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER"
       ],
       "method": "GET",
-      "summary": "Retrieve the negotiation tracker: routing config, reviewers, status, current version, overdue flag, version history and comments",
+      "summary": "Get full approval review detail for a contract's current step including all read-only fields and action eligibility flags",
       "is_paged": false,
       "story_refs": [
-        "UC5-MF-001",
-        "UC5-AF-004",
-        "UC5-AF-006",
-        "UC5-BR-007",
-        "UC5-BR-008",
-        "UC5-BR-013",
-        "UC5-BR-014",
-        "UC5-BR-015",
-        "UC5-BR-017",
-        "UC5-BR-019",
-        "UC5-BR-020",
-        "UC5-FV-003"
+        "UC6-MF-001",
+        "UC6-AF-001",
+        "UC6-AF-002",
+        "UC6-AF-003",
+        "UC6-AF-004",
+        "UC6-AF-005",
+        "UC6-BR-001",
+        "UC6-BR-002",
+        "UC6-BR-003",
+        "UC6-BR-004",
+        "UC6-BR-007",
+        "UC6-BR-009",
+        "UC6-BR-011",
+        "UC6-BR-014",
+        "UC6-BR-015",
+        "UC6-BR-016",
+        "UC6-BR-017",
+        "UC6-BR-018",
+        "UC6-BR-019",
+        "UC6-BR-020",
+        "UC6-FV-001"
       ],
-      "response_dto": "NegotiationTrackerResponse",
+      "response_dto": "ApprovalResponse",
       "auth_required": true
     },
     {
-      "id": "POST_submit_review",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/reviews",
+      "id": "POST_approval_action",
+      "path": "/api/v1/approvals/{approvalId}/actions",
       "roles": [
-        "LEGAL_REVIEWER",
         "APPROVER"
       ],
       "method": "POST",
-      "summary": "Submit an internal reviewer's redline/comment, incrementing the version and routing to next reviewer or external party",
+      "summary": "Submit an Approve, Reject, or Send Back action for the current approval step, enforcing sequence, mandatory-comments and ownership rules",
       "is_paged": false,
       "story_refs": [
-        "UC5-MF-001",
-        "UC5-AF-005",
-        "UC5-BR-002",
-        "UC5-BR-003",
-        "UC5-BR-004",
-        "UC5-BR-005",
-        "UC5-BR-010",
-        "UC5-BR-011",
-        "UC5-BR-014",
-        "UC5-BR-019"
+        "UC6-MF-001",
+        "UC6-AF-001",
+        "UC6-AF-002",
+        "UC6-AF-004",
+        "UC6-BR-001",
+        "UC6-BR-003",
+        "UC6-BR-004",
+        "UC6-BR-005",
+        "UC6-BR-006",
+        "UC6-BR-007",
+        "UC6-BR-010",
+        "UC6-BR-011",
+        "UC6-BR-012",
+        "UC6-BR-015",
+        "UC6-BR-016",
+        "UC6-BR-017",
+        "UC6-BR-018",
+        "UC6-BR-019",
+        "UC6-BR-020",
+        "UC6-BR-021",
+        "UC6-BR-022",
+        "UC6-BR-023",
+        "UC6-BR-024"
       ],
-      "request_dto": "SubmitReviewRequest",
-      "response_dto": "SubmitReviewResponse",
+      "request_dto": "ApprovalActionRequest",
+      "response_dto": "ApprovalActionResponse",
       "auth_required": true
     },
     {
-      "id": "POST_generate_external_link",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/external-link",
+      "id": "POST_approval_delegate",
+      "path": "/api/v1/approvals/{approvalId}/delegate",
       "roles": [
+        "APPROVER"
+      ],
+      "method": "POST",
+      "summary": "Assign a time-bound Delegate to act on the Approver's behalf for the current step, validating delegate eligibility, sequence, and ownership",
+      "is_paged": false,
+      "story_refs": [
+        "UC6-MF-001",
+        "UC6-AF-001",
+        "UC6-AF-003",
+        "UC6-AF-004",
+        "UC6-AF-005",
+        "UC6-BR-008",
+        "UC6-BR-010",
+        "UC6-BR-011",
+        "UC6-BR-015"
+      ],
+      "request_dto": "DelegateRequest",
+      "response_dto": "DelegateResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_approval_history",
+      "path": "/api/v1/approvals/{approvalId}/history",
+      "roles": [
+        "APPROVER",
+        "TENANT_ADMIN",
         "CONTRACT_OWNER",
         "LEGAL_REVIEWER"
       ],
-      "method": "POST",
-      "summary": "Generate a secure OTP-protected link for the external party once internal review completes",
-      "is_paged": false,
+      "method": "GET",
+      "summary": "Retrieve the immutable Approval History tab entries for a contract's approval workflow, retained for 7 years",
+      "is_paged": true,
       "story_refs": [
-        "UC5-MF-001",
-        "UC5-BR-005",
-        "UC5-BR-008",
-        "UC5-BR-016"
+        "UC6-BR-010",
+        "UC6-BR-012",
+        "UC6-BR-013",
+        "UC6-BR-017"
       ],
-      "response_dto": "GenerateExternalLinkResponse",
+      "response_dto": "ApprovalHistoryListResponse",
       "auth_required": true
     },
     {
-      "id": "POST_verify_otp",
-      "path": "/api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp",
+      "id": "GET_approval_matrix_config",
+      "path": "/api/v1/approval-matrix-config",
       "roles": [
-        "EXTERNAL_PARTY"
+        "TENANT_ADMIN"
       ],
-      "method": "POST",
-      "summary": "Verify the OTP for an external party secure link; locks link after three failed attempts",
+      "method": "GET",
+      "summary": "Retrieve tenant-configured approval matrix rules by contract type, value, and risk band",
       "is_paged": false,
       "story_refs": [
-        "UC5-AF-002",
-        "UC5-BR-016"
+        "UC6-BR-002",
+        "UC6-BR-016"
+      ],
+      "response_dto": "ApprovalMatrixConfigListResponse",
+      "auth_required": true
+    },
+    {
+      "id": "PUT_approval_matrix_config",
+      "path": "/api/v1/approval-matrix-config",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "PUT",
+      "summary": "Update tenant-configured approval matrix rules and step sequences",
+      "is_paged": false,
+      "story_refs": [
+        "UC6-BR-002",
+        "UC6-BR-016"
+      ],
+      "request_dto": "UpdateApprovalMatrixConfigRequest",
+      "response_dto": "ApprovalMatrixConfigListResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_signers_list",
+      "path": "/api/v1/contracts/{contractId}/signers",
+      "roles": [
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "TENANT_ADMIN"
+      ],
+      "method": "GET",
+      "summary": "List all signers and their statuses for a contract's e-signature workflow (Signer List tab/grid)",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-BR-002",
+        "UC7-BR-004",
+        "UC7-BR-010",
+        "UC7-BR-012",
+        "UC7-BR-013",
+        "UC7-BR-014",
+        "UC7-GC-001",
+        "UC7-FV-005",
+        "UC7-AF-006"
+      ],
+      "response_dto": "SignerListResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_signers_add",
+      "path": "/api/v1/contracts/{contractId}/signers",
+      "roles": [
+        "CONTRACT_OWNER"
+      ],
+      "method": "POST",
+      "summary": "Add a new signer row to the Signer List with mandatory signer fields",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-MF-001",
+        "UC7-BR-002",
+        "UC7-BR-004",
+        "UC7-BR-010",
+        "UC7-FV-001"
+      ],
+      "request_dto": "AddSignerRequest",
+      "response_dto": "SignerResponse",
+      "auth_required": true
+    },
+    {
+      "id": "PUT_signers_update",
+      "path": "/api/v1/contracts/{contractId}/signers/{signerId}",
+      "roles": [
+        "CONTRACT_OWNER"
+      ],
+      "method": "PUT",
+      "summary": "Update or reorder a signer; blocked once the first signature has been collected",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-AF-004",
+        "UC7-BR-004",
+        "UC7-BR-010"
+      ],
+      "request_dto": "UpdateSignerRequest",
+      "response_dto": "SignerResponse",
+      "auth_required": true
+    },
+    {
+      "id": "DELETE_signers_remove",
+      "path": "/api/v1/contracts/{contractId}/signers/{signerId}",
+      "roles": [
+        "CONTRACT_OWNER"
+      ],
+      "method": "DELETE",
+      "summary": "Remove a signer from the Signer List; blocked once the first signature has been collected",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-BR-004",
+        "UC7-BR-010"
+      ],
+      "response_dto": "SignerResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_signers_send",
+      "path": "/api/v1/contracts/{contractId}/signers/send",
+      "roles": [
+        "CONTRACT_OWNER"
+      ],
+      "method": "POST",
+      "summary": "Send for Signature: transition contract to Sent and email the secure link to the first signer(s) in Signing Order",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-MF-001",
+        "UC7-AF-005",
+        "UC7-BR-002",
+        "UC7-BR-015",
+        "UC7-FV-001"
+      ],
+      "request_dto": "SendForSignatureRequest",
+      "response_dto": "SendForSignatureResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_signing_session",
+      "path": "/api/v1/signing-sessions/{sessionId}",
+      "roles": [
+        "SIGNER"
+      ],
+      "method": "GET",
+      "summary": "Get the current signer's session state (document, status, eligibility) gated by sequential order and precondition checks",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-MF-001",
+        "UC7-AF-003",
+        "UC7-BR-001",
+        "UC7-BR-003",
+        "UC7-BR-011",
+        "UC7-BR-014",
+        "UC7-BR-016",
+        "UC7-BR-021"
+      ],
+      "response_dto": "SigningSessionResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_signing_otp_verify",
+      "path": "/api/v1/signing-sessions/{sessionId}/otp/verify",
+      "roles": [
+        "SIGNER"
+      ],
+      "method": "POST",
+      "summary": "Verify the signer's 6-digit OTP, revealing the document viewer and Signature Pad on success; locks link after 3 invalid attempts",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-MF-001",
+        "UC7-AF-001",
+        "UC7-BR-001",
+        "UC7-BR-003",
+        "UC7-BR-016",
+        "UC7-FV-002"
       ],
       "request_dto": "VerifyOtpRequest",
       "response_dto": "VerifyOtpResponse",
-      "auth_required": false
-    },
-    {
-      "id": "POST_external_submit",
-      "path": "/api/v1/lifecycle/negotiation/external/{linkToken}/submit",
-      "roles": [
-        "EXTERNAL_PARTY"
-      ],
-      "method": "POST",
-      "summary": "External party submits redlines/comments on the current version; triggers AI clause analysis and reverts status to With Internal",
-      "is_paged": false,
-      "story_refs": [
-        "UC5-MF-001",
-        "UC5-AF-003",
-        "UC5-BR-006",
-        "UC5-BR-008",
-        "UC5-BR-016",
-        "UC5-BR-020"
-      ],
-      "request_dto": "ExternalSubmitRequest",
-      "response_dto": "ExternalSubmitResponse",
-      "auth_required": false
-    },
-    {
-      "id": "GET_compare_versions",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/compare",
-      "roles": [
-        "CONTRACT_OWNER",
-        "LEGAL_REVIEWER",
-        "APPROVER"
-      ],
-      "method": "GET",
-      "summary": "Return a side-by-side redline comparison between two selected prior versions of the same contract and tenant",
-      "is_paged": false,
-      "story_refs": [
-        "UC5-MF-001",
-        "UC5-BR-011",
-        "UC5-BR-012",
-        "UC5-BR-014",
-        "UC5-BR-015",
-        "UC5-FV-002"
-      ],
-      "response_dto": "CompareVersionsResponse",
       "auth_required": true
     },
     {
-      "id": "POST_send_reminder",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/reminder",
+      "id": "POST_signing_otp_resend",
+      "path": "/api/v1/signing-sessions/{sessionId}/otp/resend",
       "roles": [
+        "SIGNER",
         "CONTRACT_OWNER"
       ],
       "method": "POST",
-      "summary": "Send a manual reminder email to an overdue reviewer; supplements the automatic daily reminder",
+      "summary": "Re-send a new OTP/signing link after lockout expiry or link expiry",
       "is_paged": false,
       "story_refs": [
-        "UC5-AF-006",
-        "UC5-BR-010",
-        "UC5-BR-013"
+        "UC7-AF-003",
+        "UC7-BR-020"
       ],
-      "response_dto": "ReminderResponse",
+      "response_dto": "SigningSessionResponse",
       "auth_required": true
     },
     {
-      "id": "POST_mark_agreed",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/mark-agreed",
+      "id": "POST_signing_sign",
+      "path": "/api/v1/signing-sessions/{sessionId}/sign",
       "roles": [
+        "SIGNER"
+      ],
+      "method": "POST",
+      "summary": "Apply the signer's signature via the Signature Pad; advances sequence and auto-transitions contract to Executed on the final signature",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-MF-001",
+        "UC7-BR-001",
+        "UC7-BR-004",
+        "UC7-BR-007",
+        "UC7-BR-017",
+        "UC7-BR-019",
+        "UC7-FV-003"
+      ],
+      "request_dto": "ApplySignatureRequest",
+      "response_dto": "ApplySignatureResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_signing_decline",
+      "path": "/api/v1/signing-sessions/{sessionId}/decline",
+      "roles": [
+        "SIGNER"
+      ],
+      "method": "POST",
+      "summary": "Decline to sign with a mandatory reason; halts routing and sets contract status to Signature Declined",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-AF-002",
+        "UC7-BR-008",
+        "UC7-BR-018",
+        "UC7-FV-003"
+      ],
+      "request_dto": "DeclineSignatureRequest",
+      "response_dto": "DeclineSignatureResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_audit_certificate",
+      "path": "/api/v1/contracts/{contractId}/audit-certificate",
+      "roles": [
+        "CONTRACT_OWNER",
         "LEGAL_REVIEWER"
       ],
-      "method": "POST",
-      "summary": "Legal Reviewer explicitly marks negotiation as Agreed after at least one full review cycle",
+      "method": "GET",
+      "summary": "Download the signed audit certificate listing every signer's identity, IP, timestamp, and signing details; available only once Executed",
       "is_paged": false,
       "story_refs": [
-        "UC5-MF-001",
-        "UC5-BR-009",
-        "UC5-BR-014",
-        "UC5-BR-015",
-        "UC5-BR-021",
-        "UC5-BR-022"
+        "UC7-BR-005",
+        "UC7-BR-009",
+        "UC7-BR-019",
+        "UC7-FV-005"
       ],
-      "response_dto": "MarkAgreedResponse",
+      "response_dto": "AuditCertificateResponse",
       "auth_required": true
     },
     {
-      "id": "POST_add_comment",
-      "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/comments",
+      "id": "GET_esignature_settings",
+      "path": "/api/v1/esignature-settings",
       "roles": [
-        "LEGAL_REVIEWER",
-        "CONTRACT_OWNER",
-        "APPROVER"
+        "TENANT_ADMIN"
       ],
-      "method": "POST",
-      "summary": "Add a free-text comment tied to a clause and the current negotiation version",
+      "method": "GET",
+      "summary": "Get tenant-wide reminder frequency and default signature provider configuration",
       "is_paged": false,
       "story_refs": [
-        "UC5-BR-011",
-        "UC5-BR-014",
-        "UC5-BR-015",
-        "UC5-FV-001",
-        "UC5-FV-002",
-        "UC5-FV-003"
+        "UC7-BR-006",
+        "UC7-BR-013",
+        "UC7-FV-004",
+        "UC7-AF-006"
       ],
-      "request_dto": "CommentRequest",
-      "response_dto": "CommentResponse",
+      "response_dto": "EsignatureSettingsResponse",
+      "auth_required": true
+    },
+    {
+      "id": "PUT_esignature_settings",
+      "path": "/api/v1/esignature-settings",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "PUT",
+      "summary": "Update tenant-wide reminder frequency (default 3 days) and default signature provider",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-BR-006",
+        "UC7-BR-013",
+        "UC7-FV-004"
+      ],
+      "request_dto": "UpdateEsignatureSettingsRequest",
+      "response_dto": "EsignatureSettingsResponse",
       "auth_required": true
     }
   ],
   "dtos": [],
   "tables": [
     {
-      "name": "contract_clauses",
+      "name": "approval_matrix_configs",
       "columns": [
         {
           "name": "id",
@@ -440,59 +449,34 @@
           "nullable": false
         },
         {
-          "name": "contract_id",
+          "name": "tenant_id",
           "type": "UUID",
           "nullable": false
         },
         {
-          "name": "clause_category",
-          "type": "VARCHAR(50)",
+          "name": "contract_type",
+          "type": "VARCHAR(100)",
+          "nullable": false
+        },
+        {
+          "name": "value_min",
+          "type": "NUMERIC(18,2)",
           "nullable": true
         },
         {
-          "name": "library_match_status",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "risk_score",
-          "type": "VARCHAR(10)",
-          "nullable": false
-        },
-        {
-          "name": "ai_explanation",
-          "type": "TEXT",
+          "name": "value_max",
+          "type": "NUMERIC(18,2)",
           "nullable": true
         },
         {
-          "name": "suggested_text",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "clause_text",
-          "type": "TEXT",
-          "nullable": false
-        },
-        {
-          "name": "status",
-          "type": "VARCHAR(30)",
-          "nullable": false
-        },
-        {
-          "name": "is_mandatory",
-          "type": "BOOLEAN",
-          "nullable": false
-        },
-        {
-          "name": "mandatory_flag_cleared",
-          "type": "BOOLEAN",
-          "nullable": false
-        },
-        {
-          "name": "version",
+          "name": "risk_band_min",
           "type": "INTEGER",
-          "nullable": false
+          "nullable": true
+        },
+        {
+          "name": "risk_band_max",
+          "type": "INTEGER",
+          "nullable": true
         },
         {
           "name": "created_at",
@@ -513,16 +497,170 @@
           "name": "updated_by",
           "type": "UUID",
           "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "contract_type"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC6-BR-002",
+        "UC6-BR-016"
+      ],
+      "description": "Tenant-configured approval matrix rules keyed by contract type, value range and AI risk band",
+      "foreign_keys": []
+    },
+    {
+      "name": "approval_matrix_steps",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
         },
         {
-          "name": "deleted_at",
-          "type": "TIMESTAMPTZ",
+          "name": "config_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "step_number",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "step_name",
+          "type": "VARCHAR(200)",
+          "nullable": false
+        },
+        {
+          "name": "approver_role",
+          "type": "VARCHAR(100)",
           "nullable": true
         },
         {
-          "name": "deleted_by",
+          "name": "approver_user_id",
           "type": "UUID",
           "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "config_id",
+            "step_number"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC6-BR-002",
+        "UC6-BR-016"
+      ],
+      "description": "Ordered steps defined within an approval matrix configuration",
+      "foreign_keys": [
+        {
+          "column": "config_id",
+          "references_table": "approval_matrix_configs",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "approvals",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_owner_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "config_id",
+          "type": "UUID",
+          "nullable": true
+        },
+        {
+          "name": "current_step_number",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "total_steps",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(30)",
+          "nullable": false
+        },
+        {
+          "name": "ai_risk_score",
+          "type": "INTEGER",
+          "nullable": true
+        },
+        {
+          "name": "key_terms_summary",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "deviations_from_standard",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
         }
       ],
       "indexes": [
@@ -533,48 +671,34 @@
         },
         {
           "columns": [
-            "contract_id",
             "status"
           ]
         }
       ],
       "story_refs": [
-        "UC4-MF-001",
-        "UC4-AF-001",
-        "UC4-AF-002",
-        "UC4-AF-003",
-        "UC4-AF-004",
-        "UC4-AF-006",
-        "UC4-BR-001",
-        "UC4-BR-002",
-        "UC4-BR-003",
-        "UC4-BR-004",
-        "UC4-BR-005",
-        "UC4-BR-006",
-        "UC4-BR-009",
-        "UC4-BR-010",
-        "UC4-BR-011",
-        "UC4-BR-012",
-        "UC4-BR-014",
-        "UC4-BR-015",
-        "UC4-BR-016",
-        "UC4-BR-017",
-        "UC4-BR-018",
-        "UC4-FV-001",
-        "UC4-FV-002",
-        "UC4-GC-001"
+        "UC6-MF-001",
+        "UC6-BR-001",
+        "UC6-BR-002",
+        "UC6-BR-005",
+        "UC6-BR-006",
+        "UC6-BR-009",
+        "UC6-BR-011",
+        "UC6-BR-017",
+        "UC6-BR-018",
+        "UC6-BR-023",
+        "UC6-BR-024"
       ],
-      "description": "Stores each AI-extracted or manually-tagged clause with category, library match status, risk score and lifecycle status",
+      "description": "Approval workflow instance for a contract, tracking overall status and current step",
       "foreign_keys": [
         {
-          "column": "contract_id",
-          "references_table": "contracts",
+          "column": "config_id",
+          "references_table": "approval_matrix_configs",
           "references_column": "id"
         }
       ]
     },
     {
-      "name": "contract_metadata",
+      "name": "approval_step_instances",
       "columns": [
         {
           "name": "id",
@@ -582,78 +706,128 @@
           "nullable": false
         },
         {
-          "name": "contract_id",
+          "name": "approval_id",
           "type": "UUID",
           "nullable": false
         },
         {
-          "name": "parties",
+          "name": "step_number",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "approver_user_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(30)",
+          "nullable": false
+        },
+        {
+          "name": "comments",
           "type": "TEXT",
           "nullable": true
         },
         {
-          "name": "parties_label",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "contract_value",
-          "type": "NUMERIC(18,2)",
+          "name": "acted_by",
+          "type": "UUID",
           "nullable": true
         },
         {
-          "name": "contract_value_label",
-          "type": "VARCHAR(20)",
+          "name": "acted_as_delegate_for",
+          "type": "UUID",
+          "nullable": true
+        },
+        {
+          "name": "acted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "approval_id",
+            "step_number"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC6-MF-001",
+        "UC6-AF-001",
+        "UC6-AF-002",
+        "UC6-AF-004",
+        "UC6-BR-003",
+        "UC6-BR-004",
+        "UC6-BR-007",
+        "UC6-BR-012",
+        "UC6-BR-020",
+        "UC6-BR-021",
+        "UC6-BR-022",
+        "UC6-BR-023"
+      ],
+      "description": "Per-step instance of an approval, tracking assigned approver, status, and comments for that step",
+      "foreign_keys": [
+        {
+          "column": "approval_id",
+          "references_table": "approvals",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "approval_delegations",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "approval_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "approver_user_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "delegate_to_user_id",
+          "type": "UUID",
           "nullable": false
         },
         {
           "name": "start_date",
           "type": "DATE",
-          "nullable": true
-        },
-        {
-          "name": "start_date_label",
-          "type": "VARCHAR(20)",
           "nullable": false
         },
         {
           "name": "end_date",
           "type": "DATE",
-          "nullable": true
-        },
-        {
-          "name": "end_date_label",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "renewal_terms",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "renewal_terms_label",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "payment_terms",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "payment_terms_label",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "key_obligations",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "key_obligations_label",
-          "type": "VARCHAR(20)",
           "nullable": false
         },
         {
@@ -679,38 +853,34 @@
       ],
       "indexes": [
         {
-          "unique": true,
           "columns": [
-            "contract_id"
+            "approval_id"
+          ]
+        },
+        {
+          "columns": [
+            "delegate_to_user_id"
           ]
         }
       ],
       "story_refs": [
-        "UC4-MF-001",
-        "UC4-AF-001",
-        "UC4-AF-002",
-        "UC4-AF-003",
-        "UC4-BR-006",
-        "UC4-BR-007",
-        "UC4-BR-009",
-        "UC4-BR-010",
-        "UC4-BR-011",
-        "UC4-FV-001",
-        "UC4-FV-002",
-        "UC4-FV-003",
-        "UC4-FV-005"
+        "UC6-MF-001",
+        "UC6-AF-005",
+        "UC6-BR-008",
+        "UC6-BR-011",
+        "UC6-BR-015"
       ],
-      "description": "Stores AI-extracted/user-confirmed contract-level metadata fields for a contract",
+      "description": "Time-bound delegation assignments allowing a Delegate to act on behalf of an Approver",
       "foreign_keys": [
         {
-          "column": "contract_id",
-          "references_table": "contracts",
+          "column": "approval_id",
+          "references_table": "approvals",
           "references_column": "id"
         }
       ]
     },
     {
-      "name": "clause_audit_log",
+      "name": "approval_audit_log",
       "columns": [
         {
           "name": "id",
@@ -718,326 +888,109 @@
           "nullable": false
         },
         {
-          "name": "contract_id",
+          "name": "approval_id",
           "type": "UUID",
           "nullable": false
         },
         {
-          "name": "clause_id",
+          "name": "contract_title",
+          "type": "VARCHAR(500)",
+          "nullable": false
+        },
+        {
+          "name": "contract_type",
+          "type": "VARCHAR(100)",
+          "nullable": false
+        },
+        {
+          "name": "contract_value",
+          "type": "NUMERIC(18,2)",
+          "nullable": false
+        },
+        {
+          "name": "counterparty_name",
+          "type": "VARCHAR(300)",
+          "nullable": false
+        },
+        {
+          "name": "key_terms_summary",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "deviations_from_standard",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "ai_risk_score",
+          "type": "INTEGER",
+          "nullable": true
+        },
+        {
+          "name": "approval_matrix_step_label",
+          "type": "VARCHAR(200)",
+          "nullable": false
+        },
+        {
+          "name": "action",
+          "type": "VARCHAR(20)",
+          "nullable": false
+        },
+        {
+          "name": "actor_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "actor_role",
+          "type": "VARCHAR(50)",
+          "nullable": false
+        },
+        {
+          "name": "acting_as_delegate_for",
           "type": "UUID",
           "nullable": true
         },
         {
-          "name": "user_id",
+          "name": "delegate_to_user_id",
           "type": "UUID",
-          "nullable": false
+          "nullable": true
         },
         {
-          "name": "action_type",
+          "name": "delegate_to_name",
+          "type": "VARCHAR(200)",
+          "nullable": true
+        },
+        {
+          "name": "prior_state",
           "type": "VARCHAR(30)",
           "nullable": false
         },
         {
-          "name": "field_name",
-          "type": "VARCHAR(50)",
-          "nullable": true
+          "name": "new_state",
+          "type": "VARCHAR(30)",
+          "nullable": false
         },
         {
-          "name": "before_text",
+          "name": "comments",
           "type": "TEXT",
           "nullable": true
         },
         {
-          "name": "after_text",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "occurred_at",
+          "name": "retention_expires_at",
           "type": "TIMESTAMPTZ",
           "nullable": false
         },
         {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "columns": [
-            "contract_id",
-            "occurred_at"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC4-BR-006",
-        "UC4-AF-004",
-        "UC4-BR-014",
-        "UC4-BR-015"
-      ],
-      "description": "Immutable audit trail of Accept/Edit/Reject/Metadata/AskAI actions against clauses and metadata",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        },
-        {
-          "column": "clause_id",
-          "references_table": "contract_clauses",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "ask_ai_interactions",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "contract_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "user_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "question",
-          "type": "TEXT",
-          "nullable": false
-        },
-        {
-          "name": "answer",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "disclaimer",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "related_clause_ids",
-          "type": "JSONB",
-          "nullable": true
-        },
-        {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "columns": [
-            "contract_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC4-MF-001",
-        "UC4-AF-003",
-        "UC4-AF-005",
-        "UC4-BR-008",
-        "UC4-BR-009",
-        "UC4-BR-010",
-        "UC4-BR-011",
-        "UC4-FV-004"
-      ],
-      "description": "Stores free-text Ask AI questions, answers, and disclaimer context per contract",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "negotiation_routings",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "contract_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "routing_type",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "external_party_name",
-          "type": "VARCHAR(200)",
-          "nullable": false
-        },
-        {
-          "name": "external_party_email",
-          "type": "VARCHAR(200)",
-          "nullable": false
-        },
-        {
-          "name": "assigned_date",
-          "type": "DATE",
-          "nullable": false
-        },
-        {
-          "name": "due_date",
-          "type": "DATE",
-          "nullable": false
-        },
-        {
-          "name": "negotiation_status",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "current_version_number",
-          "type": "INTEGER",
-          "nullable": false
-        },
-        {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "unique": true,
-          "columns": [
-            "contract_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC5-MF-001",
-        "UC5-AF-001",
-        "UC5-AF-004",
-        "UC5-BR-001",
-        "UC5-BR-002",
-        "UC5-BR-003",
-        "UC5-BR-004",
-        "UC5-BR-013",
-        "UC5-BR-017",
-        "UC5-BR-018",
-        "UC5-BR-023",
-        "UC5-FV-001"
-      ],
-      "description": "Stores the routing configuration and current negotiation status/version pointer for a contract",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "negotiation_reviewers",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "negotiation_routing_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "reviewer_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "reviewer_name",
-          "type": "VARCHAR(200)",
-          "nullable": false
-        },
-        {
-          "name": "role",
-          "type": "VARCHAR(50)",
-          "nullable": true
-        },
-        {
-          "name": "is_mandatory",
+          "name": "archived",
           "type": "BOOLEAN",
           "nullable": false
         },
         {
-          "name": "review_status",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "sequence_order",
-          "type": "INTEGER",
-          "nullable": true
-        },
-        {
-          "name": "submitted_at",
+          "name": "timestamp",
           "type": "TIMESTAMPTZ",
-          "nullable": true
+          "nullable": false
         },
         {
           "name": "created_at",
@@ -1063,30 +1016,26 @@
       "indexes": [
         {
           "columns": [
-            "negotiation_routing_id"
+            "approval_id"
           ]
         }
       ],
       "story_refs": [
-        "UC5-BR-001",
-        "UC5-BR-002",
-        "UC5-BR-003",
-        "UC5-BR-004",
-        "UC5-BR-005",
-        "UC5-BR-019",
-        "UC5-AF-006"
+        "UC6-BR-010",
+        "UC6-BR-012",
+        "UC6-BR-013"
       ],
-      "description": "Stores internal reviewers assigned to a negotiation routing, including mandatory auto-added reviewers and review status",
+      "description": "Immutable audit log of every Approve/Reject/SendBack/Delegate action, retained 7 years without hard delete, denormalized with contract/approval context for the Approval History tab",
       "foreign_keys": [
         {
-          "column": "negotiation_routing_id",
-          "references_table": "negotiation_routings",
+          "column": "approval_id",
+          "references_table": "approvals",
           "references_column": "id"
         }
       ]
     },
     {
-      "name": "negotiation_versions",
+      "name": "signers",
       "columns": [
         {
           "name": "id",
@@ -1099,195 +1048,94 @@
           "nullable": false
         },
         {
-          "name": "negotiation_routing_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "version_number",
-          "type": "INTEGER",
-          "nullable": false
-        },
-        {
-          "name": "source",
-          "type": "VARCHAR(10)",
-          "nullable": false
-        },
-        {
-          "name": "document_snapshot",
-          "type": "JSONB",
-          "nullable": true
-        },
-        {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "unique": true,
-          "columns": [
-            "contract_id",
-            "version_number"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC5-MF-001",
-        "UC5-BR-011",
-        "UC5-BR-012",
-        "UC5-BR-014",
-        "UC5-BR-015",
-        "UC5-BR-019",
-        "UC5-BR-020",
-        "UC5-BR-022",
-        "UC5-FV-002"
-      ],
-      "description": "Stores read-only version history for a contract's negotiation, each snapshot created on redline/comment",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        },
-        {
-          "column": "negotiation_routing_id",
-          "references_table": "negotiation_routings",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "negotiation_comments",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "negotiation_version_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "clause_id",
-          "type": "UUID",
-          "nullable": true
-        },
-        {
-          "name": "comment_text",
-          "type": "TEXT",
-          "nullable": false
-        },
-        {
-          "name": "author_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "author_name",
+          "name": "signer_name",
           "type": "VARCHAR(200)",
           "nullable": false
         },
         {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
+          "name": "signer_email",
+          "type": "VARCHAR(320)",
           "nullable": false
         },
         {
-          "name": "created_by",
-          "type": "UUID",
+          "name": "signer_type",
+          "type": "VARCHAR(20)",
           "nullable": false
         },
         {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
+          "name": "signing_order",
+          "type": "INTEGER",
           "nullable": false
         },
         {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "columns": [
-            "negotiation_version_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC5-BR-011",
-        "UC5-BR-014",
-        "UC5-BR-015",
-        "UC5-FV-001",
-        "UC5-FV-002",
-        "UC5-FV-003"
-      ],
-      "description": "Stores free-text comments entered via the Comment Box, tied to a clause and negotiation version",
-      "foreign_keys": [
-        {
-          "column": "negotiation_version_id",
-          "references_table": "negotiation_versions",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "negotiation_external_links",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
+          "name": "signature_method",
+          "type": "VARCHAR(40)",
           "nullable": false
         },
         {
-          "name": "negotiation_routing_id",
-          "type": "UUID",
-          "nullable": false
+          "name": "reminder_frequency_days",
+          "type": "INTEGER",
+          "nullable": true
         },
         {
-          "name": "link_token",
-          "type": "VARCHAR(100)",
+          "name": "signer_status",
+          "type": "VARCHAR(20)",
           "nullable": false
         },
         {
           "name": "otp_hash",
           "type": "VARCHAR(255)",
-          "nullable": false
+          "nullable": true
         },
         {
-          "name": "failed_attempts",
+          "name": "otp_attempts",
           "type": "INTEGER",
           "nullable": false
         },
         {
-          "name": "status",
-          "type": "VARCHAR(20)",
-          "nullable": false
+          "name": "otp_locked_until",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
         },
         {
-          "name": "expires_at",
+          "name": "otp_verified_at",
           "type": "TIMESTAMPTZ",
-          "nullable": false
+          "nullable": true
+        },
+        {
+          "name": "signature_pad_data",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "signed_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "ip_address",
+          "type": "VARCHAR(64)",
+          "nullable": true
+        },
+        {
+          "name": "decline_reason",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "link_token",
+          "type": "VARCHAR(255)",
+          "nullable": true
+        },
+        {
+          "name": "link_expires_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "last_reminder_sent_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
         },
         {
           "name": "created_at",
@@ -1312,29 +1160,45 @@
       ],
       "indexes": [
         {
-          "unique": true,
           "columns": [
-            "link_token"
+            "contract_id",
+            "signing_order"
           ]
         }
       ],
       "story_refs": [
-        "UC5-AF-002",
-        "UC5-AF-003",
-        "UC5-BR-005",
-        "UC5-BR-016"
+        "UC7-MF-001",
+        "UC7-AF-001",
+        "UC7-AF-002",
+        "UC7-AF-003",
+        "UC7-AF-004",
+        "UC7-AF-005",
+        "UC7-AF-006",
+        "UC7-BR-001",
+        "UC7-BR-002",
+        "UC7-BR-003",
+        "UC7-BR-004",
+        "UC7-BR-010",
+        "UC7-BR-011",
+        "UC7-BR-012",
+        "UC7-BR-013",
+        "UC7-BR-014",
+        "UC7-BR-015",
+        "UC7-BR-016",
+        "UC7-BR-017",
+        "UC7-BR-018",
+        "UC7-BR-020",
+        "UC7-FV-001",
+        "UC7-FV-002",
+        "UC7-FV-003",
+        "UC7-FV-005",
+        "UC7-GC-001"
       ],
-      "description": "Stores secure OTP-protected links issued to external parties, tracking lockout and expiry state",
-      "foreign_keys": [
-        {
-          "column": "negotiation_routing_id",
-          "references_table": "negotiation_routings",
-          "references_column": "id"
-        }
-      ]
+      "description": "Signers configured on a contract's e-signature workflow, their order, status and signing audit details",
+      "foreign_keys": []
     },
     {
-      "name": "negotiation_reminders",
+      "name": "signature_audit_log",
       "columns": [
         {
           "name": "id",
@@ -1342,23 +1206,33 @@
           "nullable": false
         },
         {
-          "name": "negotiation_routing_id",
+          "name": "signer_id",
           "type": "UUID",
           "nullable": false
         },
         {
-          "name": "reviewer_id",
+          "name": "contract_id",
           "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "event_type",
+          "type": "VARCHAR(30)",
+          "nullable": false
+        },
+        {
+          "name": "ip_address",
+          "type": "VARCHAR(64)",
           "nullable": true
         },
         {
-          "name": "sent_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
+          "name": "details",
+          "type": "TEXT",
+          "nullable": true
         },
         {
-          "name": "reminder_type",
-          "type": "VARCHAR(10)",
+          "name": "timestamp",
+          "type": "TIMESTAMPTZ",
           "nullable": false
         },
         {
@@ -1385,37 +1259,166 @@
       "indexes": [
         {
           "columns": [
-            "negotiation_routing_id",
-            "sent_at"
+            "signer_id"
+          ]
+        },
+        {
+          "columns": [
+            "contract_id"
           ]
         }
       ],
       "story_refs": [
-        "UC5-AF-006",
-        "UC5-BR-010",
-        "UC5-BR-013"
+        "UC7-BR-005",
+        "UC7-BR-009",
+        "UC7-BR-017",
+        "UC7-BR-019"
       ],
-      "description": "Logs automatic daily and manual reminder emails sent to overdue reviewers",
+      "description": "Immutable event log for each signer's OTP verification and signature capture events, feeding the audit certificate",
       "foreign_keys": [
         {
-          "column": "negotiation_routing_id",
-          "references_table": "negotiation_routings",
+          "column": "signer_id",
+          "references_table": "signers",
           "references_column": "id"
         }
       ]
+    },
+    {
+      "name": "audit_certificates",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "generated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "file_url",
+          "type": "VARCHAR(500)",
+          "nullable": false
+        },
+        {
+          "name": "data_snapshot",
+          "type": "JSONB",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "contract_id"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC7-BR-005",
+        "UC7-BR-009",
+        "UC7-BR-019",
+        "UC7-FV-005"
+      ],
+      "description": "Generated audit certificate record for an executed contract",
+      "foreign_keys": []
+    },
+    {
+      "name": "esignature_settings",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "reminder_frequency_days",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "default_signature_provider",
+          "type": "VARCHAR(40)",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC7-BR-006",
+        "UC7-BR-013",
+        "UC7-FV-004"
+      ],
+      "description": "Tenant-wide reminder frequency and default signature provider configuration",
+      "foreign_keys": []
     }
   ],
   "migrations": [
-    "CreateContractClauses",
-    "CreateContractMetadata",
-    "CreateClauseAuditLog",
-    "CreateAskAiInteractions",
-    "CreateNegotiationRoutings",
-    "CreateNegotiationReviewers",
-    "CreateNegotiationVersions",
-    "CreateNegotiationComments",
-    "CreateNegotiationExternalLinks",
-    "CreateNegotiationReminders"
+    "CreateApprovalMatrixConfigs",
+    "CreateApprovalMatrixSteps",
+    "CreateApprovals",
+    "CreateApprovalStepInstances",
+    "CreateApprovalDelegations",
+    "CreateApprovalAuditLog",
+    "CreateSigners",
+    "CreateSignatureAuditLog",
+    "CreateAuditCertificates",
+    "CreateEsignatureSettings"
   ],
   "stories": []
 }

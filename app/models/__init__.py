@@ -2,9 +2,23 @@
 imported -- Alembic's `env.py` and any future resource task rely on this for autogeneration
 and for `Base.metadata.create_all()` in tests.
 """
+from app.models.approval import (
+    Approval,
+    ApprovalAuditLog,
+    ApprovalDelegation,
+    ApprovalMatrixConfig,
+    ApprovalMatrixStep,
+    ApprovalStepInstance,
+)
 from app.models.clause import Clause, ClauseVersion
 from app.models.contract import Contract, ContractTask
 from app.models.counterparty import Counterparty
+from app.models.esignature import (
+    AuditCertificate,
+    EsignatureSettings,
+    SignatureAuditLog,
+    Signer,
+)
 from app.models.lifecycle_clause import (
     AskAiInteraction,
     ClauseAuditLog,
@@ -45,4 +59,14 @@ __all__ = [
     "NegotiationComment",
     "NegotiationExternalLink",
     "NegotiationReminder",
+    "ApprovalMatrixConfig",
+    "ApprovalMatrixStep",
+    "Approval",
+    "ApprovalStepInstance",
+    "ApprovalDelegation",
+    "ApprovalAuditLog",
+    "Signer",
+    "SignatureAuditLog",
+    "AuditCertificate",
+    "EsignatureSettings",
 ]

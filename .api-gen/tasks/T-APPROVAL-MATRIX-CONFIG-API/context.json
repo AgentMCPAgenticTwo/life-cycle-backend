@@ -1,0 +1,286 @@
+{
+  "group_id": "approval-matrix-config",
+  "task_id": "T-APPROVAL-MATRIX-CONFIG-API",
+  "kind": "resource",
+  "resource": "approval-matrix-config",
+  "base_path": "/api/v1",
+  "primary_story_id": "UC6-BR-002",
+  "story_ids": [
+    "UC6-BR-002",
+    "UC6-BR-016"
+  ],
+  "endpoints": [
+    {
+      "id": "GET_approval_matrix_config",
+      "path": "/api/v1/approval-matrix-config",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "GET",
+      "summary": "Retrieve tenant-configured approval matrix rules by contract type, value, and risk band",
+      "is_paged": false,
+      "story_refs": [
+        "UC6-BR-002",
+        "UC6-BR-016"
+      ],
+      "response_dto": "ApprovalMatrixConfigListResponse",
+      "auth_required": true
+    },
+    {
+      "id": "PUT_approval_matrix_config",
+      "path": "/api/v1/approval-matrix-config",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "PUT",
+      "summary": "Update tenant-configured approval matrix rules and step sequences",
+      "is_paged": false,
+      "story_refs": [
+        "UC6-BR-002",
+        "UC6-BR-016"
+      ],
+      "request_dto": "UpdateApprovalMatrixConfigRequest",
+      "response_dto": "ApprovalMatrixConfigListResponse",
+      "auth_required": true
+    }
+  ],
+  "dtos": [
+    {
+      "name": "ApprovalMatrixStepConfig",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "stepNumber",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "approverRole",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "approverUserId",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "stepName",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "ApprovalMatrixConfigResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "contractType",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "valueMin",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "valueMax",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "riskBandMin",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "riskBandMax",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "steps",
+          "type": "array",
+          "items": {
+            "type": "ApprovalMatrixStepConfig"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "ApprovalMatrixConfigListResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "items",
+          "type": "array",
+          "items": {
+            "type": "ApprovalMatrixConfigResponse"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "UpdateApprovalMatrixConfigRequest",
+      "type": "REQUEST",
+      "fields": [
+        {
+          "name": "items",
+          "type": "array",
+          "items": {
+            "type": "ApprovalMatrixConfigResponse"
+          },
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "name": "approval_matrix_configs",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_type",
+          "type": "VARCHAR(100)",
+          "nullable": false
+        },
+        {
+          "name": "value_min",
+          "type": "NUMERIC(18,2)",
+          "nullable": true
+        },
+        {
+          "name": "value_max",
+          "type": "NUMERIC(18,2)",
+          "nullable": true
+        },
+        {
+          "name": "risk_band_min",
+          "type": "INTEGER",
+          "nullable": true
+        },
+        {
+          "name": "risk_band_max",
+          "type": "INTEGER",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "contract_type"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC6-BR-002",
+        "UC6-BR-016"
+      ],
+      "description": "Tenant-configured approval matrix rules keyed by contract type, value range and AI risk band",
+      "foreign_keys": []
+    }
+  ],
+  "migrations": [],
+  "stories": [
+    {
+      "epic": "Approval",
+      "actor": "Tenant Admin",
+      "title": "Configure tenant-based approval matrix rules",
+      "story_id": "UC6-BR-002",
+      "references": [
+        "UC6-BR-002",
+        "UC11",
+        "DP-UC6-001",
+        "DP-UC6-002",
+        "DP-UC6-003",
+        "DP-UC6-004",
+        "DP-UC6-005",
+        "DP-UC6-006",
+        "DP-UC6-007",
+        "DP-UC6-008",
+        "DP-UC6-009",
+        "DP-UC6-013"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to configure approval matrix rules based on contract type, contract value and AI risk score band, so that the correct roles/users approve a contract in the correct sequence.",
+      "source_reference": "UC6 / Business Rules / BR-2",
+      "acceptance_criteria": [
+        "Given a contract has completed Negotiation & Routing (UC5), When it is submitted into the approval matrix, Then the sequence of required approval roles/users is determined by tenant-configured rules based on Contract Type and Contract Value.",
+        "Given a contract has an AI Risk Score, When the approval matrix is evaluated, Then the AI risk score band is used alongside Contract Type and Contract Value to determine the required approval steps and sequence.",
+        "Given an Approver is viewing a contract pending approval, When the Approval screen is displayed, Then it shows the Contract Title, Contract Type, Contract Value, Counterparty Name, Key Terms Summary, Deviations from Standard, AI Risk Score, and Approval Matrix Step as determined by the configured matrix.",
+        "Given a contract is at a given step in the configured matrix, When an action is taken, Then the Comments field is captured per the matrix-defined step and recorded against that Approval Matrix Step.",
+        "Given a Tenant Admin wants to delegate approval configuration review, When the matrix is set up, Then the Delegate To field and assignments respect the roles/users defined in the tenant-configured approval matrix rules.",
+        "Given the approval matrix rules are configured in Settings (UC11), When a Tenant Admin updates contract type, value or risk band thresholds, Then subsequently routed contracts use the updated rules to determine approvers and sequence."
+      ]
+    },
+    {
+      "epic": "Approval",
+      "actor": "Tenant Admin",
+      "title": "Configure approval matrix and view tenant-wide approvals without acting unless named Approver",
+      "story_id": "UC6-BR-016",
+      "references": [
+        "UC6-BR-016",
+        "DP-UC6-001",
+        "DP-UC6-002",
+        "DP-UC6-003",
+        "DP-UC6-004",
+        "DP-UC6-005",
+        "DP-UC6-006",
+        "DP-UC6-007",
+        "DP-UC6-008",
+        "DP-UC6-009",
+        "DP-UC6-013"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to configure the approval matrix rules in Settings and view all pending/completed approvals across the tenant, so that approval routing is correctly governed while I remain restricted from approving, rejecting or sending back contracts unless I am also a named Approver.",
+      "source_reference": "UC6 / Business Rules / BR-16",
+      "acceptance_criteria": [
+        "Given I am a Tenant Admin in Settings, When I configure the approval matrix, Then I can define rules based on Contract Type, Contract Value and risk thresholds for routing contracts.",
+        "Given I am a Tenant Admin viewing the tenant-wide approvals list, When I open a pending or completed approval record, Then I can view its Contract Title, Contract Type, Contract Value, Counterparty Name, Key Terms Summary, Deviations from Standard, AI Risk Score, Approval Matrix Step, Comments, and any Delegate To assignment.",
+        "Given I am a Tenant Admin who is not assigned as a named Approver on a contract, When I view that contract's approval screen, Then the Approve, Reject and Send Back actions are disabled or unavailable to me.",
+        "Given I am a Tenant Admin who is also assigned as a named Approver for a specific contract, When I act on that contract's pending approval step, Then I am permitted to Approve, Reject or Send Back using the Comments field as required by the action type.",
+        "Given I am a Tenant Admin viewing a contract I am not assigned to approve, When I review the Approval Matrix Step and Delegate To fields, Then they are presented as read-only information without any action controls enabled."
+      ]
+    }
+  ]
+}
