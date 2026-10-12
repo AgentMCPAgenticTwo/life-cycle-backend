@@ -1,0 +1,977 @@
+{
+  "group_id": "signing-sessions",
+  "task_id": "T-SIGNING-SESSIONS-API",
+  "kind": "resource",
+  "resource": "signing-sessions",
+  "base_path": "/api/v1",
+  "primary_story_id": "UC7-AF-001",
+  "story_ids": [
+    "UC7-AF-001",
+    "UC7-AF-002",
+    "UC7-AF-003",
+    "UC7-BR-001",
+    "UC7-BR-003",
+    "UC7-BR-004",
+    "UC7-BR-007",
+    "UC7-BR-008",
+    "UC7-BR-011",
+    "UC7-BR-014",
+    "UC7-BR-016",
+    "UC7-BR-017",
+    "UC7-BR-018",
+    "UC7-BR-019",
+    "UC7-BR-020",
+    "UC7-BR-021",
+    "UC7-FV-002",
+    "UC7-FV-003",
+    "UC7-MF-001"
+  ],
+  "endpoints": [
+    {
+      "id": "GET_signing_session",
+      "path": "/api/v1/signing-sessions/{sessionId}",
+      "roles": [
+        "SIGNER"
+      ],
+      "method": "GET",
+      "summary": "Get the current signer's session state (document, status, eligibility) gated by sequential order and precondition checks",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-MF-001",
+        "UC7-AF-003",
+        "UC7-BR-001",
+        "UC7-BR-003",
+        "UC7-BR-011",
+        "UC7-BR-014",
+        "UC7-BR-016",
+        "UC7-BR-021"
+      ],
+      "response_dto": "SigningSessionResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_signing_otp_verify",
+      "path": "/api/v1/signing-sessions/{sessionId}/otp/verify",
+      "roles": [
+        "SIGNER"
+      ],
+      "method": "POST",
+      "summary": "Verify the signer's 6-digit OTP, revealing the document viewer and Signature Pad on success; locks link after 3 invalid attempts",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-MF-001",
+        "UC7-AF-001",
+        "UC7-BR-001",
+        "UC7-BR-003",
+        "UC7-BR-016",
+        "UC7-FV-002"
+      ],
+      "request_dto": "VerifyOtpRequest",
+      "response_dto": "VerifyOtpResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_signing_otp_resend",
+      "path": "/api/v1/signing-sessions/{sessionId}/otp/resend",
+      "roles": [
+        "SIGNER",
+        "CONTRACT_OWNER"
+      ],
+      "method": "POST",
+      "summary": "Re-send a new OTP/signing link after lockout expiry or link expiry",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-AF-003",
+        "UC7-BR-020"
+      ],
+      "response_dto": "SigningSessionResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_signing_sign",
+      "path": "/api/v1/signing-sessions/{sessionId}/sign",
+      "roles": [
+        "SIGNER"
+      ],
+      "method": "POST",
+      "summary": "Apply the signer's signature via the Signature Pad; advances sequence and auto-transitions contract to Executed on the final signature",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-MF-001",
+        "UC7-BR-001",
+        "UC7-BR-004",
+        "UC7-BR-007",
+        "UC7-BR-017",
+        "UC7-BR-019",
+        "UC7-FV-003"
+      ],
+      "request_dto": "ApplySignatureRequest",
+      "response_dto": "ApplySignatureResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_signing_decline",
+      "path": "/api/v1/signing-sessions/{sessionId}/decline",
+      "roles": [
+        "SIGNER"
+      ],
+      "method": "POST",
+      "summary": "Decline to sign with a mandatory reason; halts routing and sets contract status to Signature Declined",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-AF-002",
+        "UC7-BR-008",
+        "UC7-BR-018",
+        "UC7-FV-003"
+      ],
+      "request_dto": "DeclineSignatureRequest",
+      "response_dto": "DeclineSignatureResponse",
+      "auth_required": true
+    }
+  ],
+  "dtos": [
+    {
+      "name": "SigningSessionResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "sessionId",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "contractId",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "signerId",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "signerName",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "signerEmail",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "Sent",
+            "Viewed",
+            "Signed",
+            "Declined",
+            "Expired"
+          ],
+          "name": "signerStatus",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "isCurrentTurn",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "name": "otpVerified",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "name": "documentUrl",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "signaturePadAvailable",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "name": "declineAvailable",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "name": "reminderFrequencyDays",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "linkExpired",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "name": "blockedMessage",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "VerifyOtpRequest",
+      "type": "REQUEST",
+      "fields": [
+        {
+          "name": "otpCode",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "VerifyOtpResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "enum": [
+            "Sent",
+            "Viewed",
+            "Signed",
+            "Declined",
+            "Expired"
+          ],
+          "name": "signerStatus",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "documentUrl",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "signaturePadAvailable",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "name": "attemptsRemaining",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "lockedUntil",
+          "type": "datetime",
+          "nullable": true
+        },
+        {
+          "name": "errorMessage",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "ApplySignatureRequest",
+      "type": "REQUEST",
+      "fields": [
+        {
+          "name": "signatureData",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "Draw",
+            "Type",
+            "Upload"
+          ],
+          "name": "signatureType",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "ApplySignatureResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "signerId",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "Signed"
+          ],
+          "name": "signerStatus",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "Sent",
+            "Executed"
+          ],
+          "name": "contractStatus",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "nextSignerId",
+          "type": "uuid",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "DeclineSignatureRequest",
+      "type": "REQUEST",
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "DeclineSignatureResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "signerId",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "Declined"
+          ],
+          "name": "signerStatus",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "SignatureDeclined"
+          ],
+          "name": "contractStatus",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "migrations": [],
+  "stories": [
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Lock Signing Link After Three Invalid OTP Attempts",
+      "story_id": "UC7-AF-001",
+      "references": [
+        "UC7",
+        "BR-3",
+        "BR-16",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "alternate-flow",
+      "story_statement": "As a Signer, I want to be blocked from further OTP attempts after three consecutive invalid entries, so that the signing link is protected from unauthorized or erroneous access.",
+      "source_reference": "UC7 / Alternate Flow / AF-1",
+      "notes_assumptions": "DP-UC7-015 is interpreted as an update to the UC7 precondition: the link becomes locked for 15 minutes upon the third invalid OTP entry, preventing document viewer/signature pad access until lockout expires.",
+      "acceptance_criteria": [
+        "Given a Signer has an active signing link, When they enter an incorrect OTP for the third consecutive time in the OTP Field, Then the system displays 'Invalid OTP. Please request a new code.' and locks the link for 15 minutes.",
+        "Given the Signer's link is locked for 15 minutes, When the Signer attempts to access the link again before the lockout period expires, Then the system denies access and does not display the document viewer or Signature Pad.",
+        "Given the Signer's link has completed its 15-minute lockout period, When the Signer requests a new code, Then the system allows re-entry of the OTP Field for verification.",
+        "Given the signer record is being evaluated for this alternate flow, Then the system must reference the following data points as applicable: Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, Signature Pad, and the updated UC7 precondition noting that the link is locked for 15 minutes after three invalid OTP attempts.",
+        "Given three invalid OTP attempts have occurred, When the lockout is triggered, Then the Signer Status remains unchanged (not advanced to Viewed) per BR-16, since OTP verification failed."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Decline to Sign a Contract with Reason",
+      "story_id": "UC7-AF-002",
+      "references": [
+        "UC7-AF-002",
+        "BR-8",
+        "BR-18",
+        "F-7",
+        "F-12",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "alternate-flow",
+      "story_statement": "As a Signer, I want to decline to sign a contract and provide a reason, so that the Contract Owner is informed and can take corrective action.",
+      "source_reference": "UC7 / Alternate Flow / AF-2",
+      "notes_assumptions": "DP-UC7-015 ('Change the UC7 precondition to') is interpreted as requiring the precondition to be updated to acknowledge that a contract can reach a terminal 'Signature Declined' state via this alternate flow, distinct from the original 'Ready for Signature' precondition.",
+      "acceptance_criteria": [
+        "Given a Signer is viewing the document with Signer Status 'Viewed' and has completed OTP verification, When the Signer clicks the 'Decline to Sign' button and enters a reason, Then the system sets that Signer's Signer Status to 'Declined' and halts the signing sequence so no further signers in the Signing Order are notified.",
+        "Given a Signer has declined to sign, When the decline is processed, Then the system sends an email notification to the Contract Owner containing the decline reason, and the overall contract status changes to 'Signature Declined' per BR-8, with no further Reminder Frequency-based reminders sent.",
+        "Given the Signer List and signing workflow, When reviewing the data captured for this flow, Then the system records and/or validates the following data points as applicable: Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, Signature Pad, and the updated UC7 precondition reflecting that the contract must have reached status 'Signature Declined' as a terminal state when a decline occurs.",
+        "Given a signer's status is 'Declined', When the Contract Owner views the Signer List tab, Then the Signer Status column displays 'Declined' for that signer alongside their Signer Name, Signer Email, Signer Type, Signing Order, and Signature Method.",
+        "Given the signing sequence has been halted due to a decline, When any subsequent signer attempts to access their signing link, Then the system denies access since routing to subsequent signers has stopped, and the Signature Pad and OTP entry are not presented to them."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "External Party",
+      "title": "Display Expired Link Message to Unauthorised User",
+      "story_id": "UC7-AF-003",
+      "references": [
+        "UC7-AF-003",
+        "BR-20",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "alternate-flow",
+      "story_statement": "As an External Party, I want to see a clear expiry message when I open a signing link after it has expired, so that I understand the link is no longer valid and know to contact the contract owner.",
+      "source_reference": "UC7 / Alternate Flow / AF-3",
+      "notes_assumptions": "DP-UC7-015 is interpreted as a documentation note requiring the UC7 precondition to be revised so that expired-link detection and messaging apply even when the contract is not in 'Ready for Signature' status, since the signer accessing an expired link may do so outside that precondition's normal window.",
+      "acceptance_criteria": [
+        "Given a signer's status has transitioned to Expired per BR-20 because the link validity period elapsed, When an unauthorised user opens that expired signing link, Then the system displays 'This signing link has expired. Please contact the contract owner.' and does not reveal the Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, or Signature Pad.",
+        "Given the UC7 precondition is updated so that the contract need not be in 'Ready for Signature' status for this alternate flow to trigger (change the UC7 precondition to allow expired-link detection regardless of current contract status), When an unauthorised user accesses an expired link, Then the expiry message is shown without requiring OTP entry or displaying the Signature Pad.",
+        "Given the expired link page is displayed, When the user attempts to proceed, Then no OTP field is rendered and no action button (Decline to Sign, Download Audit Certificate) is accessible.",
+        "Given the signing order and prior signer sequence are irrelevant to this flow, When the expired link message is shown, Then the system does not expose any Signer List data including Signing Order or Signer Status of other signers."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Enforce Sequential Signing Order",
+      "story_id": "UC7-BR-001",
+      "references": [
+        "UC7-BR-001",
+        "UC7"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Signer, I want to be allowed to sign only after all prior signers in the configured Signing Order have signed, so that the contract's signature chain remains legally sequential and valid.",
+      "source_reference": "UC7 / Business Rules / BR-1",
+      "notes_assumptions": "DP-UC7-015 ('Change the UC7 precondition to') is interpreted as referencing the UC7 precondition stated in parent context (status 'Ready for Signature' set automatically by UC6), included here for full data-point coverage.",
+      "acceptance_criteria": [
+        "Given a contract's Signer List contains multiple signers each with a Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad, When the contract reaches 'Ready for Signature' status (the precondition for UC7, changed from the previous precondition to 'Change the UC7 precondition to' reflect automatic setting by UC6), Then the system sends the signing link only to the signer(s) whose Signing Order value is the lowest unsigned sequence number.",
+        "Given a Signer whose Signing Order places them after one or more signers who have not yet reached Signer Status 'Signed', When that Signer attempts to open the signing link, verify OTP, or access the Signature Pad, Then the system blocks the action and displays a message indicating they must wait for prior signers to complete signing.",
+        "Given all signers preceding a given Signer in the Signing Order have Signer Status 'Signed', When that Signer opens their link and successfully verifies the OTP, Then the system transitions that Signer's Signer Status to 'Viewed' and allows access to the Signature Pad.",
+        "Given a Signer applies their signature via the Signature Pad, When the Signing Order confirms no prior signer remains unsigned, Then the system updates that Signer's Signer Status to 'Signed' and triggers notification/routing to the next Signer in sequence according to Signing Order and Signature Method.",
+        "Given the Signer List defines Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, and Reminder Frequency for each signer, When the system evaluates whether a given Signer may act, Then it must reference the Signing Order field exclusively (not Signer Name, Signer Email, Signer Type, Signature Method, Reminder Frequency, Signer Status, OTP, or Signature Pad individually) to determine sequencing eligibility."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Require OTP verification before revealing document viewer or signature pad",
+      "story_id": "UC7-BR-003",
+      "references": [
+        "UC7-BR-003",
+        "BR-3",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Signer, I want to verify my OTP before the document viewer or signature pad is displayed, so that the contract content and my ability to sign remain protected from unauthorized access.",
+      "source_reference": "UC7 / Business Rules / BR-3",
+      "notes_assumptions": "DP-UC7-015 refers to a precondition change noted in the source document; its exact revised wording was not provided, so this criterion validates that OTP gating remains enforced regardless of precondition changes.",
+      "acceptance_criteria": [
+        "Given a Signer has opened their signing link, When the Signer Status is 'Sent' and OTP has not yet been verified, Then the document viewer and Signature Pad must remain hidden and only the OTP Field is presented for input.",
+        "Given a Signer enters a valid 6-digit OTP in the OTP Field, When the OTP is successfully validated, Then the Signer Status transitions to 'Viewed' and the document viewer and Signature Pad become visible.",
+        "Given a Signer enters an invalid or expired OTP, When OTP verification fails, Then the document viewer and Signature Pad remain hidden and the Signer is prompted to re-enter the OTP.",
+        "Given the OTP has been successfully verified for a Signer, When the signer proceeds to sign, Then the system records the signing context consistent with the Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad data points tracked for that signer.",
+        "Given the precondition for UC7 has been updated per DP-UC7-015 (Change the UC7 precondition to the revised condition), When a Signer accesses the signing link under the new precondition, Then OTP verification must still be completed before the document viewer or Signature Pad is shown, regardless of the precondition change."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Contract Owner",
+      "title": "Lock Signing Order and Signer List After First Signature",
+      "story_id": "UC7-BR-004",
+      "references": [
+        "UC7-BR-004",
+        "BR-4"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Contract Owner, I want the signing order and signer list to become locked once the first signer has signed, so that the integrity of the signature sequence and audit trail is preserved.",
+      "source_reference": "UC7 / Business Rules / BR-4",
+      "acceptance_criteria": [
+        "Given a contract is in 'Ready for Signature' status and no signer has yet signed, When the Contract Owner views the Signer List, Then the Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad fields remain fully editable where applicable (excluding system-generated fields like Signer Status, OTP, and Signature Pad, which are read-only by design).",
+        "Given the contract's precondition is changed such that the contract must have reached status 'Ready for Signature' (set automatically by UC6 once every approval step is Approved) and the final contract document is locked for signing, When this condition is met, Then the system enforces that editing of the Signer List remains possible only until the first Signer Status transitions to Signed, reflecting the updated UC7 precondition [DP-UC7-015].",
+        "Given at least one signer's Signer Status has changed to 'Signed', When the Contract Owner attempts to add, remove, or reorder any signer (modifying Signer Name, Signer Email, Signer Type, Signing Order, or Signature Method), Then the system blocks the edit and displays an error indicating the Signer List is locked.",
+        "Given at least one signer's Signer Status has changed to 'Signed', When the Contract Owner attempts to change the Reminder Frequency association for a specific signer's row or reassign a Signature Method, Then the system prevents the change and retains the originally configured values.",
+        "Given at least one signer's Signer Status has changed to 'Signed', When the Contract Owner views the Signer List tab, Then the OTP and Signature Pad data captured for signed signers remain visible and unaltered, confirming no retroactive edits are possible.",
+        "Given no signer has signed yet, When the Contract Owner adds a new signer via the Add Signer button, Then Signer Name, Signer Email, Signer Type, Signing Order, and Signature Method can still be set, and this capability is removed immediately after the first Signer Status becomes 'Signed'."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Contract Owner",
+      "title": "Automatically transition contract status to Executed when all signers complete signing",
+      "story_id": "UC7-BR-007",
+      "references": [
+        "UC7-BR-007",
+        "BR-7",
+        "BR-19",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Contract Owner, I want to the contract status to automatically change to 'Executed' only when every signer's status is 'Signed', so that the contract's execution state accurately reflects completed consent from all parties without manual intervention.",
+      "source_reference": "UC7 / Business Rules / BR-7",
+      "notes_assumptions": "DP-UC7-015 ('Change the UC7 precondition to') is interpreted as the system's precondition state updating to 'Executed' upon completion of the last signature, per BR-19's linkage to BR-7.",
+      "acceptance_criteria": [
+        "Given a contract has a Signer List containing signers with the fields Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad, When every signer's Signer Status is 'Signed' (confirmed via successful OTP verification and Signature Pad capture), Then the contract status automatically changes to 'Executed'.",
+        "Given at least one signer in the Signer List has a Signer Status other than 'Signed' (e.g. Sent, Viewed, or Declined), When the system evaluates the overall contract status, Then the contract status must not transition to 'Executed'.",
+        "Given the UC7 precondition requires the contract to be in status 'Ready for Signature' with a locked final document, When the last signer applies their signature via the Signature Pad after valid OTP entry, Then the system changes the UC7 precondition to reflect the contract now in 'Executed' status before any further signature actions can occur.",
+        "Given a contract transitions to 'Executed' status, When the transition is evaluated, Then the system confirms this transition cannot be manually triggered by the Contract Owner or any other actor, and is driven solely by all Signer Status values being 'Signed'."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Contract Owner",
+      "title": "Halt reminders and mark contract as Signature Declined when a signer declines",
+      "story_id": "UC7-BR-008",
+      "references": [
+        "UC7-BR-008",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Contract Owner, I want the overall contract status to automatically change to 'Signature Declined' and all further reminders to stop when any signer declines, so that I am not misled by an active signing process and can take corrective action promptly.",
+      "source_reference": "UC7 / Business Rules / BR-8",
+      "acceptance_criteria": [
+        "Given a contract with a defined Signer List containing each signer's Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad data, When any Signer with status 'Viewed' clicks Decline to Sign, Then that Signer's Status updates to 'Declined' and the overall contract status changes to 'Signature Declined'.",
+        "Given the overall contract status has changed to 'Signature Declined', When the scheduled reminder job next runs, Then no reminder emails are sent to any remaining signer regardless of their individual Signer Status.",
+        "Given a contract has reached 'Signature Declined' status, When the Contract Owner views the Signer List tab, Then the Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, and Signer Status of every signer are displayed accurately alongside the declined signer's OTP verification and Signature Pad interaction history.",
+        "Given a contract has not yet reached 'Ready for Signature', the UC7 precondition requires the contract to have reached status 'Ready for Signature' with a locked final PDF; When this precondition is not met, Then no signer can be presented the OTP or Signature Pad and the Decline to Sign flow cannot be triggered.",
+        "Given a contract is in 'Signature Declined' status, When the Contract Owner attempts to send a manual reminder, Then the system blocks the action since automated and manual reminders are both disabled once declined."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Restrict Signer actions to viewing, OTP verification, signing, or declining their own assigned contract",
+      "story_id": "UC7-BR-011",
+      "references": [
+        "UC7-BR-011",
+        "BR-11",
+        "F-1",
+        "F-2",
+        "F-3",
+        "F-4",
+        "F-5",
+        "F-6",
+        "F-7",
+        "F-8",
+        "F-9",
+        "F-14",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Signer, I want to view only my assigned contract once it is my turn, verify my OTP, and apply my signature or decline, so that I can complete my part of the signing workflow without being able to alter the signer list or order.",
+      "source_reference": "UC7 / Business Rules / BR-11",
+      "notes_assumptions": "DP-UC7-015 ('Change the UC7 precondition to') is interpreted as a reference to the UC7 precondition (contract status 'Ready for Signature' with a locked final document) gating signer access; exact wording of the intended precondition change was not specified in the source and should be confirmed.",
+      "acceptance_criteria": [
+        "Given a contract with a configured Signer List containing Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, and Signer Status for each signer, When it is not yet my turn in the Signing Order, Then I cannot view the contract document, the Signer List, the Signing Order, the OTP field, or the Signature Pad.",
+        "Given it is my turn to sign per the Signing Order, When I open my signing link, Then I must enter the OTP and only upon successful OTP verification is the document viewer and Signature Pad shown to me.",
+        "Given I have verified my OTP and am viewing the document, When I choose to sign, Then I must provide my signature via the Signature Pad (draw, type, or upload) and my Signer Status updates to Signed.",
+        "Given I have verified my OTP and am viewing the document, When I choose not to sign, Then I can click Decline to Sign and my Signer Status updates to Declined, halting further routing to subsequent signers.",
+        "Given I am an active Signer, When I attempt to view or edit the Signer List tab, the Signing Order, other signers' Signer Name, Signer Email, Signer Type, or Signature Method, or the Reminder Frequency, Then the system denies such access and these remain read-only or hidden to me.",
+        "Given the Change the UC7 precondition to the contract status being 'Ready for Signature' with the final locked PDF available, When I attempt to access the signing interface before this precondition is met, Then I am denied access to the OTP field and Signature Pad."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Approver",
+      "title": "Restrict E-signature Screen Access for Approver and External Party",
+      "story_id": "UC7-BR-014",
+      "references": [
+        "UC7-BR-014",
+        "BR-14"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As an Approver or External Party, I want to be blocked from accessing the E-signature screen unless added as a Signer, so that only authorized signing participants can view or act on signer data.",
+      "source_reference": "UC7 / Business Rules / BR-14",
+      "notes_assumptions": "DP-UC7-015 ('Change the UC7 precondition to') is interpreted as a documentation note indicating the precondition for Signer-equivalent access for an External Party is their explicit addition to the Signer List; no functional precondition text change beyond this rule's scope is specified.",
+      "acceptance_criteria": [
+        "Given a contract has reached 'Ready for Signature' status, when an Approver attempts to access the E-signature screen, then access is denied and no Signer List data is shown.",
+        "Given a contract has reached 'Ready for Signature' status, when an External Party who has NOT been added as a Signer attempts to access the E-signature screen, then access is denied.",
+        "Given an External Party HAS been added as a Signer, when they access the E-signature screen, then they follow Signer permissions and can view only their assigned contract once it is their turn, in accordance with the UC7 precondition requiring the contract to be 'Ready for Signature' with a locked final PDF.",
+        "Given an External Party has been added as a Signer, when the Signer List and related fields are rendered, then the system correctly displays and governs Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad according to Signer permission rules.",
+        "Given the UC7 precondition is changed to require explicit addition of the External Party as a Signer before any access is granted, when an External Party attempts access prior to being added as a Signer, then the system blocks access consistent with this updated precondition."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Transition signer status from Sent to Viewed upon OTP verification",
+      "story_id": "UC7-BR-016",
+      "references": [
+        "UC7-BR-016",
+        "BR-16",
+        "BR-3",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Signer, I want to open my signing link and verify my OTP, so that my status transitions from Sent to Viewed and I can proceed to review and sign the document.",
+      "source_reference": "UC7 / Business Rules / BR-16",
+      "acceptance_criteria": [
+        "Given a Signer record with Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad defined, and the Signer Status is 'Sent', When the Signer opens the signing link and enters a valid 6-digit OTP in the OTP field before the link expires, Then the Signer Status transitions from 'Sent' to 'Viewed' and the document viewer and Signature Pad are shown.",
+        "Given the Signer Status is 'Sent' and the UC7 precondition has been changed to require the contract to be in status 'Ready for Signature' with the final locked PDF present, When the Signer attempts to enter an OTP that is invalid, Then the transition from 'Sent' to 'Viewed' is blocked and an error is shown without exposing the document viewer or Signature Pad.",
+        "Given the Signer Status is 'Sent', When the signing link has expired before OTP verification is attempted, Then the transition from 'Sent' to 'Viewed' is blocked, the Signer Status remains unchanged pending the automatic Expired transition, and the Signer cannot access the Signature Pad.",
+        "Given the Signer's OTP has been successfully verified, When the Signer Status updates to 'Viewed', Then the Signer List tab reflects the updated Signer Status alongside the Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, and Reminder Frequency for that signer."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Apply Signature to Transition Status from Viewed to Signed",
+      "story_id": "UC7-BR-017",
+      "depends_on": [
+        "UC7-BR-016"
+      ],
+      "references": [
+        "UC7",
+        "BR-17",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Signer, I want to apply my signature once it is my turn in the signing order, so that my status transitions from Viewed to Signed and the contract progresses toward execution.",
+      "source_reference": "UC7 / Business Rules / BR-17",
+      "notes_assumptions": "DP-UC7-015 ('Change the UC7 precondition to') is treated as referencing the UC7 precondition requirement (Ready for Signature + locked document) that must hold for any signer-status transition, including this one.",
+      "acceptance_criteria": [
+        "Given a Signer has a Signer Status of 'Viewed' and all signers ahead of them in the Signing Order have a Signer Status of 'Signed', when the Signer applies their signature via the Signature Pad, then their Signer Status transitions from 'Viewed' to 'Signed'.",
+        "Given a Signer has a Signer Status of 'Viewed' but one or more signers ahead of them in the Signing Order have not yet reached Signer Status 'Signed', when the Signer attempts to apply their signature, then the transition to 'Signed' is blocked and an error message indicating pending prior signers is displayed.",
+        "Given the signer record, the following data points are captured and/or validated as part of this workflow: Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad.",
+        "Given the signature transition is being evaluated, when the precondition for UC7 is checked, then it must be confirmed that 'Change the UC7 precondition to' the contract having reached status 'Ready for Signature' with the final contract document locked for signing, as a prerequisite for any signer to apply a signature.",
+        "Given a Signer successfully applies their signature via the Signature Pad, when the Signer Status updates to 'Signed', then the system records the Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, and OTP verification details used for that signing event.",
+        "Given a Signer's Signing Order places them after other signers, when checking eligibility to sign, then the system must verify the Signer Status of all signers with a lower Signing Order value equals 'Signed' before allowing the signature to be applied via the Signature Pad."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Decline Signature Halts Further Routing",
+      "story_id": "UC7-BR-018",
+      "depends_on": [
+        "UC7-BR-016"
+      ],
+      "references": [
+        "UC7",
+        "BR-18",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Signer, I want to decline to sign the contract, so that I can refuse to execute it without the document being routed to subsequent signers.",
+      "source_reference": "UC7 / Business Rules / BR-18",
+      "notes_assumptions": "Overall contract status change to 'Signature Declined' is governed by BR-8; this story covers only the individual signer status transition and halt of routing per BR-18.",
+      "acceptance_criteria": [
+        "Given a Signer whose Signer Status is Viewed and who has access to the Decline to Sign button, When the Signer clicks Decline to Sign, Then the Signer Status transitions from Viewed to Declined and the system halts further routing to subsequent signers in the Signing Order.",
+        "Given the Signer List displays each signer's data including Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad, When a Signer declines via the Decline to Sign button, Then the Signer Status column updates to Declined while all other data points (Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, OTP, Signature Pad) for that signer remain unchanged and visible.",
+        "Given a signer declines to sign, When the decline is recorded, Then no reminder emails are sent to any subsequent signer and no further OTP or Signature Pad interactions are permitted for signers later in the Signing Order.",
+        "Given the UC7 precondition requires the contract to be in 'Ready for Signature' status with a locked final document, When this decline transition occurs, Then the Change the UC7 precondition to reflect that the contract subsequently moves toward a 'Signature Declined' overall status rather than proceeding to Executed.",
+        "Given a signer's status is not Viewed (e.g., Sent, Signed, Expired), When the Signer attempts to click Decline to Sign, Then the transition to Declined is blocked since the button is only available to the active Signer in Viewed status."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Contract Owner",
+      "title": "Automatically transition contract to Executed upon final signature",
+      "story_id": "UC7-BR-019",
+      "references": [
+        "UC7-BR-019",
+        "BR-19",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Contract Owner, I want the contract to automatically transition from Signed to Executed once the last signer completes signing, so that contract execution status accurately reflects completion without manual intervention.",
+      "source_reference": "UC7 / Business Rules / BR-19",
+      "notes_assumptions": "DP-UC7-015 refers to a precondition change noted in the source document; included here for completeness as it is listed among the required data points for this unit, though its direct functional link to BR-19 is only contextual.",
+      "acceptance_criteria": [
+        "Given a contract in the Signer List with all signers having Signer Status 'Signed', When the last signer applies their signature via the Signature Pad after verifying the OTP, Then the contract status automatically transitions to 'Executed' without any manual action by the Contract Owner.",
+        "Given the contract has transitioned to 'Executed', When the Contract Owner or any user attempts to manually trigger or set the Executed status, Then the system blocks the manual transition since it can only occur automatically upon the last signature.",
+        "Given the Signer List tab is open, Then it must display for every signer their Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, and confirm OTP verification and Signature Pad completion occurred for each, as these data points collectively determine when the Executed transition is triggered.",
+        "Given all required data points — Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad — are correctly recorded for every signer, When the final signer's status updates to 'Signed', Then the Executed transition fires automatically based on these recorded values.",
+        "Given the UC7 precondition is updated per 'Change the UC7 precondition to' [DP-UC7-015], When the contract reaches 'Ready for Signature' under the revised precondition and proceeds through signing, Then the automatic Signed-to-Executed transition still applies unchanged upon the last signature.",
+        "Given the contract has reached 'Executed' status automatically, When the Contract Owner views the contract, Then the Download Audit Certificate option becomes available, confirming the automatic (not manual) nature of the transition."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Auto-expire signer link and require re-send by Contract Owner",
+      "story_id": "UC7-BR-020",
+      "references": [
+        "UC7-BR-020",
+        "BR-20",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Signer, I want my signing link to automatically expire if I do not act within the link validity period, so that the Contract Owner is prompted to re-send me a fresh link for secure, timely signature completion.",
+      "source_reference": "UC7 / Business Rules / BR-20",
+      "notes_assumptions": "DP-UC7-015 is interpreted as requiring an update to the UC7 precondition to account for link expiry tracking, since no explicit replacement precondition text was supplied in the source.",
+      "acceptance_criteria": [
+        "Given a Signer's Signer Status is Sent or Viewed, When the configured link validity period elapses without the Signer completing the OTP verification and signature steps, Then the Signer Status automatically transitions to Expired and the Contract Owner is notified that the signer must be re-sent the link.",
+        "Given a Signer whose Signer Status is Expired, When the Contract Owner attempts to re-send the signing link, Then a new link and OTP are generated for that Signer and the Signer Status reverts to Sent.",
+        "Given a Signer whose Signer Status is Expired, When the Signer attempts to use the original expired link, Then access is denied and the Signer is instructed to wait for a new link from the Contract Owner.",
+        "Given the Signer List displays signer records, When reviewing a signer row, Then the following data points are shown or captured as applicable: Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad.",
+        "Given the current UC7 precondition requiring the contract to be in status 'Ready for Signature' with a locked final document, When BR-20 is implemented, Then the precondition is updated to also require that each Signer's link validity period and expiry timestamp are tracked as part of the signing workflow, reflecting the Change the UC7 precondition to data point.",
+        "Given a Signer's status transitions to Expired, When the contract-wide signer status is evaluated, Then no reminder emails are sent for that Signer until the Contract Owner re-sends the link and the Signer Status returns to Sent."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Contract Owner",
+      "title": "Enforce Ready-for-Signature and locked document precondition before starting e-signature flow",
+      "story_id": "UC7-BR-021",
+      "references": [
+        "UC7",
+        "UC6",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Contract Owner, I want the e-signature flow to begin only after the contract has reached status 'Ready for Signature' and the final contract document is locked, so that signing cannot start on an unapproved or unfinished contract.",
+      "source_reference": "UC7 / Narrative Requirement",
+      "acceptance_criteria": [
+        "Given a contract has not yet reached status 'Ready for Signature' (because not every UC6 approval step is Approved), When the Contract Owner attempts to initiate the e-signature flow, Then the system must block entry into the e-signature screen until status automatically transitions to 'Ready for Signature'.",
+        "Given a contract has reached status 'Ready for Signature' but the final contract document (PDF or DOCX converted to PDF) does not exist or is not locked for signing, When the Contract Owner attempts to start the e-signature flow, Then the system must block the flow until the document exists and is locked.",
+        "Given the contract is 'Ready for Signature' and the final locked PDF document exists, When the Contract Owner opens the e-signature screen, Then the Signer List tab must be available for configuring Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, and Signer Status, and the system must support OTP verification and use of the Signature Pad during the subsequent signing process.",
+        "Given the precondition is satisfied, When the Contract Owner reviews the entry requirements for e-signature, Then the system must confirm that all of the following data points are accounted for before or during the flow: Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, Signature Pad, and the updated UC7 precondition requiring status 'Ready for Signature' plus a locked final contract document.",
+        "Given the contract document is locked for signing, When any attempt is made to re-edit the final contract document prior to completion of signing, Then the system must prevent modification to preserve the locked state established by this precondition."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Validate OTP Field Entry in Verification Popup",
+      "story_id": "UC7-FV-002",
+      "references": [
+        "UC7",
+        "F-8",
+        "BR-3",
+        "BR-16",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "field-validation",
+      "story_statement": "As a Signer, I want to enter a 6-digit numeric OTP in the OTP verification popup, so that my identity is confirmed before I can view the document or signature pad.",
+      "source_reference": "UC7 / Fields and Attributes",
+      "notes_assumptions": "DP-UC7-015 refers to an updated UC7 precondition statement; included here as it was listed among required data points for this unit even though it pertains to use-case preconditions rather than a signer-list field.",
+      "acceptance_criteria": [
+        "Given the OTP verification popup is displayed to the Signer, When the Signer views the Signer List record associated with their signing session, Then the following data points are present and relevant to the signing workflow: Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad.",
+        "Given the OTP Field is mandatory and requires Numeric Format, When the Signer submits the OTP popup with a blank, non-numeric, or incorrectly-lengthed value, Then the system rejects the submission with a validation error and does not transition Signer Status from Sent to Viewed.",
+        "Given the Signer enters a valid 6-digit numeric OTP, When the OTP is verified successfully, Then the document viewer and Signature Pad are revealed per BR-3 and the Signer Status transitions to Viewed.",
+        "Given the UC7 precondition has been changed to require that the contract has reached status 'Ready for Signature' and the final locked PDF exists, When the Signer accesses the OTP verification popup, Then the system enforces this updated precondition before allowing OTP entry."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Apply or decline signature via signature pad popup",
+      "story_id": "UC7-FV-003",
+      "references": [
+        "UC7-FV-003",
+        "F-9",
+        "F-12",
+        "BR-18",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "field-validation",
+      "story_statement": "As a Signer, I want to apply my signature using the Signature Pad or decline to sign via the Decline to Sign button, so that I can complete or reject my part of the signing process accurately.",
+      "source_reference": "UC7 / Fields and Attributes",
+      "acceptance_criteria": [
+        "Given I am the active Signer whose turn has arrived in the Signing Order, When the signature pad popup opens, Then it must display a mandatory Signature Pad (Text Area) allowing me to Draw, Type or Upload my signature.",
+        "Given the signature pad popup is open, When I review the available controls, Then the Decline to Sign button must be visible and enabled only for the active Signer and disabled or hidden for all other signers.",
+        "Given I attempt to submit the signature pad popup, When the Signature Pad field is empty, Then the system must block submission and show a mandatory field error since Signature Pad is mandatory.",
+        "Given the signature pad popup and the broader E-signature screen, When data is loaded or displayed, Then the system must correctly present or reference all of the following data points: Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad.",
+        "Given the precondition for UC7, When this feature is invoked, Then the UC7 precondition must be updated such that the contract status is 'Ready for Signature' (set automatically by UC6 once every approval step is Approved) and the final contract document (PDF or DOCX converted to PDF) exists and is locked for signing, reflecting the change captured in Change the UC7 precondition to.",
+        "Given I click Decline to Sign as the active Signer, When the action is confirmed, Then my Signer Status must transition to Declined and no further reminders or routing to subsequent signers shall occur.",
+        "Given I complete and submit a valid signature via the Signature Pad, When the submission succeeds, Then my Signer Status must transition to Signed and the OTP verification previously completed must remain recorded for audit purposes."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Contract Owner",
+      "title": "Collect and route signatures through sequential e-signing workflow",
+      "story_id": "UC7-MF-001",
+      "references": [
+        "UC7",
+        "BR-1",
+        "BR-2",
+        "BR-3",
+        "BR-5",
+        "BR-7",
+        "BR-9",
+        "BR-15",
+        "BR-16",
+        "BR-17",
+        "BR-19",
+        "F-1",
+        "F-2",
+        "F-3",
+        "F-4",
+        "F-5",
+        "F-6",
+        "F-7",
+        "F-8",
+        "F-9",
+        "F-10",
+        "F-11",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "main-flow",
+      "story_statement": "As a Contract Owner, I want to add signers to an approved contract and send it for sequential e-signature, so that each signer can verify their identity, sign the document in order, and the contract becomes legally executed once all signatures are collected.",
+      "source_reference": "UC7 / Main Flow",
+      "notes_assumptions": "DP-UC7-015 refers to the precondition update noted in the required data points; this is reflected here as an enforced precondition check rather than a UI field.",
+      "acceptance_criteria": [
+        "Given an Approved contract, When the Contract Owner clicks 'Send for Signature', Then the system displays the Add Signers screen capturing Signer Name, Signer Email, Signer Type and Signing Order for each signer added via the Add Signer button.",
+        "Given at least one signer has been added, When the Contract Owner selects a Signature Method (In-built E-signature, DocuSign, Adobe Sign or Aadhaar eSign) and clicks 'Send for Signature', Then the system emails a secure link to the first signer(s) in Signing Order and sets their Signer Status to 'Sent', with Reminder Frequency defaulting to 3 days unless configured otherwise by the Tenant Admin.",
+        "Given a Signer has clicked the emailed link, When they enter the OTP and click 'Verify', Then the system validates the OTP and opens the document viewer, updating Signer Status to 'Viewed'.",
+        "Given a Signer's status is 'Viewed', When they use the Signature Pad to Draw, Type or Upload their signature and click 'Sign', Then the system applies the signature, records their name, email, IP address and timestamp, and updates Signer Status to 'Signed'.",
+        "Given a signer has signed and more signers remain in Signing Order, When the system checks for remaining signers, Then it emails the secure link to the next signer in sequence and sets their Signer Status to 'Sent'.",
+        "Given the last signer has signed, When the final signature is applied, Then the system locks the final PDF, generates the audit certificate listing every signer's Signer Name, Signer Email, IP address and timestamp, sets the contract status to 'Executed', and emails the executed PDF to all signers and the Contract Owner.",
+        "Given this workflow covers DP-UC7-001 through DP-UC7-009, When reviewing the data points named in the source document, Then Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP and Signature Pad are each accounted for in the acceptance criteria above.",
+        "Given DP-UC7-015 requires changing the UC7 precondition, When the Contract Owner opens a contract to send for signature, Then the system enforces the updated precondition that the contract must have reached status 'Ready for Signature' (set automatically once every UC6 approval step is Approved) and that the final locked PDF/DOCX-converted-to-PDF document exists before the Add Signers screen becomes accessible."
+      ]
+    }
+  ]
+}

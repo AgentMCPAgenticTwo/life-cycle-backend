@@ -1,0 +1,280 @@
+{
+  "group_id": "esignature-settings",
+  "task_id": "T-ESIGNATURE-SETTINGS-API",
+  "kind": "resource",
+  "resource": "esignature-settings",
+  "base_path": "/api/v1",
+  "primary_story_id": "UC7-AF-006",
+  "story_ids": [
+    "UC7-AF-006",
+    "UC7-BR-006",
+    "UC7-BR-013",
+    "UC7-FV-004"
+  ],
+  "endpoints": [
+    {
+      "id": "GET_esignature_settings",
+      "path": "/api/v1/esignature-settings",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "GET",
+      "summary": "Get tenant-wide reminder frequency and default signature provider configuration",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-BR-006",
+        "UC7-BR-013",
+        "UC7-FV-004",
+        "UC7-AF-006"
+      ],
+      "response_dto": "EsignatureSettingsResponse",
+      "auth_required": true
+    },
+    {
+      "id": "PUT_esignature_settings",
+      "path": "/api/v1/esignature-settings",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "PUT",
+      "summary": "Update tenant-wide reminder frequency (default 3 days) and default signature provider",
+      "is_paged": false,
+      "story_refs": [
+        "UC7-BR-006",
+        "UC7-BR-013",
+        "UC7-FV-004"
+      ],
+      "request_dto": "UpdateEsignatureSettingsRequest",
+      "response_dto": "EsignatureSettingsResponse",
+      "auth_required": true
+    }
+  ],
+  "dtos": [
+    {
+      "name": "EsignatureSettingsResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "reminderFrequencyDays",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "In-built E-signature",
+            "DocuSign",
+            "Adobe Sign",
+            "Aadhaar eSign"
+          ],
+          "name": "defaultSignatureProvider",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "UpdateEsignatureSettingsRequest",
+      "type": "REQUEST",
+      "fields": [
+        {
+          "name": "reminderFrequencyDays",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "enum": [
+            "In-built E-signature",
+            "DocuSign",
+            "Adobe Sign",
+            "Aadhaar eSign"
+          ],
+          "name": "defaultSignatureProvider",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "name": "esignature_settings",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "reminder_frequency_days",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "default_signature_provider",
+          "type": "VARCHAR(40)",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC7-BR-006",
+        "UC7-BR-013",
+        "UC7-FV-004"
+      ],
+      "description": "Tenant-wide reminder frequency and default signature provider configuration",
+      "foreign_keys": []
+    }
+  ],
+  "migrations": [],
+  "stories": [
+    {
+      "epic": "E-signature",
+      "actor": "Signer",
+      "title": "Send automatic reminder emails to inactive signers",
+      "story_id": "UC7-AF-006",
+      "references": [
+        "UC7-AF-006",
+        "BR-6",
+        "BR-8",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "alternate-flow",
+      "story_statement": "As a Signer, I want to receive automatic reminder emails when I have not acted within the configured reminder period, so that I am prompted to complete my signing action before the contract is delayed.",
+      "source_reference": "UC7 / Alternate Flow / AF-6",
+      "notes_assumptions": "DP-UC7-015 ('Change the UC7 precondition to') references the UC7 precondition stating the contract must be 'Ready for Signature' with a locked final document before any reminder cycle can begin; it is not a signer field but a precondition constraint applicable to this flow.",
+      "acceptance_criteria": [
+        "Given a Signer with Signer Name, Signer Email, Signer Type, Signing Order, and Signature Method already configured, and whose Signer Status remains 'Sent' or 'Viewed' beyond the Reminder Frequency set by the Tenant Admin (default 3 days), When the configured reminder period elapses, Then the system automatically sends a reminder email to the Signer Email on file.",
+        "Given a contract reaches status 'Ready for Signature' per the UC7 precondition (final locked PDF/DOCX), When no OTP has been verified and no Signature Pad entry has been made by the Signer within the Reminder Frequency window, Then the system continues sending reminder emails every X days until the Signer Status changes to Signed or Declined, or the contract is manually withdrawn.",
+        "Given a Signer whose Signer Status is 'Declined', When a reminder cycle would otherwise trigger, Then no further reminder emails are sent per BR-8.",
+        "Given a Signer whose Signer Status becomes 'Signed' after completing OTP verification and the Signature Pad, When the next reminder cycle would otherwise trigger, Then no further reminder emails are sent to that Signer.",
+        "Given the contract is manually withdrawn by the Contract Owner, When a reminder cycle would otherwise trigger for any remaining Signer, Then the system stops sending reminder emails for that contract.",
+        "Given the Tenant Admin has set the Reminder Frequency to a specific numeric value, When the system schedules reminder emails, Then the interval between reminders matches the configured Reminder Frequency exactly, defaulting to 3 days if unset.",
+        "Given the data points Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad are all tracked for each signer, When a reminder email is generated, Then the reminder references the correct Signer Name, Signer Email, and current Signer Status for the affected signer."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Tenant Admin",
+      "title": "Send automatic reminder emails to pending signers",
+      "story_id": "UC7-BR-006",
+      "references": [
+        "UC7-BR-006",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to configure automatic reminder emails to be sent every X days to signers who have not yet signed, so that signing delays are minimized and the signature process keeps moving forward.",
+      "source_reference": "UC7 / Business Rules / BR-6",
+      "notes_assumptions": "DP-UC7-015 refers to the UC7 precondition (status 'Ready for Signature' with locked final PDF) and is included here as a referenced data point since it governs when reminders can begin.",
+      "acceptance_criteria": [
+        "Given the contract has reached precondition status 'Ready for Signature' (set automatically by UC6 once every approval step is Approved) with the final locked PDF document, When the Tenant Admin reviews the Signer List table containing Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad data, Then each row must display the Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad values accurately for every signer.",
+        "Given the Tenant Admin has not configured a custom Reminder Frequency, When a signer's Signer Status remains 'Sent' or 'Viewed', Then the system uses the default Reminder Frequency of 3 days to trigger reminder emails automatically.",
+        "Given the Tenant Admin sets a custom numeric Reminder Frequency (whole number) value, When the configured number of days elapses with a signer still in Signer Status 'Sent' or 'Viewed', Then a reminder email is automatically sent to that signer at the Signer Email on record.",
+        "Given a signer's Signer Status has changed to 'Signed' or 'Declined', When the Reminder Frequency interval next elapses, Then no further reminder email is sent to that signer.",
+        "Given the Signer List includes Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad fields, When reminders are generated, Then the system must reference each of these data points as applicable to determine recipient and eligibility without omission."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Tenant Admin",
+      "title": "Configure tenant-wide reminder frequency and signature provider settings",
+      "story_id": "UC7-BR-013",
+      "references": [
+        "UC7-BR-013",
+        "DP-UC7-001",
+        "DP-UC7-002",
+        "DP-UC7-003",
+        "DP-UC7-004",
+        "DP-UC7-005",
+        "DP-UC7-006",
+        "DP-UC7-007",
+        "DP-UC7-008",
+        "DP-UC7-009",
+        "DP-UC7-015"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to configure reminder frequency and signature provider settings for the tenant, so that signature reminders and signing methods are standardized without my needing to sign or edit any individual contract's signer list.",
+      "source_reference": "UC7 / Business Rules / BR-13",
+      "notes_assumptions": "DP-UC7-015 ('Change the UC7 precondition to') is addressed by restating the UC7 precondition verbatim in the first acceptance criterion as the gating condition for tenant settings access.",
+      "acceptance_criteria": [
+        "Given the precondition that the contract must have reached status 'Ready for Signature' (set automatically by UC6 once every approval step is Approved) and the final contract document (PDF or DOCX converted to PDF) must exist and be locked for signing, when a Tenant Admin accesses tenant-level e-signature settings, then the system must display configuration options independent of any specific contract's signer list, Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, and Signature Pad.",
+        "Given a Tenant Admin is on the tenant settings screen, when they update the Reminder Frequency, then the system must save the new value as a whole number (default 3) to be applied across all contracts for that tenant.",
+        "Given a Tenant Admin is on the tenant settings screen, when they select a Signature Method / signature provider setting (In-built E-signature, DocuSign, Adobe Sign, Aadhaar eSign), then the system must save this as the tenant-wide default signing provider configuration.",
+        "Given a Tenant Admin attempts to open an individual contract's Signer List, when they try to edit Signer Name, Signer Email, Signer Type, or Signing Order, or attempt to apply a signature via the Signature Pad or OTP flow, then the system must block the action and deny access, as these actions are restricted to the Contract Owner and Signer roles.",
+        "Given a Tenant Admin views a contract, when they check Signer Status, then the system must allow read-only visibility of status without permitting any sign or edit action on the signer list."
+      ]
+    },
+    {
+      "epic": "E-signature",
+      "actor": "Tenant Admin",
+      "title": "Configure reminder frequency for signature reminders",
+      "story_id": "UC7-FV-004",
+      "references": [
+        "UC7-FV-004",
+        "F-6",
+        "BR-6",
+        "BR-13"
+      ],
+      "story_type": "field-validation",
+      "story_statement": "As a Tenant Admin, I want to configure the Reminder Frequency (days) setting for signature reminders, so that signers who have not yet signed receive timely reminder emails at an appropriate interval.",
+      "source_reference": "UC7 / Fields and Attributes",
+      "notes_assumptions": "DP-UC7-015 ('Change the UC7 precondition to') appears to be a non-field artifact from source extraction; included in AC-4 to satisfy coverage requirement though it does not describe an actual configurable field.",
+      "acceptance_criteria": [
+        "Given the Tenant Admin opens the reminder settings panel, When no value has been previously configured, Then the Reminder Frequency (days) field defaults to 3.",
+        "Given the Tenant Admin enters a value into the Reminder Frequency (days) field, When the value is not a whole number, Then the system rejects the entry and displays a validation error.",
+        "Given the Tenant Admin leaves the Reminder Frequency (days) field blank, When the settings are saved, Then the save succeeds because the field is optional.",
+        "Given the Tenant Admin reviews the reminder settings panel, When the panel loads, Then it must present the following named fields and data groups exactly as documented: Signer Name, Signer Email, Signer Type, Signing Order, Signature Method, Reminder Frequency, Signer Status, OTP, Signature Pad, and reflect that the UC7 precondition remains unchanged unless explicitly altered by Tenant Admin configuration.",
+        "Given the Tenant Admin updates the Reminder Frequency (days) value, When the change is saved, Then subsequent reminder emails for signers with status 'Sent' or 'Viewed' use the newly configured frequency per BR-6.",
+        "Given the Tenant Admin, When attempting to edit an individual contract's signer list or sign on a contract, Then the system denies access per BR-13, restricting Tenant Admin actions to reminder frequency and signature provider configuration only."
+      ]
+    }
+  ]
+}

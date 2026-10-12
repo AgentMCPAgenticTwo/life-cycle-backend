@@ -200,7 +200,7 @@ jobs:
               # failing claude would abort the script right here -- before `status=$?` below, the
               # transcript write, or the ::error:: message ever run. Wrapping in `if` avoids that:
               # commands in an `if` condition don't trigger `set -e` even when they fail.
-              if printf '%s' "$run_prompt" | claude                 --print "${resume_args[@]}"                 --model "claude-sonnet-5"                 --permission-mode acceptEdits                 --allowedTools "Read,Write,Edit,Glob,Grep,TodoWrite,Bash(ls:*),Bash(mkdir:*),Bash(kill:*),Bash(curl:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(uvicorn:*),Bash(alembic:*),Bash(ruff:*)"                 --add-dir "$task"                 --output-format json                 > ".api-gen/usage/$id.json" 2> "/tmp/$id.stderr.log"; then
+              if printf '%s' "$run_prompt" | claude                 --print "${resume_args[@]}"                 --model "claude-opus-5"                 --permission-mode acceptEdits                 --allowedTools "Read,Write,Edit,Glob,Grep,TodoWrite,Bash(ls:*),Bash(mkdir:*),Bash(kill:*),Bash(curl:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(uvicorn:*),Bash(alembic:*),Bash(ruff:*)"                 --add-dir "$task"                 --output-format json                 > ".api-gen/usage/$id.json" 2> "/tmp/$id.stderr.log"; then
                 status=0
               else
                 status=$?
