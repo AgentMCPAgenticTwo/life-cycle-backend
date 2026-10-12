@@ -137,7 +137,7 @@ Ids in this project are **UUIDs**. Every id field -- primary keys, path paramete
 
 ## Roles — from this contract only
 
-The roles this contract defines are `LEGAL_REVIEWER`, `CONTRACT_OWNER`, `TENANT_ADMIN`, `APPROVER`, `EXTERNAL_PARTY`. These are the ONLY permitted values for `X-User-Role`. Missing header → **401**; a role outside this set →
+The roles this contract defines are `APPROVER`, `TENANT_ADMIN`, `CONTRACT_OWNER`, `LEGAL_REVIEWER`, `SIGNER`. These are the ONLY permitted values for `X-User-Role`. Missing header → **401**; a role outside this set →
 **403**. Do not carry over role names from another project, and do not invent one
 the contract does not name.
 <!-- IDENTIFIERS END -->
@@ -166,10 +166,30 @@ DIGEST -->
 <!-- MODULE:uc123 END -->
 
 <!-- MODULE:lifecycle-uc4-uc5 START -->
-## lifecycle uc4 uc5 (lifecycle-uc4-uc5)
+## lifecycle uc4 uc5 (lifecycle-uc4-uc5) — previously generated
 
-From this module's contract: 19 endpoint(s), 30 DTO(s), 10 table(s), 64 story/stories.
-Base path for this module: `/api/v1/lifecycle`.
+Already built in an earlier run. Import and extend what exists; do not
+rebuild it and do not rename its fields or paths.
+
+```
+Title: lifecycle uc4 uc5 (lifecycle-uc4-uc5)
+Components: (none)
+Endpoints: GET /api/v1/lifecycle/contracts/{contractId}/clause-analysis, POST /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/accept-suggestion, PUT /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}, POST /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/reject, PUT /api/v1/lifecycle/contracts/{contractId}/metadata, POST /api/v1/lifecycle/contracts/{contractId}/ask-ai, POST /api/v1/lifecycle/contracts/{contractId}/proceed-to-negotiation, POST /api/v1/lifecycle/contracts/{contractId}/retry-extraction, GET /api/v1/lifecycle/contracts/{contractId}/audit-log, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/routing, GET /api/v1/lifecycle/contracts/{contractId}/negotiation, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/reviews, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/external-link, POST /api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp, POST /api/v1/lifecycle/negotiation/external/{linkToken}/submit, GET /api/v1/lifecycle/contracts/{contractId}/negotiation/compare, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/reminder, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/mark-agreed, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/comments
+DTOs: ClauseResponse, ContractMetadataResponse, ClauseAnalysisResponse, EditClauseRequest, RejectClauseRequest, UpdateMetadataRequest, AskAIRequest, AskAIResponse, AuditLogEntryResponse, PagedAuditLogResponse, ProceedToNegotiationResponse, ReviewerResponse, RoutingRequest, RoutingResponse, VersionSummaryResponse, CommentResponse, CommentRequest, NegotiationTrackerResponse, SubmitReviewRequest, SubmitReviewResponse, GenerateExternalLinkResponse, VerifyOtpRequest, NegotiationExternalViewResponse, VerifyOtpResponse, ExternalSubmitRequest, ExternalSubmitResponse, ClauseDiffResponse, CompareVersionsResponse, ReminderResponse, MarkAgreedResponse
+```
+<!-- DIGEST
+Title: lifecycle uc4 uc5 (lifecycle-uc4-uc5)
+Components: (none)
+Endpoints: GET /api/v1/lifecycle/contracts/{contractId}/clause-analysis, POST /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/accept-suggestion, PUT /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}, POST /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/reject, PUT /api/v1/lifecycle/contracts/{contractId}/metadata, POST /api/v1/lifecycle/contracts/{contractId}/ask-ai, POST /api/v1/lifecycle/contracts/{contractId}/proceed-to-negotiation, POST /api/v1/lifecycle/contracts/{contractId}/retry-extraction, GET /api/v1/lifecycle/contracts/{contractId}/audit-log, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/routing, GET /api/v1/lifecycle/contracts/{contractId}/negotiation, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/reviews, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/external-link, POST /api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp, POST /api/v1/lifecycle/negotiation/external/{linkToken}/submit, GET /api/v1/lifecycle/contracts/{contractId}/negotiation/compare, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/reminder, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/mark-agreed, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/comments
+DTOs: ClauseResponse, ContractMetadataResponse, ClauseAnalysisResponse, EditClauseRequest, RejectClauseRequest, UpdateMetadataRequest, AskAIRequest, AskAIResponse, AuditLogEntryResponse, PagedAuditLogResponse, ProceedToNegotiationResponse, ReviewerResponse, RoutingRequest, RoutingResponse, VersionSummaryResponse, CommentResponse, CommentRequest, NegotiationTrackerResponse, SubmitReviewRequest, SubmitReviewResponse, GenerateExternalLinkResponse, VerifyOtpRequest, NegotiationExternalViewResponse, VerifyOtpResponse, ExternalSubmitRequest, ExternalSubmitResponse, ClauseDiffResponse, CompareVersionsResponse, ReminderResponse, MarkAgreedResponse
+DIGEST -->
+<!-- MODULE:lifecycle-uc4-uc5 END -->
+
+<!-- MODULE:uc6-uc7-combined START -->
+## UC6-UC7-combined (uc6-uc7-combined)
+
+From this module's contract: 20 endpoint(s), 31 DTO(s), 10 table(s), 66 story/stories.
+Base path for this module: `/api/v1`.
 
 ### Endpoints to implement
 
@@ -177,135 +197,157 @@ Implement exactly these paths, methods and role lists — the frontend calls the
 
 | Method | Path | Roles | Request DTO | Response DTO | Purpose |
 |---|---|---|---|---|---|
-| GET | `/api/v1/lifecycle/contracts/{contractId}/clause-analysis` | LEGAL_REVIEWER, CONTRACT_OWNER, TENANT_ADMIN | `—` | `ClauseAnalysisResponse` | Retrieve AI-extracted clauses, risk scores, mandatory flags and contract metadata for the Clause Analysis screen |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/accept-suggestion` | LEGAL_REVIEWER, CONTRACT_OWNER | `—` | `ClauseResponse` | Accept the AI-suggested text for a clause, replacing current text and logging the action |
-| PUT | `/api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}` | LEGAL_REVIEWER | `EditClauseRequest` | `ClauseResponse` | Save a manual rewrite of a clause via the Clause Edit Box; blocked on stale version per concurrency check |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/reject` | LEGAL_REVIEWER | `RejectClauseRequest` | `ClauseResponse` | Reject a clause suggestion, logging user, timestamp and before/after text |
-| PUT | `/api/v1/lifecycle/contracts/{contractId}/metadata` | LEGAL_REVIEWER, CONTRACT_OWNER | `UpdateMetadataRequest` | `ContractMetadataResponse` | Update AI-extracted contract metadata fields; relabels edited fields as User-confirmed |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/ask-ai` | LEGAL_REVIEWER, CONTRACT_OWNER | `AskAIRequest` | `AskAIResponse` | Submit a free-text question about the contract and receive an AI answer with verification disclaimer |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/proceed-to-negotiation` | LEGAL_REVIEWER, CONTRACT_OWNER | `—` | `ProceedToNegotiationResponse` | Finalize clause set and metadata and route the contract to Negotiation & Routing (UC5), blocked if mandatory clauses remain missing |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/retry-extraction` | LEGAL_REVIEWER, CONTRACT_OWNER | `—` | `ClauseAnalysisResponse` | Retry AI clause extraction after a failure or timeout |
-| GET | `/api/v1/lifecycle/contracts/{contractId}/audit-log` | LEGAL_REVIEWER, CONTRACT_OWNER, TENANT_ADMIN | `—` | `PagedAuditLogResponse` *(paged)* | Retrieve the immutable audit trail of Accept/Edit/Reject/Metadata/AskAI actions for a contract |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/routing` | CONTRACT_OWNER | `RoutingRequest` | `RoutingResponse` | Configure routing (type, reviewers, external party, dates) and submit a Draft contract for internal/external review, creating Version 1 |
-| GET | `/api/v1/lifecycle/contracts/{contractId}/negotiation` | CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER, TENANT_ADMIN | `—` | `NegotiationTrackerResponse` | Retrieve the negotiation tracker: routing config, reviewers, status, current version, overdue flag, version history and comments |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/reviews` | LEGAL_REVIEWER, APPROVER | `SubmitReviewRequest` | `SubmitReviewResponse` | Submit an internal reviewer's redline/comment, incrementing the version and routing to next reviewer or external party |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/external-link` | CONTRACT_OWNER, LEGAL_REVIEWER | `—` | `GenerateExternalLinkResponse` | Generate a secure OTP-protected link for the external party once internal review completes |
-| POST | `/api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp` | EXTERNAL_PARTY | `VerifyOtpRequest` | `VerifyOtpResponse` | Verify the OTP for an external party secure link; locks link after three failed attempts |
-| POST | `/api/v1/lifecycle/negotiation/external/{linkToken}/submit` | EXTERNAL_PARTY | `ExternalSubmitRequest` | `ExternalSubmitResponse` | External party submits redlines/comments on the current version; triggers AI clause analysis and reverts status to With Internal |
-| GET | `/api/v1/lifecycle/contracts/{contractId}/negotiation/compare` | CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `—` | `CompareVersionsResponse` | Return a side-by-side redline comparison between two selected prior versions of the same contract and tenant |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/reminder` | CONTRACT_OWNER | `—` | `ReminderResponse` | Send a manual reminder email to an overdue reviewer; supplements the automatic daily reminder |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/mark-agreed` | LEGAL_REVIEWER | `—` | `MarkAgreedResponse` | Legal Reviewer explicitly marks negotiation as Agreed after at least one full review cycle |
-| POST | `/api/v1/lifecycle/contracts/{contractId}/negotiation/comments` | LEGAL_REVIEWER, CONTRACT_OWNER, APPROVER | `CommentRequest` | `CommentResponse` | Add a free-text comment tied to a clause and the current negotiation version |
+| GET | `/api/v1/approvals` | APPROVER, TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER | `—` | `ApprovalListResponse` *(paged)* | List approvals visible to the current user (pending, delegated, or tenant-wide for Tenant Admin), with empty-state when none pending |
+| GET | `/api/v1/approvals/{approvalId}` | APPROVER, TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER | `—` | `ApprovalResponse` | Get full approval review detail for a contract's current step including all read-only fields and action eligibility flags |
+| POST | `/api/v1/approvals/{approvalId}/actions` | APPROVER | `ApprovalActionRequest` | `ApprovalActionResponse` | Submit an Approve, Reject, or Send Back action for the current approval step, enforcing sequence, mandatory-comments and ownership rules |
+| POST | `/api/v1/approvals/{approvalId}/delegate` | APPROVER | `DelegateRequest` | `DelegateResponse` | Assign a time-bound Delegate to act on the Approver's behalf for the current step, validating delegate eligibility, sequence, and ownership |
+| GET | `/api/v1/approvals/{approvalId}/history` | APPROVER, TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER | `—` | `ApprovalHistoryListResponse` *(paged)* | Retrieve the immutable Approval History tab entries for a contract's approval workflow, retained for 7 years |
+| GET | `/api/v1/approval-matrix-config` | TENANT_ADMIN | `—` | `ApprovalMatrixConfigListResponse` | Retrieve tenant-configured approval matrix rules by contract type, value, and risk band |
+| PUT | `/api/v1/approval-matrix-config` | TENANT_ADMIN | `UpdateApprovalMatrixConfigRequest` | `ApprovalMatrixConfigListResponse` | Update tenant-configured approval matrix rules and step sequences |
+| GET | `/api/v1/contracts/{contractId}/signers` | CONTRACT_OWNER, LEGAL_REVIEWER, TENANT_ADMIN | `—` | `SignerListResponse` | List all signers and their statuses for a contract's e-signature workflow (Signer List tab/grid) |
+| POST | `/api/v1/contracts/{contractId}/signers` | CONTRACT_OWNER | `AddSignerRequest` | `SignerResponse` | Add a new signer row to the Signer List with mandatory signer fields |
+| PUT | `/api/v1/contracts/{contractId}/signers/{signerId}` | CONTRACT_OWNER | `UpdateSignerRequest` | `SignerResponse` | Update or reorder a signer; blocked once the first signature has been collected |
+| DELETE | `/api/v1/contracts/{contractId}/signers/{signerId}` | CONTRACT_OWNER | `—` | `SignerResponse` | Remove a signer from the Signer List; blocked once the first signature has been collected |
+| POST | `/api/v1/contracts/{contractId}/signers/send` | CONTRACT_OWNER | `SendForSignatureRequest` | `SendForSignatureResponse` | Send for Signature: transition contract to Sent and email the secure link to the first signer(s) in Signing Order |
+| GET | `/api/v1/signing-sessions/{sessionId}` | SIGNER | `—` | `SigningSessionResponse` | Get the current signer's session state (document, status, eligibility) gated by sequential order and precondition checks |
+| POST | `/api/v1/signing-sessions/{sessionId}/otp/verify` | SIGNER | `VerifyOtpRequest` | `VerifyOtpResponse` | Verify the signer's 6-digit OTP, revealing the document viewer and Signature Pad on success; locks link after 3 invalid attempts |
+| POST | `/api/v1/signing-sessions/{sessionId}/otp/resend` | SIGNER, CONTRACT_OWNER | `—` | `SigningSessionResponse` | Re-send a new OTP/signing link after lockout expiry or link expiry |
+| POST | `/api/v1/signing-sessions/{sessionId}/sign` | SIGNER | `ApplySignatureRequest` | `ApplySignatureResponse` | Apply the signer's signature via the Signature Pad; advances sequence and auto-transitions contract to Executed on the final signature |
+| POST | `/api/v1/signing-sessions/{sessionId}/decline` | SIGNER | `DeclineSignatureRequest` | `DeclineSignatureResponse` | Decline to sign with a mandatory reason; halts routing and sets contract status to Signature Declined |
+| GET | `/api/v1/contracts/{contractId}/audit-certificate` | CONTRACT_OWNER, LEGAL_REVIEWER | `—` | `AuditCertificateResponse` | Download the signed audit certificate listing every signer's identity, IP, timestamp, and signing details; available only once Executed |
+| GET | `/api/v1/esignature-settings` | TENANT_ADMIN | `—` | `EsignatureSettingsResponse` | Get tenant-wide reminder frequency and default signature provider configuration |
+| PUT | `/api/v1/esignature-settings` | TENANT_ADMIN | `UpdateEsignatureSettingsRequest` | `EsignatureSettingsResponse` | Update tenant-wide reminder frequency (default 3 days) and default signature provider |
 
 Enforce the Roles column at the framework's authorization layer **and** with the owner/assignment check in business logic. Missing header → 401, disallowed role → 403.
 
 ### DTOs (your request/response types must match these exactly)
 
-**`ClauseResponse`** *(response)*
-
-```
-  clauseId: uuid
-  clauseText: string
-  clauseCategory?: string
-  libraryMatchStatus: string
-  riskScore: string
-  aiExplanation?: string
-  suggestedText?: string
-  status: string
-  isMandatory: boolean
-  mandatoryClauseFlag: boolean
-  mandatoryClauseFlagLabel?: string
-  version: integer
-  updatedAt: datetime
-  updatedBy?: uuid
-```
-
-**`ContractMetadataResponse`** *(response)*
-
-```
-  parties?: string
-  partiesLabel: string
-  contractValue?: number
-  contractValueLabel: string
-  startDate?: date
-  startDateLabel: string
-  endDate?: date
-  endDateLabel: string
-  renewalTerms?: string
-  renewalTermsLabel: string
-  paymentTerms?: string
-  paymentTermsLabel: string
-  keyObligations?: string
-  keyObligationsLabel: string
-```
-
-**`ClauseAnalysisResponse`** *(response)*
-
-```
-  contractId: uuid
-  fileFormatSupported: boolean
-  analysisStatus: string
-  clauses: array
-  overallContractRiskScore: string
-  metadata?: ContractMetadataResponse
-  proceedToNegotiationEnabled: boolean
-  askAiEnabled: boolean
-```
-
-**`EditClauseRequest`** *(request)*
-
-```
-  clauseText: string
-  expectedVersion: integer
-```
-
-**`RejectClauseRequest`** *(request)*
-
-```
-  reason?: string
-```
-
-**`UpdateMetadataRequest`** *(request)*
-
-```
-  parties?: string
-  contractValue?: number
-  startDate?: date
-  endDate?: date
-  renewalTerms?: string
-  paymentTerms?: string
-  keyObligations?: string
-```
-
-**`AskAIRequest`** *(request)*
-
-```
-  question: string
-```
-
-**`AskAIResponse`** *(response)*
-
-```
-  answer: string
-  disclaimer: string
-  relatedClauseIds?: array
-```
-
-**`AuditLogEntryResponse`** *(response)*
+**`ApprovalResponse`** *(response)*
 
 ```
   id: uuid
-  userId: uuid
-  userName: string
-  timestamp: datetime
-  clauseId?: uuid
-  actionType: string
-  fieldName?: string
-  beforeText?: string
-  afterText?: string
+  contractId: uuid
+  contractTitle: string
+  contractType: string
+  contractValue: number
+  counterpartyName: string
+  keyTermsSummary?: string
+  deviationsFromStandard?: string
+  aiRiskScore?: integer
+  approvalMatrixStepLabel: string
+  approvalMatrixStepNumber: integer
+  approvalMatrixTotalSteps: integer
+  status: string
+  comments?: string
+  delegateToUserId?: uuid
+  delegateToName?: string
+  delegationStartDate?: date
+  delegationEndDate?: date
+  currentApproverId: uuid
+  currentApproverName: string
+  isCurrentUserApprover: boolean
+  isCurrentUserActiveDelegate: boolean
+  isStepActionable: boolean
+  canApprove: boolean
+  canReject: boolean
+  canSendBack: boolean
+  canDelegate: boolean
+  createdAt: datetime
+  updatedAt: datetime
 ```
 
-**`PagedAuditLogResponse`** *(response)*
+**`ApprovalListItemResponse`** *(response)*
+
+```
+  id: uuid
+  contractId: uuid
+  contractTitle: string
+  contractType: string
+  contractValue: number
+  counterpartyName: string
+  keyTermsSummary?: string
+  deviationsFromStandard?: string
+  aiRiskScore?: integer
+  approvalMatrixStepLabel: string
+  status: string
+```
+
+**`ApprovalListResponse`** *(response)*
+
+```
+  items: array
+  page: integer
+  pageSize: integer
+  totalCount: integer
+  isEmpty: boolean
+  emptyMessage?: string
+```
+
+**`ApprovalActionRequest`** *(request)*
+
+```
+  actionType: string
+  comments?: string
+```
+
+**`ApprovalActionResponse`** *(response)*
+
+```
+  approvalId: uuid
+  status: string
+  approvalMatrixStepLabel: string
+  approvalMatrixStepNumber: integer
+  contractStatus: string
+```
+
+**`DelegateRequest`** *(request)*
+
+```
+  delegateToUserId: uuid
+  startDate: date
+  endDate: date
+```
+
+**`DelegateResponse`** *(response)*
+
+```
+  id: uuid
+  approvalId: uuid
+  delegateToUserId: uuid
+  delegateToName: string
+  startDate: date
+  endDate: date
+  createdBy: uuid
+  createdAt: datetime
+```
+
+**`ApprovalHistoryEntryResponse`** *(response)*
+
+```
+  id: uuid
+  approvalId: uuid
+  contractTitle: string
+  contractType: string
+  contractValue: number
+  counterpartyName: string
+  keyTermsSummary?: string
+  deviationsFromStandard?: string
+  aiRiskScore?: integer
+  approvalMatrixStepLabel: string
+  action: string
+  actorId: uuid
+  actorName: string
+  actorRole: string
+  actingAsDelegateForUserId?: uuid
+  delegateToUserId?: uuid
+  delegateToName?: string
+  priorState: string
+  newState: string
+  comments?: string
+  timestamp: datetime
+```
+
+**`ApprovalHistoryListResponse`** *(response)*
 
 ```
   items: array
@@ -314,379 +356,400 @@ Enforce the Roles column at the framework's authorization layer **and** with the
   totalCount: integer
 ```
 
-**`ProceedToNegotiationResponse`** *(response)*
+**`ApprovalMatrixStepConfig`** *(response)*
+
+```
+  stepNumber: integer
+  approverRole?: string
+  approverUserId?: uuid
+  stepName: string
+```
+
+**`ApprovalMatrixConfigResponse`** *(response)*
+
+```
+  id: uuid
+  contractType: string
+  valueMin?: number
+  valueMax?: number
+  riskBandMin?: integer
+  riskBandMax?: integer
+  steps: array
+```
+
+**`ApprovalMatrixConfigListResponse`** *(response)*
+
+```
+  items: array
+```
+
+**`UpdateApprovalMatrixConfigRequest`** *(request)*
+
+```
+  items: array
+```
+
+**`SignerResponse`** *(response)*
+
+```
+  id: uuid
+  contractId: uuid
+  signerName: string
+  signerEmail: string
+  signerType: string
+  signingOrder: integer
+  signatureMethod: string
+  reminderFrequencyDays?: integer
+  signerStatus: string
+  otpVerifiedAt?: datetime
+  signaturePadCompleted: boolean
+  ipAddress?: string
+  signedAt?: datetime
+  declineReason?: string
+  linkExpiresAt?: datetime
+```
+
+**`SignerListResponse`** *(response)*
 
 ```
   contractId: uuid
-  negotiationStatus: string
-  routedAt?: datetime
-  clauses: array
-  overallContractRiskScore: string
-  metadata?: ContractMetadataResponse
-  askAiAvailable: boolean
+  signers: array
+  sendForSignatureEnabled: boolean
+  signingOrderLocked: boolean
 ```
 
-**`ReviewerResponse`** *(response)*
+**`AddSignerRequest`** *(request)*
 
 ```
-  reviewerId: uuid
-  reviewerName: string
-  role?: string
-  isMandatory: boolean
-  reviewStatus: string
-  submittedAt?: datetime
-  sequenceOrder?: integer
+  signerName: string
+  signerEmail: string
+  signerType: string
+  signingOrder: integer
+  signatureMethod: string
 ```
 
-**`RoutingRequest`** *(request)*
+**`UpdateSignerRequest`** *(request)*
 
 ```
-  routingType: string
-  internalReviewers: array
-  externalPartyName: string
-  externalPartyEmail: string
-  assignedDate: date
-  dueDate: date
+  signerName?: string
+  signerEmail?: string
+  signerType?: string
+  signingOrder?: integer
+  signatureMethod?: string
 ```
 
-**`RoutingResponse`** *(response)*
+**`SendForSignatureRequest`** *(request)*
 
 ```
-  contractId: uuid
-  routingType: string
-  internalReviewers: array
-  externalPartyName: string
-  externalPartyEmail: string
-  assignedDate: date
-  dueDate: date
-  negotiationStatus: string
-  versionNumber: integer
+  signatureMethod?: string
 ```
 
-**`VersionSummaryResponse`** *(response)*
-
-```
-  versionNumber: integer
-  createdAt: datetime
-  createdBy: string
-  source: string
-```
-
-**`CommentResponse`** *(response)*
-
-```
-  commentId: uuid
-  clauseId?: string
-  commentText: string
-  authorName: string
-  createdAt: datetime
-  versionNumber: integer
-```
-
-**`CommentRequest`** *(request)*
-
-```
-  clauseId?: string
-  commentText: string
-```
-
-**`NegotiationTrackerResponse`** *(response)*
+**`SendForSignatureResponse`** *(response)*
 
 ```
   contractId: uuid
-  routingType: string
-  internalReviewers: array
-  externalPartyName: string
-  externalPartyEmail: string
-  assignedDate: date
-  dueDate: date
-  negotiationStatus: string
-  versionNumber: integer
-  overdueFlag: boolean
-  versions: array
-  comments: array
+  contractStatus: string
+  signers: array
+  errorMessage?: string
 ```
 
-**`SubmitReviewRequest`** *(request)*
+**`SigningSessionResponse`** *(response)*
 
 ```
-  commentText?: string
-  redlineText?: string
-```
-
-**`SubmitReviewResponse`** *(response)*
-
-```
-  versionNumber: integer
-  negotiationStatus: string
-```
-
-**`GenerateExternalLinkResponse`** *(response)*
-
-```
-  linkToken: string
-  expiresAt: datetime
-  status: string
+  sessionId: uuid
+  contractId: uuid
+  signerId: uuid
+  signerName: string
+  signerEmail: string
+  signerStatus: string
+  isCurrentTurn: boolean
+  otpVerified: boolean
+  documentUrl?: string
+  signaturePadAvailable: boolean
+  declineAvailable: boolean
+  reminderFrequencyDays?: integer
+  linkExpired: boolean
+  blockedMessage?: string
 ```
 
 **`VerifyOtpRequest`** *(request)*
 
 ```
-  otp: string
-```
-
-**`NegotiationExternalViewResponse`** *(response)*
-
-```
-  contractId: uuid
-  versionNumber: integer
-  documentText: string
-  commentBoxEnabled: boolean
+  otpCode: string
 ```
 
 **`VerifyOtpResponse`** *(response)*
 
 ```
-  verified: boolean
-  negotiationData?: NegotiationExternalViewResponse
+  signerStatus: string
+  documentUrl?: string
+  signaturePadAvailable: boolean
+  attemptsRemaining?: integer
+  lockedUntil?: datetime
+  errorMessage?: string
 ```
 
-**`ExternalSubmitRequest`** *(request)*
+**`ApplySignatureRequest`** *(request)*
 
 ```
-  commentText?: string
-  redlineText: string
+  signatureData: string
+  signatureType: string
 ```
 
-**`ExternalSubmitResponse`** *(response)*
+**`ApplySignatureResponse`** *(response)*
 
 ```
-  versionNumber: integer
-  negotiationStatus: string
+  signerId: uuid
+  signerStatus: string
+  contractStatus: string
+  nextSignerId?: uuid
 ```
 
-**`ClauseDiffResponse`** *(response)*
+**`DeclineSignatureRequest`** *(request)*
 
 ```
-  clauseId?: string
-  clauseCategory?: string
-  textA?: string
-  textB?: string
-  changeType: string
+  reason: string
 ```
 
-**`CompareVersionsResponse`** *(response)*
+**`DeclineSignatureResponse`** *(response)*
 
 ```
-  versionA: VersionSummaryResponse
-  versionB: VersionSummaryResponse
-  differences: array
-  comments: array
-  negotiationStatus: string
-  routingType: string
-  internalReviewers: array
-  externalPartyName: string
-  externalPartyEmail: string
-  assignedDate: date
-  dueDate: date
+  signerId: uuid
+  signerStatus: string
+  contractStatus: string
+  reason: string
 ```
 
-**`ReminderResponse`** *(response)*
+**`AuditCertificateSignerEntry`** *(response)*
 
 ```
-  sentTo: string
-  sentAt: datetime
-  reminderType: string
+  signerName: string
+  signerEmail: string
+  signerType: string
+  signingOrder: integer
+  signatureMethod: string
+  reminderFrequencyDays?: integer
+  signerStatus: string
+  ipAddress?: string
+  signedAt?: datetime
+  otpVerifiedAt?: datetime
+  signaturePadCompleted: boolean
 ```
 
-**`MarkAgreedResponse`** *(response)*
+**`AuditCertificateResponse`** *(response)*
 
 ```
-  negotiationStatus: string
-  versionNumber: integer
-  routingType: string
-  internalReviewers: array
-  externalPartyName: string
-  externalPartyEmail: string
-  assignedDate: date
-  dueDate: date
+  contractId: uuid
+  generatedAt: datetime
+  downloadUrl: string
+  signers: array
+```
+
+**`EsignatureSettingsResponse`** *(response)*
+
+```
+  reminderFrequencyDays: integer
+  defaultSignatureProvider: string
+```
+
+**`UpdateEsignatureSettingsRequest`** *(request)*
+
+```
+  reminderFrequencyDays?: integer
+  defaultSignatureProvider?: string
+```
+
+**`ErrorResponse`** *(response)*
+
+```
+  code: string
+  message: string
+  timestamp: datetime
 ```
 
 ### Tables (models mirror these)
 
-**`contract_clauses`**
+**`approval_matrix_configs`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `tenant_id` | UUID | no | — |
+| `contract_type` | VARCHAR(100) | no | — |
+| `value_min` | NUMERIC(18,2) | yes | — |
+| `value_max` | NUMERIC(18,2) | yes | — |
+| `risk_band_min` | INTEGER | yes | — |
+| `risk_band_max` | INTEGER | yes | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`approval_matrix_steps`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `config_id` | UUID | no | — |
+| `step_number` | INTEGER | no | — |
+| `step_name` | VARCHAR(200) | no | — |
+| `approver_role` | VARCHAR(100) | yes | — |
+| `approver_user_id` | UUID | yes | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`approvals`**
 
 | Column | Type | Null | Key |
 |---|---|---|---|
 | `id` | UUID | no | — |
 | `contract_id` | UUID | no | — |
-| `clause_category` | VARCHAR(50) | yes | — |
-| `library_match_status` | VARCHAR(20) | no | — |
-| `risk_score` | VARCHAR(10) | no | — |
-| `ai_explanation` | TEXT | yes | — |
-| `suggested_text` | TEXT | yes | — |
-| `clause_text` | TEXT | no | — |
+| `contract_owner_id` | UUID | no | — |
+| `config_id` | UUID | yes | — |
+| `current_step_number` | INTEGER | no | — |
+| `total_steps` | INTEGER | no | — |
 | `status` | VARCHAR(30) | no | — |
-| `is_mandatory` | BOOLEAN | no | — |
-| `mandatory_flag_cleared` | BOOLEAN | no | — |
-| `version` | INTEGER | no | — |
+| `ai_risk_score` | INTEGER | yes | — |
+| `key_terms_summary` | TEXT | yes | — |
+| `deviations_from_standard` | TEXT | yes | — |
 | `created_at` | TIMESTAMPTZ | no | — |
 | `created_by` | UUID | no | — |
 | `updated_at` | TIMESTAMPTZ | no | — |
 | `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
 
-**`contract_metadata`**
+**`approval_step_instances`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `approval_id` | UUID | no | — |
+| `step_number` | INTEGER | no | — |
+| `approver_user_id` | UUID | no | — |
+| `status` | VARCHAR(30) | no | — |
+| `comments` | TEXT | yes | — |
+| `acted_by` | UUID | yes | — |
+| `acted_as_delegate_for` | UUID | yes | — |
+| `acted_at` | TIMESTAMPTZ | yes | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`approval_delegations`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `approval_id` | UUID | no | — |
+| `approver_user_id` | UUID | no | — |
+| `delegate_to_user_id` | UUID | no | — |
+| `start_date` | DATE | no | — |
+| `end_date` | DATE | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`approval_audit_log`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `approval_id` | UUID | no | — |
+| `contract_title` | VARCHAR(500) | no | — |
+| `contract_type` | VARCHAR(100) | no | — |
+| `contract_value` | NUMERIC(18,2) | no | — |
+| `counterparty_name` | VARCHAR(300) | no | — |
+| `key_terms_summary` | TEXT | yes | — |
+| `deviations_from_standard` | TEXT | yes | — |
+| `ai_risk_score` | INTEGER | yes | — |
+| `approval_matrix_step_label` | VARCHAR(200) | no | — |
+| `action` | VARCHAR(20) | no | — |
+| `actor_id` | UUID | no | — |
+| `actor_role` | VARCHAR(50) | no | — |
+| `acting_as_delegate_for` | UUID | yes | — |
+| `delegate_to_user_id` | UUID | yes | — |
+| `delegate_to_name` | VARCHAR(200) | yes | — |
+| `prior_state` | VARCHAR(30) | no | — |
+| `new_state` | VARCHAR(30) | no | — |
+| `comments` | TEXT | yes | — |
+| `retention_expires_at` | TIMESTAMPTZ | no | — |
+| `archived` | BOOLEAN | no | — |
+| `timestamp` | TIMESTAMPTZ | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`signers`**
 
 | Column | Type | Null | Key |
 |---|---|---|---|
 | `id` | UUID | no | — |
 | `contract_id` | UUID | no | — |
-| `parties` | TEXT | yes | — |
-| `parties_label` | VARCHAR(20) | no | — |
-| `contract_value` | NUMERIC(18,2) | yes | — |
-| `contract_value_label` | VARCHAR(20) | no | — |
-| `start_date` | DATE | yes | — |
-| `start_date_label` | VARCHAR(20) | no | — |
-| `end_date` | DATE | yes | — |
-| `end_date_label` | VARCHAR(20) | no | — |
-| `renewal_terms` | TEXT | yes | — |
-| `renewal_terms_label` | VARCHAR(20) | no | — |
-| `payment_terms` | TEXT | yes | — |
-| `payment_terms_label` | VARCHAR(20) | no | — |
-| `key_obligations` | TEXT | yes | — |
-| `key_obligations_label` | VARCHAR(20) | no | — |
+| `signer_name` | VARCHAR(200) | no | — |
+| `signer_email` | VARCHAR(320) | no | — |
+| `signer_type` | VARCHAR(20) | no | — |
+| `signing_order` | INTEGER | no | — |
+| `signature_method` | VARCHAR(40) | no | — |
+| `reminder_frequency_days` | INTEGER | yes | — |
+| `signer_status` | VARCHAR(20) | no | — |
+| `otp_hash` | VARCHAR(255) | yes | — |
+| `otp_attempts` | INTEGER | no | — |
+| `otp_locked_until` | TIMESTAMPTZ | yes | — |
+| `otp_verified_at` | TIMESTAMPTZ | yes | — |
+| `signature_pad_data` | TEXT | yes | — |
+| `signed_at` | TIMESTAMPTZ | yes | — |
+| `ip_address` | VARCHAR(64) | yes | — |
+| `decline_reason` | TEXT | yes | — |
+| `link_token` | VARCHAR(255) | yes | — |
+| `link_expires_at` | TIMESTAMPTZ | yes | — |
+| `last_reminder_sent_at` | TIMESTAMPTZ | yes | — |
 | `created_at` | TIMESTAMPTZ | no | — |
 | `created_by` | UUID | no | — |
 | `updated_at` | TIMESTAMPTZ | no | — |
 | `updated_by` | UUID | no | — |
 
-**`clause_audit_log`**
+**`signature_audit_log`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `signer_id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `event_type` | VARCHAR(30) | no | — |
+| `ip_address` | VARCHAR(64) | yes | — |
+| `details` | TEXT | yes | — |
+| `timestamp` | TIMESTAMPTZ | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`audit_certificates`**
 
 | Column | Type | Null | Key |
 |---|---|---|---|
 | `id` | UUID | no | — |
 | `contract_id` | UUID | no | — |
-| `clause_id` | UUID | yes | — |
-| `user_id` | UUID | no | — |
-| `action_type` | VARCHAR(30) | no | — |
-| `field_name` | VARCHAR(50) | yes | — |
-| `before_text` | TEXT | yes | — |
-| `after_text` | TEXT | yes | — |
-| `occurred_at` | TIMESTAMPTZ | no | — |
+| `generated_at` | TIMESTAMPTZ | no | — |
+| `file_url` | VARCHAR(500) | no | — |
+| `data_snapshot` | JSONB | no | — |
 | `created_at` | TIMESTAMPTZ | no | — |
 | `created_by` | UUID | no | — |
 | `updated_at` | TIMESTAMPTZ | no | — |
 | `updated_by` | UUID | no | — |
 
-**`ask_ai_interactions`**
+**`esignature_settings`**
 
 | Column | Type | Null | Key |
 |---|---|---|---|
 | `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `user_id` | UUID | no | — |
-| `question` | TEXT | no | — |
-| `answer` | TEXT | yes | — |
-| `disclaimer` | TEXT | yes | — |
-| `related_clause_ids` | JSONB | yes | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`negotiation_routings`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `routing_type` | VARCHAR(20) | no | — |
-| `external_party_name` | VARCHAR(200) | no | — |
-| `external_party_email` | VARCHAR(200) | no | — |
-| `assigned_date` | DATE | no | — |
-| `due_date` | DATE | no | — |
-| `negotiation_status` | VARCHAR(20) | no | — |
-| `current_version_number` | INTEGER | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`negotiation_reviewers`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `negotiation_routing_id` | UUID | no | — |
-| `reviewer_id` | UUID | no | — |
-| `reviewer_name` | VARCHAR(200) | no | — |
-| `role` | VARCHAR(50) | yes | — |
-| `is_mandatory` | BOOLEAN | no | — |
-| `review_status` | VARCHAR(20) | no | — |
-| `sequence_order` | INTEGER | yes | — |
-| `submitted_at` | TIMESTAMPTZ | yes | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`negotiation_versions`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `negotiation_routing_id` | UUID | no | — |
-| `version_number` | INTEGER | no | — |
-| `source` | VARCHAR(10) | no | — |
-| `document_snapshot` | JSONB | yes | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`negotiation_comments`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `negotiation_version_id` | UUID | no | — |
-| `clause_id` | UUID | yes | — |
-| `comment_text` | TEXT | no | — |
-| `author_id` | UUID | no | — |
-| `author_name` | VARCHAR(200) | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`negotiation_external_links`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `negotiation_routing_id` | UUID | no | — |
-| `link_token` | VARCHAR(100) | no | — |
-| `otp_hash` | VARCHAR(255) | no | — |
-| `failed_attempts` | INTEGER | no | — |
-| `status` | VARCHAR(20) | no | — |
-| `expires_at` | TIMESTAMPTZ | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`negotiation_reminders`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `negotiation_routing_id` | UUID | no | — |
-| `reviewer_id` | UUID | yes | — |
-| `sent_at` | TIMESTAMPTZ | no | — |
-| `reminder_type` | VARCHAR(10) | no | — |
+| `tenant_id` | UUID | no | — |
+| `reminder_frequency_days` | INTEGER | no | — |
+| `default_signature_provider` | VARCHAR(40) | no | — |
 | `created_at` | TIMESTAMPTZ | no | — |
 | `created_by` | UUID | no | — |
 | `updated_at` | TIMESTAMPTZ | no | — |
@@ -696,23 +759,23 @@ Enforce the Roles column at the framework's authorization layer **and** with the
 
 Create these with exactly these names, in this order:
 
-- `CreateContractClauses`
-- `CreateContractMetadata`
-- `CreateClauseAuditLog`
-- `CreateAskAiInteractions`
-- `CreateNegotiationRoutings`
-- `CreateNegotiationReviewers`
-- `CreateNegotiationVersions`
-- `CreateNegotiationComments`
-- `CreateNegotiationExternalLinks`
-- `CreateNegotiationReminders`
+- `CreateApprovalMatrixConfigs`
+- `CreateApprovalMatrixSteps`
+- `CreateApprovals`
+- `CreateApprovalStepInstances`
+- `CreateApprovalDelegations`
+- `CreateApprovalAuditLog`
+- `CreateSigners`
+- `CreateSignatureAuditLog`
+- `CreateAuditCertificates`
+- `CreateEsignatureSettings`
 
 Never edit or re-order a migration that already exists — add a new one.
 
 <!-- DIGEST
-Title: lifecycle uc4 uc5 (lifecycle-uc4-uc5)
+Title: UC6-UC7-combined (uc6-uc7-combined)
 Components: (none)
-Endpoints: GET /api/v1/lifecycle/contracts/{contractId}/clause-analysis, POST /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/accept-suggestion, PUT /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}, POST /api/v1/lifecycle/contracts/{contractId}/clauses/{clauseId}/reject, PUT /api/v1/lifecycle/contracts/{contractId}/metadata, POST /api/v1/lifecycle/contracts/{contractId}/ask-ai, POST /api/v1/lifecycle/contracts/{contractId}/proceed-to-negotiation, POST /api/v1/lifecycle/contracts/{contractId}/retry-extraction, GET /api/v1/lifecycle/contracts/{contractId}/audit-log, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/routing, GET /api/v1/lifecycle/contracts/{contractId}/negotiation, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/reviews, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/external-link, POST /api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp, POST /api/v1/lifecycle/negotiation/external/{linkToken}/submit, GET /api/v1/lifecycle/contracts/{contractId}/negotiation/compare, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/reminder, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/mark-agreed, POST /api/v1/lifecycle/contracts/{contractId}/negotiation/comments
-DTOs: ClauseResponse, ContractMetadataResponse, ClauseAnalysisResponse, EditClauseRequest, RejectClauseRequest, UpdateMetadataRequest, AskAIRequest, AskAIResponse, AuditLogEntryResponse, PagedAuditLogResponse, ProceedToNegotiationResponse, ReviewerResponse, RoutingRequest, RoutingResponse, VersionSummaryResponse, CommentResponse, CommentRequest, NegotiationTrackerResponse, SubmitReviewRequest, SubmitReviewResponse, GenerateExternalLinkResponse, VerifyOtpRequest, NegotiationExternalViewResponse, VerifyOtpResponse, ExternalSubmitRequest, ExternalSubmitResponse, ClauseDiffResponse, CompareVersionsResponse, ReminderResponse, MarkAgreedResponse
+Endpoints: GET /api/v1/approvals, GET /api/v1/approvals/{approvalId}, POST /api/v1/approvals/{approvalId}/actions, POST /api/v1/approvals/{approvalId}/delegate, GET /api/v1/approvals/{approvalId}/history, GET /api/v1/approval-matrix-config, PUT /api/v1/approval-matrix-config, GET /api/v1/contracts/{contractId}/signers, POST /api/v1/contracts/{contractId}/signers, PUT /api/v1/contracts/{contractId}/signers/{signerId}, DELETE /api/v1/contracts/{contractId}/signers/{signerId}, POST /api/v1/contracts/{contractId}/signers/send, GET /api/v1/signing-sessions/{sessionId}, POST /api/v1/signing-sessions/{sessionId}/otp/verify, POST /api/v1/signing-sessions/{sessionId}/otp/resend, POST /api/v1/signing-sessions/{sessionId}/sign, POST /api/v1/signing-sessions/{sessionId}/decline, GET /api/v1/contracts/{contractId}/audit-certificate, GET /api/v1/esignature-settings, PUT /api/v1/esignature-settings
+DTOs: ApprovalResponse, ApprovalListItemResponse, ApprovalListResponse, ApprovalActionRequest, ApprovalActionResponse, DelegateRequest, DelegateResponse, ApprovalHistoryEntryResponse, ApprovalHistoryListResponse, ApprovalMatrixStepConfig, ApprovalMatrixConfigResponse, ApprovalMatrixConfigListResponse, UpdateApprovalMatrixConfigRequest, SignerResponse, SignerListResponse, AddSignerRequest, UpdateSignerRequest, SendForSignatureRequest, SendForSignatureResponse, SigningSessionResponse, VerifyOtpRequest, VerifyOtpResponse, ApplySignatureRequest, ApplySignatureResponse, DeclineSignatureRequest, DeclineSignatureResponse, AuditCertificateSignerEntry, AuditCertificateResponse, EsignatureSettingsResponse, UpdateEsignatureSettingsRequest, ErrorResponse
 DIGEST -->
-<!-- MODULE:lifecycle-uc4-uc5 END -->
+<!-- MODULE:uc6-uc7-combined END -->
