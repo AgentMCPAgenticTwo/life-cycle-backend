@@ -1,7 +1,0 @@
-Done. Summary:
-
-- Added `app/models/approval.py` and `app/models/esignature.py` with all 10 ORM entities for the UC6-UC7-combined module (approval matrix configs/steps, approvals, step instances, delegations, approval audit log, signers, signature audit log, audit certificates, esignature settings), registered in `app/models/__init__.py`.
-- Added migrations `0021`–`0030`, chained onto the existing head (`CreateNegotiationReminders`), using the exact required revision names and in the contract's exact order.
-- Shared infrastructure (header-auth/`require_roles`, error handling, paging, CORS, health route, migrations-at-startup) was already in place from earlier foundation runs and needed no changes.
-- Verification: `python -m compileall`, `pytest -q` (174 passed, including the repo's existing contract-conformance tests that check tables/columns/indexes/migration order against `context.json` and offline `alembic upgrade head --sql`), and an in-process FastAPI boot confirming `/health` returns 200. No live Postgres was reachable in the sandbox (network commands required approval this autonomous run couldn't grant), so that gap is recorded in `blockers`, along with the TASK.md/CLAUDE.md stack contradiction (.NET commands vs. this repo's actual Python stack).
-- Wrote result to `.api-gen/outputs/T-00-FOUNDATION-API.json`.
