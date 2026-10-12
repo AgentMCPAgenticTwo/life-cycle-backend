@@ -12,6 +12,18 @@ from app.models.approval import (
 )
 from app.models.clause import Clause, ClauseVersion
 from app.models.contract import Contract, ContractTask
+from app.models.contract_lifecycle import (
+    ActivityLogEntry,
+    ContractAssignment,
+    ContractDocument,
+    ContractFolderTag,
+    ContractLifecycleAction,
+    ContractVersion,
+    FolderTag,
+    Obligation,
+    ObligationAuditLog,
+    RenewalAlert,
+)
 from app.models.counterparty import Counterparty
 from app.models.esignature import (
     AuditCertificate,
@@ -69,4 +81,14 @@ __all__ = [
     "SignatureAuditLog",
     "AuditCertificate",
     "EsignatureSettings",
+    "ContractAssignment",
+    "ContractDocument",
+    "ContractVersion",
+    "FolderTag",
+    "ContractFolderTag",
+    "ActivityLogEntry",
+    "Obligation",
+    "RenewalAlert",
+    "ContractLifecycleAction",
+    "ObligationAuditLog",
 ]

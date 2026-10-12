@@ -1,0 +1,88 @@
+{
+  "status": "SUCCESS",
+  "summary": "GET /api/v1/folder-tags (FolderTagOptionResponse, all four roles, unpaged) was already implemented as part of the broader life-cycle-uc8-uc9 module build this task belongs to: FolderTag model + 0035_create_folder_tags.py migration, list_folder_tags_for_tenant repository query, list_folder_tag_options service, and the folder_tags_router GET handler wired into app/main.py. Verified by: python -m compileall (pass), full pytest suite (303 passed, including test_list_folder_tag_options), and a manual FastAPI TestClient run (equivalent to the uvicorn+curl check, since no live Postgres is reachable in this sandbox) confirming 200 with the exact id/name/kind response shape, 401 on a missing X-User-Role header, 403 on a disallowed role, and the route appearing in /openapi.json with both auth headers declared as security schemes.",
+  "task_id": "T-FOLDER-TAGS-API",
+  "story_id": "UC8-BR-004",
+  "code_files": [
+    {
+      "file_path": "app/models/contract_lifecycle.py",
+      "file_name": "contract_lifecycle.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "FolderTag ORM model backing the folder_tags table (tenant_id, name, kind)."
+    },
+    {
+      "file_path": "alembic/versions/0035_create_folder_tags.py",
+      "file_name": "0035_create_folder_tags.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateFolderTags migration: creates folder_tags with the tenant index, matching context.json's table exactly."
+    },
+    {
+      "file_path": "app/schemas/contract_lifecycle.py",
+      "file_name": "contract_lifecycle.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "FolderTagOptionResponse Pydantic schema (id, name, kind) matching the DTO contract field-for-field."
+    },
+    {
+      "file_path": "app/repositories/contract_lifecycle.py",
+      "file_name": "contract_lifecycle.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "list_folder_tags_for_tenant: tenant-scoped, name-ordered query over folder_tags, no rules."
+    },
+    {
+      "file_path": "app/services/contract_lifecycle.py",
+      "file_name": "contract_lifecycle.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "list_folder_tag_options: maps FolderTag rows to FolderTagOptionResponse."
+    },
+    {
+      "file_path": "app/routers/contract_lifecycle.py",
+      "file_name": "contract_lifecycle.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "folder_tags_router GET / handler enforcing TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER via require_roles."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Mounts folder_tags_router under /api/v1, giving the literal path /api/v1/folder-tags."
+    },
+    {
+      "file_path": "tests/test_contract_lifecycle.py",
+      "file_name": "test_contract_lifecycle.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "test_list_folder_tag_options exercises the happy path against an in-memory SQLite-backed TestClient."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/b94ac7679626",
+    "title": "feat(folder-tags): list folder/tag options endpoint",
+    "body": "Implements GET /api/v1/folder-tags (FolderTagOptionResponse, unpaged, all four roles) per T-FOLDER-TAGS-API/context.json. Built alongside this run's wider life-cycle-uc8-uc9 module work (contract_lifecycle model/repository/service/router), which already covered this endpoint end-to-end. Verified with pytest and a TestClient-based 200/401/403/openapi.json check.",
+    "draft": true,
+    "linked_story": "UC8-BR-004",
+    "linked_task": "T-FOLDER-TAGS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/models/contract_lifecycle.py",
+      "app/schemas/contract_lifecycle.py",
+      "app/repositories/contract_lifecycle.py",
+      "app/services/contract_lifecycle.py",
+      "app/routers/contract_lifecycle.py",
+      "app/main.py"
+    ],
+    "openapi_endpoint": "/api/v1/folder-tags"
+  },
+  "blockers": [
+    "TASK.md's self-verification steps (dotnet build/test, dotnet run) target a .NET/SQL Server stack; this repo's CLAUDE.md is authoritative and specifies Python/FastAPI/PostgreSQL, so verification instead used `python -m compileall app`, `pytest -q` (303 passed), and a FastAPI TestClient exercising the endpoint's 200/401/403 paths plus /openapi.json, since no live Postgres instance is reachable in this sandbox (the same constraint this module's own tests/test_persistence.py documents and works around with an in-memory SQLite-backed TestClient).",
+    "context.json's `base_path` for this task is `/api/v1/contracts`, but this task's only endpoint is `/api/v1/folder-tags` (no `/contracts` prefix) — treated base_path as informational metadata for the module, not a per-endpoint prefix, and implemented the endpoint's literal path as given in the endpoints list.",
+    "No new code was required: this endpoint was already built, migrated, and tested as part of the same module's earlier T-00-FOUNDATION-API/T-CONTRACTS-API work, which this task's scope (`folder_tags` table, `FolderTagOptionResponse` DTO) is a strict subset of. No fields or tables were added beyond context.json."
+  ]
+}

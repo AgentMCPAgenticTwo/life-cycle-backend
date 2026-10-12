@@ -32,6 +32,11 @@ RenewalType = Literal["Auto", "Manual", "None"]
 # "Sent" was added here (additively) by T-CONTRACTS-API (UC7 e-signature): Send for Signature
 # persists this status to the same shared `contracts.status` column. See this task's
 # `blockers`.
+# "In Approval", "In Signature", "Active", "Expired", "Terminated", "Renewed" and "Amended"
+# were added here (additively) by the life-cycle-uc8-uc9 module's T-CONTRACTS-API run: UC8-BR-011
+# and UC9-BR-004/016/017/018 persist these lifecycle states to this same shared
+# `contracts.status` column (Repository status display, and the Renew/Amend/Terminate
+# transitions). See this task's `blockers`.
 ContractStatus = Literal[
     "Draft",
     "In Negotiation",
@@ -41,6 +46,13 @@ ContractStatus = Literal[
     "Rejected",
     "Ready For Signature",
     "Sent",
+    "In Approval",
+    "In Signature",
+    "Active",
+    "Expired",
+    "Terminated",
+    "Renewed",
+    "Amended",
 ]
 
 

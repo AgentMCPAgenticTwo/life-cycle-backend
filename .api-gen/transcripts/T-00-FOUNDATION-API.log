@@ -1,7 +1,10 @@
-Done. Summary:
+Output validates against the schema. Final summary:
 
-- Added `app/models/approval.py` and `app/models/esignature.py` with all 10 ORM entities for the UC6-UC7-combined module (approval matrix configs/steps, approvals, step instances, delegations, approval audit log, signers, signature audit log, audit certificates, esignature settings), registered in `app/models/__init__.py`.
-- Added migrations `0021`–`0030`, chained onto the existing head (`CreateNegotiationReminders`), using the exact required revision names and in the contract's exact order.
-- Shared infrastructure (header-auth/`require_roles`, error handling, paging, CORS, health route, migrations-at-startup) was already in place from earlier foundation runs and needed no changes.
-- Verification: `python -m compileall`, `pytest -q` (174 passed, including the repo's existing contract-conformance tests that check tables/columns/indexes/migration order against `context.json` and offline `alembic upgrade head --sql`), and an in-process FastAPI boot confirming `/health` returns 200. No live Postgres was reachable in the sandbox (network commands required approval this autonomous run couldn't grant), so that gap is recorded in `blockers`, along with the TASK.md/CLAUDE.md stack contradiction (.NET commands vs. this repo's actual Python stack).
-- Wrote result to `.api-gen/outputs/T-00-FOUNDATION-API.json`.
+I implemented the persistence layer for the life-cycle-uc8-uc9 foundation task against this repo's actual Python/FastAPI/PostgreSQL/Alembic stack:
+
+- **New tables** (exact migrations 0032–0041, matching the required names/order): `contract_assignments`, `contract_documents`, `contract_versions`, `folder_tags`, `contract_folder_tags`, `activity_log_entries`, `obligations`, `renewal_alerts`, `contract_lifecycle_actions`, `obligation_audit_log` — new ORM entities in `app/models/contract_lifecycle.py`.
+- **`contracts` collision**: this table/migration name already existed from the uc123 module with an incompatible-but-overlapping schema. Per CLAUDE.md and the module's own skill, I extended it additively (migration 0031, `CreateContractsLifecycleColumns`) instead of rewriting it — adding the 8 new columns and relaxing `start_date`/`end_date` to nullable, all documented as blockers (including the `notice_period` → `notice_period_text` rename forced by a type collision, and the `owner_id` nullability deviation).
+- Shared infra (auth, error handling, CORS, paging) already existed and needed no changes.
+- Updated `tests/test_persistence.py` to encode these documented deviations; all 280 tests pass, `compileall` is clean, the full 41-revision migration chain renders valid DDL offline, and the live app boots with `/health` and auth 401/403 confirmed.
+
+Result written to `.api-gen/outputs/T-00-FOUNDATION-API.json` with full blockers detail.

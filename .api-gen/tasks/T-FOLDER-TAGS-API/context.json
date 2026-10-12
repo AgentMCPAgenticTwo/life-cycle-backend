@@ -1,0 +1,241 @@
+{
+  "group_id": "folder-tags",
+  "task_id": "T-FOLDER-TAGS-API",
+  "kind": "resource",
+  "resource": "folder-tags",
+  "base_path": "/api/v1/contracts",
+  "primary_story_id": "UC8-BR-004",
+  "story_ids": [
+    "UC8-BR-004",
+    "UC8-FV-001",
+    "UC8-FV-004",
+    "UC8-MF-001"
+  ],
+  "endpoints": [
+    {
+      "id": "GET_folder_tags",
+      "path": "/api/v1/folder-tags",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER"
+      ],
+      "method": "GET",
+      "summary": "List available folders/tags for the Folder/Tag Filter and Add Folder/Tag dialog",
+      "is_paged": false,
+      "story_refs": [
+        "UC8-MF-001",
+        "UC8-BR-004",
+        "UC8-FV-001",
+        "UC8-FV-004"
+      ],
+      "response_dto": "FolderTagOptionResponse",
+      "auth_required": true
+    }
+  ],
+  "dtos": [
+    {
+      "name": "FolderTagOptionResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "Folder",
+            "Tag"
+          ],
+          "name": "kind",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "name": "folder_tags",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(100)",
+          "nullable": false
+        },
+        {
+          "name": "kind",
+          "type": "VARCHAR(10)",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_folder_tags_tenant",
+          "columns": [
+            "tenant_id"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC8-BR-004",
+        "UC8-FV-001",
+        "UC8-FV-004"
+      ],
+      "description": "Tenant-level folder or tag definitions",
+      "foreign_keys": []
+    }
+  ],
+  "migrations": [],
+  "stories": [
+    {
+      "epic": "Contract Repository",
+      "actor": "Tenant Admin",
+      "title": "Filter contracts by multiple folders and tags",
+      "story_id": "UC8-BR-004",
+      "references": [
+        "UC8-BR-004",
+        "DP-UC8-001",
+        "DP-UC8-002",
+        "DP-UC8-003",
+        "DP-UC8-004",
+        "DP-UC8-005",
+        "DP-UC8-007"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to filter the contract repository by multiple folders and tags simultaneously, so that I can find all contracts matching any of my selected folder or tag values regardless of how many folders/tags a contract carries.",
+      "source_reference": "UC8 / Business Rules / BR-4",
+      "acceptance_criteria": [
+        "Given a contract has been assigned to more than one folder and tagged with more than one tag, When I view that contract in the Contract List Table, Then it correctly displays all folders and tags associated with it without restriction to a single value.",
+        "Given I am on the Contract Repository screen with the Search Box, Status Filter, Date Range Filter, Value Filter, and Folder/Tag Filter available, When I select two or more values in the Folder/Tag Filter and trigger the search, Then the Contract List Table returns every contract matching any one of the selected folder or tag values, not only contracts matching all of them.",
+        "Given multiple folders/tags are selected in the Folder/Tag Filter along with criteria entered in the Search Box, Status Filter, Date Range Filter, or Value Filter, When the search is executed, Then the Folder/Tag Filter condition is applied as an OR across the selected folder/tag values while still combining with the other active filters.",
+        "Given no folder or tag is selected in the Folder/Tag Filter, When I perform a search using the Search Box, Status Filter, Date Range Filter, or Value Filter alone, Then the Contract List Table returns results without applying any folder/tag restriction."
+      ]
+    },
+    {
+      "epic": "Contract Repository",
+      "actor": "Contract Owner",
+      "title": "Search and Filter Contracts Using the Repository Panel",
+      "story_id": "UC8-FV-001",
+      "references": [
+        "UC8",
+        "BR-1",
+        "BR-2",
+        "BR-4",
+        "DP-UC8-001",
+        "DP-UC8-002",
+        "DP-UC8-003",
+        "DP-UC8-004",
+        "DP-UC8-005",
+        "DP-UC8-007"
+      ],
+      "story_type": "field-validation",
+      "story_statement": "As a Contract Owner, I want to search and filter contracts using the Search and Filter panel, so that I can quickly locate contracts relevant to me within the repository.",
+      "source_reference": "UC8 / Fields and Attributes",
+      "acceptance_criteria": [
+        "Given I am on the Contract Repository screen, When I view the Search and Filter panel, Then I see the following controls: Search Box, Status Filter, Date Range Filter, Value Filter, and Folder/Tag Filter.",
+        "Given I enter free text into the Search Box, When I click the Search Button, Then contracts matching the text against contract name, counterparty, or clause text are returned, respecting my role-based visibility.",
+        "Given I select a value in the Status Filter dropdown (Draft, In Negotiation, In Approval, In Signature, Executed, Expired, Terminated), When I click the Search Button, Then only contracts with that status are shown in the Contract List Table.",
+        "Given I set a Date Range Filter using the date picker, When I click the Search Button, Then only contracts whose start or end date falls within the selected range are shown in the Contract List Table.",
+        "Given I set a min and/or max value in the Value Filter, When I click the Search Button, Then only contracts with a contract value within the specified range are shown in the Contract List Table.",
+        "Given I select one or more values in the Folder/Tag Filter, When I click the Search Button, Then contracts matching any of the selected folders or tags are shown in the Contract List Table.",
+        "Given no search text or filters are set, When I click the Search Button, Then all contracts visible to my role are displayed in the Contract List Table with no filtering applied."
+      ]
+    },
+    {
+      "epic": "Contract Repository",
+      "actor": "Contract Owner",
+      "title": "Assign Folder or Tag to a Contract via Dialog",
+      "story_id": "UC8-FV-004",
+      "references": [
+        "UC8",
+        "BR-4",
+        "BR-8",
+        "F-16",
+        "DP-UC8-001",
+        "DP-UC8-002",
+        "DP-UC8-003",
+        "DP-UC8-004",
+        "DP-UC8-005",
+        "DP-UC8-007"
+      ],
+      "story_type": "field-validation",
+      "story_statement": "As a Contract Owner, I want to open the Add Folder/Tag pop-up from the contract repository to assign a folder or tag to a contract, so that I can organize and later retrieve my contracts using folders and tags.",
+      "source_reference": "UC8 / Fields and Attributes",
+      "acceptance_criteria": [
+        "Given a Contract Owner is viewing the Contract List Table and the contract rows are filtered or populated using the Search Box, Status Filter, Date Range Filter, Value Filter, and Folder/Tag Filter, when the Contract Owner selects a contract they own and clicks the Add Folder/Tag Button, then a dialog opens allowing them to assign a folder or tag to that contract.",
+        "Given the Add Folder/Tag dialog is open for a contract the Contract Owner owns, when they select one or more folders or tags and confirm, then the contract is updated to carry those folders/tags and the dialog closes.",
+        "Given a contract has been assigned a folder or tag, when the Contract Owner uses the Folder/Tag Filter on the repository screen, then the Contract List Table returns that contract along with any other contracts matching the selected folder or tag.",
+        "Given the Contract Owner wants to locate a contract before tagging it, when they enter text in the Search Box, set the Status Filter, Date Range Filter, or Value Filter, and click the Search Button, then the Contract List Table updates to show only matching contracts from which the Add Folder/Tag Button can be used.",
+        "Given a contract is owned by another user, when the Contract Owner views the Contract List Table, then that contract is not shown and the Add Folder/Tag Button cannot be invoked on it."
+      ]
+    },
+    {
+      "epic": "Contract Repository",
+      "actor": "Contract Owner",
+      "title": "Search, filter, sort and navigate contracts in the repository",
+      "story_id": "UC8-MF-001",
+      "references": [
+        "UC8",
+        "BR-1",
+        "BR-2",
+        "BR-3",
+        "BR-4",
+        "DP-UC8-001",
+        "DP-UC8-002",
+        "DP-UC8-003",
+        "DP-UC8-004",
+        "DP-UC8-005",
+        "DP-UC8-007"
+      ],
+      "story_type": "main-flow",
+      "story_statement": "As a Contract Owner, I want to search, filter, sort and open contracts in the Contract Repository, so that I can quickly locate and review the contracts relevant to me.",
+      "source_reference": "UC8 / Main Flow",
+      "acceptance_criteria": [
+        "Given I am logged in with an authorized role and navigate to the Contract Repository, When the page loads, Then the Contract List Table displays the contracts I am authorized to see.",
+        "Given I enter a term in the Search Box and click Search, When the search executes, Then the Contract List Table updates to show only contracts matching the term against contract name, counterparty, or clause text.",
+        "Given I click a column header on the Contract List Table, When the sort is applied, Then the rows reorder ascending or descending by that column.",
+        "Given I apply values via the Status Filter, Date Range Filter, Value Filter, and/or Folder/Tag Filter, When I click Search, Then the Contract List Table displays only contracts matching the selected Status Filter, Date Range Filter, Value Filter, and Folder/Tag Filter criteria.",
+        "Given I click a contract row in the Contract List Table, When the contract opens, Then I can navigate between the Document, Versions and Activity log tabs for that contract.",
+        "Given I click the Add Folder/Tag button on a contract I am authorized to tag, When the dialog opens and I assign a folder or tag, Then the folder/tag is saved and associated with the contract."
+      ]
+    }
+  ]
+}

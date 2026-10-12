@@ -1,8 +1,0 @@
-Output validates against the schema. Final summary:
-
-- Implemented all 5 `/api/v1/approvals` endpoints (list, detail, actions, delegate, history) with role enforcement, sequence gating, mandatory-comments rules, Contract Owner exclusion, time-bound delegation, auto-advance/ready-for-signature transitions, and an immutable audit log.
-- Added `app/schemas/approval.py`, `app/repositories/approvals.py`, `app/services/approvals.py`, `app/routers/approvals.py`, wired into `app/main.py`.
-- Additively extended the shared `ContractStatus` Literal in `app/schemas/contract.py` (documented as a blocker/contradiction) so this module can write its outcomes to the shared `contracts.status` column without breaking the uc123 module.
-- Added 27 tests in `tests/test_approvals.py`; full suite is 213 passing, `compileall` and pyflakes clean.
-- Live `uvicorn`+`curl` verification against Postgres was blocked by sandbox restrictions (sudo/background process denied); verified instead via FastAPI TestClient over real HTTP semantics plus an OpenAPI-spec check of all 5 routes and auth schemes — noted explicitly in blockers.
-- Result written to `.api-gen/outputs/T-APPROVALS-API.json`, validated against `OUTPUT_SCHEMA.json`, status `PARTIAL` with blockers documenting the approval-creation ownership gap, the contract-status enum contradiction, and the AF-003 screen-access simplification.

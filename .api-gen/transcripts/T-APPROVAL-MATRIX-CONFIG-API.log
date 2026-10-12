@@ -1,7 +1,0 @@
-All required fields present and JSON is well-formed. The implementation is complete:
-
-- Added `GET`/`PUT /api/v1/approval-matrix-config` (TENANT_ADMIN only) across schemas, repository, service, and router layers, wired into `app/main.py`.
-- Service validates contract type, value/risk-band ranges, step completeness/uniqueness, and cross-tenant approver references, then performs a full-replace save per tenant.
-- Added `tests/test_approval_matrix.py` (12 tests) covering the role matrix, round-trip, replace semantics, and every validation rule — full suite now at 186 passing.
-- Verified end-to-end via in-process TestClient (401/403/200/400) and confirmed both routes appear correctly in the OpenAPI spec with auth headers declared, since no live Postgres is reachable in this sandbox (same constraint the foundation task hit).
-- Output written to `.api-gen/outputs/T-APPROVAL-MATRIX-CONFIG-API.json` with status `SUCCESS` and blockers documenting the DTO-reuse id conflict, the full-replace design choice, added validation rules, and the stack/verification substitutions.

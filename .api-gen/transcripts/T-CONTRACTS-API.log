@@ -1,9 +1,5 @@
-Implementation complete. Summary:
+Output validates against the schema. Final summary:
 
-Implemented the 6 signer/audit-certificate endpoints under `/api/v1/contracts/{contractId}/...` that this task owns (list, add, update, delete signers; send-for-signature; audit certificate download), reusing the foundation task's existing `signers`/`audit_certificates`/`esignature_settings` tables and models. Added `app/schemas/signer.py`, `app/repositories/signers.py`, `app/services/signers.py`, `app/routers/signers.py`, wired into `app/main.py`, and extended the shared `ContractStatus` Literal additively with `"Sent"`.
+I implemented 14 of the 16 endpoints in T-CONTRACTS-API's contract for the `life-cycle-uc8-uc9` module (Document tab, Versions, immutable Activity Log, Folder/Tag assignment, the full Obligations & Renewal screen, and Renew/Amend/Terminate), adding new `schemas/repositories/services/routers/contract_lifecycle.py` files plus a `tests/test_contract_lifecycle.py` suite — all 303 repo tests pass (up from 280) and `compileall` is clean.
 
-- `python -m compileall app` and `pytest -q` pass (247/247, including 34 new tests in `tests/test_signers.py`)
-- Verified live via uvicorn: all 5 routes appear in `/openapi.json`; 401/403 confirmed end-to-end
-- Key judgement calls documented in `blockers`: the "Approved" vs "Ready For Signature" precondition contradiction, an added `"Pending"` pre-send signer status, deterministic (not random) integrated-provider-failure simulation for AF-005, lazy audit-certificate generation, and the pre-existing no-Postgres sandbox gap
-
-Result written to `.api-gen/outputs/T-CONTRACTS-API.json`.
+The two endpoints I did **not** implement — `GET /api/v1/contracts` and `GET /api/v1/contracts/{contractId}` — collide at the exact (method, path) level with endpoints uc123's earlier run of this same task already shipped under a different role list and DTO shape. Since FastAPI can't route two handlers to the identical path, and I'm not permitted to rewrite another module's code, I left uc123's existing implementation in place rather than silently overriding it or registering permanently-dead routes. This and several other judgement calls (oversized-file threshold, obligation `owner` field typed as string vs. the UUID FK column, notice-period text parsing, lazy Overdue transitions, no live Postgres in this sandbox) are documented in detail in the `blockers` field of `.api-gen/outputs/T-CONTRACTS-API.json`. Status is `PARTIAL` for that reason.
