@@ -1,0 +1,67 @@
+{
+  "status": "PARTIAL",
+  "summary": "Implemented GET /api/v1/tracker/bottleneck-thresholds exactly per context.json: a thin router (app/routers/tracker_bottleneck_thresholds.py) over a new service (app/services/tracker_bottleneck_thresholds.py) that reuses the pre-existing repository function app.repositories.tracker_bottleneck.get_thresholds (built by the sibling T-TRACKER-BOTTLENECK-API task) rather than duplicating its tenant-override-over-default merge logic. The endpoint is TENANT_ADMIN-only and returns a JSON array of BottleneckThresholdResponse (stage/thresholdDays) for the fixed four-stage set (Drafting, Negotiation, Approval, Signature) in that order, each entry using the tenant's tenant_bottleneck_thresholds row for that stage when one exists, otherwise falling back to the UC10-BR-002 defaults (5 days for Drafting/Negotiation, 3 days for Approval/Signature). No request body or query params (per context.json, this endpoint has no request DTO). Role enforcement: missing X-User-Role -> 401, any role other than TENANT_ADMIN -> 403, via the shared require_roles dependency. Wired into app/main.py's router list alongside the other tracker_bottleneck router (same /tracker prefix, disjoint path). Added tests/test_tracker_bottleneck_thresholds.py (5 tests): 401 with no role header, 403 for a disallowed role (CONTRACT_OWNER), the full four-stage default-only response shape and ordering, a tenant override replacing only its own stage's threshold while the other three stay at their defaults, and tenant isolation (a threshold override in tenant A does not leak into tenant B's response). Verified with `python -m compileall app` (pass) and `pytest -q` (393 passed repo-wide, no regressions, up from the 388 the prior sibling task reported). Confirmed via a FastAPI TestClient (no live DB round-trip) that the route appears in /openapi.json as GET /api/v1/tracker/bottleneck-thresholds with both the X-User-Role and X-User-Id security schemes declared, and that the BottleneckThresholdResponse schema component matches context.json field-for-field (stage: string enum [Drafting, Negotiation, Approval, Signature], thresholdDays: integer, both required). Could not boot a live uvicorn+real-Postgres pass end-to-end in this sandbox (see blockers) -- the DB-backed behavior (tenant-scoped threshold lookup, default fallback, role gate) is instead covered by the 5 tests above running against an in-memory SQLite-backed TestClient, the same substitution tests/conftest.py already documents and the prior sibling task's output used.",
+  "task_id": "T-TRACKER-BOTTLENECK-THRESHOLDS-API",
+  "story_id": "UC10-BR-002",
+  "code_files": [
+    {
+      "file_path": "app/schemas/tracker_bottleneck_thresholds.py",
+      "file_name": "tracker_bottleneck_thresholds.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "BottleneckThresholdResponse (stage: Literal['Drafting','Negotiation','Approval','Signature'], thresholdDays: int), matching context.json exactly. No request DTO -- this endpoint takes no query params or body."
+    },
+    {
+      "file_path": "app/services/tracker_bottleneck_thresholds.py",
+      "file_name": "tracker_bottleneck_thresholds.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "get_bottleneck_thresholds(db, tenant_id): builds the fixed four-stage ordered list, delegating the tenant-override-vs-default merge to the existing app.repositories.tracker_bottleneck.get_thresholds/DEFAULT_THRESHOLDS (UC10-BR-002) rather than re-implementing it."
+    },
+    {
+      "file_path": "app/routers/tracker_bottleneck_thresholds.py",
+      "file_name": "tracker_bottleneck_thresholds.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for GET /api/v1/tracker/bottleneck-thresholds, TENANT_ADMIN-only via require_roles, tenant resolved via current_tenant_id."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new tracker_bottleneck_thresholds router import and app.include_router call alongside the existing tracker_bottleneck router."
+    },
+    {
+      "file_path": "tests/test_tracker_bottleneck_thresholds.py",
+      "file_name": "test_tracker_bottleneck_thresholds.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "5 tests covering the role matrix (401 missing header, 403 disallowed role), the all-default response shape/order, a single-stage tenant override leaving the other three stages at their defaults, and tenant isolation of overrides."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add tracker/bottleneck-thresholds endpoint (lifecycle-uc10-uc11)",
+    "body": "Implements GET /api/v1/tracker/bottleneck-thresholds per context.json: TENANT_ADMIN-only read of the tenant's configured stuck-flag thresholds for the four tracker stages (Drafting, Negotiation, Approval, Signature), falling back to the UC10-BR-002 defaults (5/5/3/3 days) for any stage the tenant has not overridden. Reuses the TenantBottleneckThreshold model/table and get_thresholds helper already built by the sibling T-TRACKER-BOTTLENECK-API task instead of duplicating the merge logic; adds a new router/service/schema module and test file. Verified with compileall and the full pytest suite (393 passed) and a TestClient-based OpenAPI/role/shape check; a live Postgres-backed curl pass was not possible in this sandbox (see blockers).",
+    "draft": true,
+    "linked_story": "UC10-BR-002",
+    "linked_task": "T-TRACKER-BOTTLENECK-THRESHOLDS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/tracker_bottleneck_thresholds.py",
+      "app/services/tracker_bottleneck_thresholds.py",
+      "app/routers/tracker_bottleneck_thresholds.py",
+      "app/main.py",
+      "tests/test_tracker_bottleneck_thresholds.py"
+    ],
+    "openapi_endpoint": "/api/v1/tracker/bottleneck-thresholds"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (393 passed), and a TestClient-based check that the route/security schemes/response schema appear correctly in /openapi.json.",
+    "This sandbox has no reachable Postgres and setting DATABASE_URL (even to a local SQLite file, for a from-scratch migration-then-boot smoke test) was blocked by the session's command-approval policy, so a live `uvicorn` + curl pass against a real database could not be completed end-to-end (the same constraint the prior sibling task T-TRACKER-BOTTLENECK-API recorded). The endpoint's DB-backed behavior -- tenant-scoped threshold lookup, per-stage default fallback, and the TENANT_ADMIN role gate -- is instead covered by the 5 tests in tests/test_tracker_bottleneck_thresholds.py running against an in-memory SQLite-backed FastAPI TestClient, the same substitution tests/conftest.py documents and this repo's other tracker tests already use.",
+    "context.json's response_dto for this endpoint names a single BottleneckThresholdResponse object with no `is_paged`/array wrapper, but the endpoint's purpose ('per stage') and its four-row enum plainly require multiple entries. Returned `list[BottleneckThresholdResponse]` as the JSON body (a bare array, no envelope), following the same pattern this repo already uses for GET /api/v1/settings/integrations (IntegrationResponse, also documented singular but implemented as list[IntegrationResponse]). No field was added to the DTO; this is a response-cardinality judgement call, not a field invention.",
+    "The story text and acceptance criteria are untrusted product-requirement input; none of it contained instructions directed at the agent (commands to run, secrets to read, CI/network/out-of-tree file access), so nothing was withheld on that basis."
+  ]
+}

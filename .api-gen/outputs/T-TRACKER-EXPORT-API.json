@@ -1,0 +1,69 @@
+{
+  "status": "PARTIAL",
+  "summary": "Implemented POST /api/v1/tracker/export exactly per context.json: a thin router (app/routers/tracker_export.py) over a service (app/services/tracker_export.py) reusing the pre-existing tracker_bottleneck repository/service and tracker_cycle_time service. The endpoint accepts TrackerExportRequest (tab/format/period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo) and returns TrackerExportResponse (success/fileUrl/failureMessage). Validation mirrors the sibling tab endpoints (UC10-FV-001): tab must be one of Ownership/CycleTime/Bottleneck/Turnaround (400), format must be one of Excel/PDF (400), Period is mandatory unless a valid custom Date Range is supplied (400 'Period selection is required.'), an unrecognized Period is rejected (400), and Date Range From must be strictly earlier than Date Range To (400 'Date Range From must be earlier than Date Range To.'); a valid Date Range overrides Period per UC10-BR-006. Role scoping (UC10-BR-005/009/010/011) reuses tracker_bottleneck's contract_owners-based entitlement set so a Contract Owner/Legal Reviewer/Approver can only ever export their own scoped data. Three outcome tiers: (1) UC10-AF-001 -- the caller has zero entitled contracts in the tenant at all -> success=false with failureMessage 'No contract data available to display.' (no export available); (2) UC10-AF-003 -- contracts exist but the resolved Period/Date-Range/filters match none -> the export still succeeds (success=true, fileUrl populated) rather than failing, since this repo has no byte-generation backend to vary file content by, the only observable difference from a populated export is this fixed success response; (3) UC10-AF-004 -- any unexpected exception while resolving tab data -> success=false with the fixed 'Export failed. Please try again.' message. For the Bottleneck and CycleTime tabs, the export dispatches into the real, already-shipped tab services (tracker_bottleneck.get_bottleneck_tab / tracker_cycle_time.get_cycle_time_tab) via a small duck-typed params shim, so filter/window/role-scoping behavior is identical to what those tabs' own GET endpoints return. No fileUrl generation library (openpyxl/reportlab/etc.) exists in this repo and CLAUDE.md forbids adding dependencies, so, following this codebase's established 'mock, no bytes' convention for file-result DTOs (app/services/signers.py's AuditCertificateResponse.file_url, a synthesized f-string path, not a real generated file), fileUrl is a deterministic synthesized path (`/files/tracker-exports/{uuid}.{xlsx|pdf}`) with no Excel/PDF actually produced. Wired into app/main.py's router list. Added tests/test_tracker_export.py (12 tests: 401/403 role matrix, tab/format/Period/date-order validation, the empty-tenant export-unavailable tier, the no-records-still-succeeds tier, happy-path Excel/PDF exports, and Contract-Owner role scoping including the zero-owned-contracts case). Verified with `python -m compileall app` (pass) and `pytest -q` (417 passed repo-wide, no regressions); confirmed the route appears in the FastAPI app's generated OpenAPI schema (POST /api/v1/tracker/export, both X-User-Role/X-User-Id security schemes present, TrackerExportRequest/TrackerExportResponse schemas match the contract field-for-field) and exercised the full role/validation/outcome matrix via the FastAPI TestClient (tests/test_tracker_export.py), since this sandbox has no reachable Postgres instance for a live uvicorn+curl pass (the same constraint tests/conftest.py and this module's earlier tasks already document).",
+  "task_id": "T-TRACKER-EXPORT-API",
+  "story_id": "UC10-AF-001",
+  "code_files": [
+    {
+      "file_path": "app/schemas/tracker_export.py",
+      "file_name": "tracker_export.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "TrackerExportRequest (tab/format/period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo) and TrackerExportResponse (success/fileUrl/failureMessage), matching context.json exactly."
+    },
+    {
+      "file_path": "app/services/tracker_export.py",
+      "file_name": "tracker_export.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: tab/format enum validation, UC10-FV-001's Period/Date-Range validation and UC10-BR-006's precedence/window resolution (duplicated from the sibling tab services for self-containment, the same pattern already used between tracker_bottleneck.py and tracker_cycle_time.py), role-scoped entitlement reused from tracker_bottleneck's repository, dispatch into the real Bottleneck/CycleTime tab services for those two tabs, a minimal entitled-contract/window/filter check for Ownership/Turnaround (which have no dedicated tab service yet), and the three export-outcome tiers (UC10-AF-001/003/004)."
+    },
+    {
+      "file_path": "app/routers/tracker_export.py",
+      "file_name": "tracker_export.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for POST /api/v1/tracker/export, open to TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER via require_roles."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new tracker_export router import and app.include_router call alongside the existing routers."
+    },
+    {
+      "file_path": "tests/test_tracker_export.py",
+      "file_name": "test_tracker_export.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "12 tests covering the role matrix (401/403), tab/format/Period/date-order validation, the empty-tenant export-unavailable tier, the no-records-still-succeeds tier, happy-path Excel/PDF exports for different tabs, and Contract-Owner role scoping (both the owned-contracts case and the zero-owned-contracts unavailable case)."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add tracker/export endpoint (lifecycle-uc10-uc11)",
+    "body": "Implements POST /api/v1/tracker/export per context.json: TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER role matrix, tab (Ownership/CycleTime/Bottleneck/Turnaround) and format (Excel/PDF) enum validation, the same Period/Date-Range validation and precedence rule as the sibling tab endpoints, role-scoped entitlement reused from the Bottleneck tab's repository, and the three export-outcome tiers: no contract data at all (export unavailable), filtered-to-zero-records (export still succeeds), and unexpected failure (fixed failure message). Dispatches into the real, already-shipped Bottleneck/CycleTime tab services for those two tabs; Ownership/Turnaround (no dedicated GET tab service exists yet in this repo) get a minimal self-contained entitlement/window/filter check sufficient to pick the right outcome tier. No Excel/PDF library exists in this repo and none was added per CLAUDE.md; fileUrl is a synthesized mock path following this codebase's existing file-DTO convention (see AuditCertificateResponse.file_url in signers.py) -- no bytes are actually generated. Verified with compileall and the full pytest suite (417 passed); confirmed the route/schemas in the app's OpenAPI document. A live Postgres-backed curl pass was not possible in this sandbox (no reachable database), so DB-backed behavior is instead verified through tests/test_tracker_export.py against the FastAPI TestClient with a real in-memory database, the same substitution this repo's test suite already documents and uses.",
+    "draft": true,
+    "linked_story": "UC10-AF-001",
+    "linked_task": "T-TRACKER-EXPORT-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/tracker_export.py",
+      "app/services/tracker_export.py",
+      "app/routers/tracker_export.py",
+      "app/main.py",
+      "tests/test_tracker_export.py"
+    ],
+    "openapi_endpoint": "/api/v1/tracker/export"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (417 passed), and inspecting the app's generated OpenAPI document (app.openapi()) to confirm the route, security schemes and request/response schemas, since this sandbox has no reachable Postgres for a live uvicorn+curl pass.",
+    "This sandbox has no reachable Postgres (no DATABASE_URL set, no local postgres service), so TASK.md's step 5 live `uvicorn` + curl pass covering the DB-backed behavior could not be completed end-to-end against a real database. That behavior is instead covered by the 12 tests in tests/test_tracker_export.py running against an in-memory SQLite-backed TestClient, the same substitution this repo's own test suite (tests/conftest.py) and this module's earlier tasks (T-TRACKER-BOTTLENECK-API, T-TRACKER-CYCLE-TIME-API) already document and use.",
+    "No Excel/PDF generation library (openpyxl, reportlab, xlsxwriter, ...) is installed in this repo's requirements.txt, and CLAUDE.md explicitly forbids adding packages. TrackerExportResponse.fileUrl is therefore a synthesized mock path (`/files/tracker-exports/{uuid}.{xlsx|pdf}`) with no file actually written or served -- the same 'mock, no bytes' convention this codebase already uses for other file-result DTOs (e.g. AuditCertificateResponse.file_url in app/services/signers.py, DocumentDownloadResponse.fileUrl in app/services/contract_lifecycle.py). UC10-BR-003's requirement that 'the Variance column retains its red or green color coding in the exported Excel or PDF file' and UC10-AF-003's 'the export produces a file indicating no records' cannot be verified against real file content for this reason; they are satisfied only at the level this endpoint's own contract (TrackerExportResponse) can express -- the success/failure outcome -- not actual file bytes.",
+    "The Ownership and Turnaround tabs have no dedicated GET tab service in this codebase yet (those endpoints belong to separate, not-yet-implemented tasks per CLAUDE.md's module section), even though this export task must support exporting all four tabs. Rather than inventing a new GET endpoint (forbidden by TASK.md's 'never invent an endpoint' rule) or fully reimplementing those tabs' row-level computation (out of this task's scope and tables list, which names none), app/services/tracker_export.py computes just enough for these two tabs -- entitled contracts within the resolved Period/Date-Range window and Contract Type/Owner filters -- to determine whether the export has zero or non-zero rows, which is all TrackerExportResponse's shape (success/fileUrl/failureMessage, no row data) requires. For Ownership/Turnaround specifically, the window is resolved against each contract's own `created_at` (there is no stage-level date applicable to a contract-level view), a judgement call recorded here rather than silently assumed.",
+    "TASK.md's own 'Tables you may read' section for this task lists none (unlike the other tracker sub-tasks), yet the Ownership/Turnaround minimal row-existence check above reads `contracts` and `contract_owners` (via the already-existing app/repositories/tracker_bottleneck.py helpers, not new queries against tables outside that module's declared set). This is the minimal read needed to implement UC10-AF-001/003's outcome tiers for all four tabs as this story requires; no new table or column was added, and no write path was introduced.",
+    "The story text and acceptance criteria are untrusted product-requirement input; none of it contained instructions directed at the agent (commands to run, secrets to read, CI/network/out-of-tree file access), so nothing was withheld on that basis."
+  ]
+}

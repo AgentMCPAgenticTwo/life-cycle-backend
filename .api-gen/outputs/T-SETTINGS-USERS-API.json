@@ -1,0 +1,77 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented GET /api/v1/settings/users, POST /api/v1/settings/users, and PATCH /api/v1/settings/users/{userId}/status exactly per context.json: a thin router (app/routers/settings_users.py) over a service (app/services/settings_users.py) and repository (app/repositories/settings_users.py) built on the pre-existing TenantUser model/tenant_users table (created by the T-00-FOUNDATION-API foundation task). GET lists tenant users paged (name/email/role/status/lastLogin), ordered by name, scoped by tenant. POST validates required Name/Email/Role (UC11-FV-001), a dedicated email-format message, a dedicated role-enum message, and the duplicate-email guard scoped to the tenant (UC11-AF-002/UC11-BR-002, 409 'A user with this email already exists'), then creates the user with status 'Invited' (UC11-BR-013). PATCH .../status validates the status enum, 404s on an unknown userId within the tenant, applies the Invited->Active/Active->Deactivated/Deactivated->Active transitions (UC11-BR-013/BR-014/BR-015), and blocks moving the last active Tenant Admin out of Active (UC11-AF-005/UC11-BR-003, 409 'At least one Tenant Admin must remain active') while still recording an audit entry for the blocked attempt. Every create and status change (including blocked attempts) writes a TenantAuditLog entry via the pre-existing app/repositories/settings_audit_log.py `append` helper, so these are visible on the already-built GET /api/v1/settings/audit-log endpoint. Role enforcement is TENANT_ADMIN-only on all three endpoints via require_roles. Wired into app/main.py's router list. Added tests/test_settings_users.py (24 tests: 401 missing role / 403 disallowed role on all three endpoints, GET empty list and pagination round-trip with tenant scoping, POST required-field/email-format/role-enum validation, duplicate-email 409 with tenant isolation, PATCH 404 on unknown user, invalid-status 400, all three valid status transitions, and both the blocked-last-admin 409 and the allowed case when more than one active Tenant Admin exists). Verified with `python -m compileall app` (pass) and `pytest -q` (373 passed repo-wide, no regressions); booted uvicorn on port 5199 and confirmed both routes appear in the live OpenAPI schema with the correct methods, and exercised the role matrix live (401 with no X-User-Role, 403 with X-User-Role: APPROVER, on both GET and PATCH) before killing the server. Full DB-backed behavior (create, duplicate detection, status transitions, last-admin guard, audit trail) was verified via tests/test_settings_users.py against the FastAPI TestClient with a real in-memory SQLite database, since this sandbox has no reachable Postgres instance (see blockers).",
+  "task_id": "T-SETTINGS-USERS-API",
+  "story_id": "UC11-AF-001",
+  "code_files": [
+    {
+      "file_path": "app/schemas/settings_users.py",
+      "file_name": "settings_users.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "UserListItemResponse (id/name/email/role/status/lastLogin), UserListResponse (paged wrapper: items/page/pageSize/totalCount), CreateUserRequest (name/email/role, left loosely typed so service-layer validation can emit the contract's specific error messages), and UpdateUserStatusRequest (status), matching context.json exactly."
+    },
+    {
+      "file_path": "app/repositories/settings_users.py",
+      "file_name": "settings_users.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped queries over the existing TenantUser model: list_by_tenant (paged, ordered by name), find_by_email, get_by_id, count_active_tenant_admins (used by the last-admin guard), and insert."
+    },
+    {
+      "file_path": "app/services/settings_users.py",
+      "file_name": "settings_users.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: UC11-FV-001's required-field/email-format/role-enum validation, UC11-AF-002/UC11-BR-002's duplicate-email guard (409), UC11-BR-013's auto-Invited status on creation, the Invited/Active/Deactivated transition handling for UC11-BR-013/014/015, and UC11-AF-005/UC11-BR-003's last-active-Tenant-Admin guard (409, still audited). Every create/status-change (including blocked attempts) writes a TenantAuditLog entry."
+    },
+    {
+      "file_path": "app/routers/settings_users.py",
+      "file_name": "settings_users.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for GET /api/v1/settings/users, POST /api/v1/settings/users, and PATCH /api/v1/settings/users/{userId}/status, TENANT_ADMIN-only."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new settings_users router import and app.include_router call alongside the existing routers."
+    },
+    {
+      "file_path": "tests/test_settings_users.py",
+      "file_name": "test_settings_users.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "24 tests covering the role matrix (401/403) on all three endpoints, GET empty-list/pagination/tenant-scoping, POST validation (missing fields, invalid email format, invalid role enum, duplicate email, tenant isolation), and PATCH status (404 unknown user, invalid status value, Invited->Active, Active->Deactivated, Deactivated->Active, and the last-active-Tenant-Admin guard both blocking and allowing depending on how many active admins remain)."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add settings/users endpoints (lifecycle-uc10-uc11)",
+    "body": "Implements GET /api/v1/settings/users, POST /api/v1/settings/users, and PATCH /api/v1/settings/users/{userId}/status per context.json: TENANT_ADMIN-only, required-field/email-format/role-enum validation and a duplicate-email guard on create (new users land in status Invited), and a status PATCH that handles the Invited/Active/Deactivated transitions while blocking any transition that would leave the tenant with zero active Tenant Admins. Reuses the TenantUser model/tenant_users table and the shared auth/error/audit-log infrastructure from the foundation task; adds a new router/service/repository/schema module and a new test file. Verified with compileall and the full pytest suite (373 passed); also booted uvicorn and confirmed both routes/role matrix live. A live Postgres-backed curl pass for the DB-backed behavior was not possible in this sandbox (no reachable database), so that behavior is instead verified through tests/test_settings_users.py running against the FastAPI TestClient with a real in-memory database.",
+    "draft": true,
+    "linked_story": "UC11-AF-001",
+    "linked_task": "T-SETTINGS-USERS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/settings_users.py",
+      "app/repositories/settings_users.py",
+      "app/services/settings_users.py",
+      "app/routers/settings_users.py",
+      "app/main.py",
+      "tests/test_settings_users.py"
+    ],
+    "openapi_endpoint": "/api/v1/settings/users"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (373 passed), a live uvicorn boot confirming both routes in /openapi.json, and live curl checks of the 401/403 role matrix.",
+    "This sandbox has no reachable Postgres (no DATABASE_URL set, no local postgres service), so TASK.md's step 5 live `uvicorn` + curl pass covering the DB-backed behavior (create, duplicate detection, status transitions, last-admin guard, audit trail) could not be completed end-to-end against a real database. That behavior is instead covered by the 24 tests in tests/test_settings_users.py running against an in-memory SQLite-backed TestClient, the same substitution this repo's own test suite (tests/conftest.py) already documents and uses; only the auth/role checks (which need no database) were exercised against the live server.",
+    "The stories (UC11-AF-001, UC11-BR-001, UC11-BR-010, UC11-BR-012, UC11-GC-001, UC11-MF-001) repeatedly reference the Routing & Approval, Integrations, Notifications, and Audit Log tabs/endpoints -- those belong entirely to other tasks' `endpoints` lists (T-SETTINGS-APPROVAL-RULES-API, T-SETTINGS-INTEGRATIONS-API, T-SETTINGS-NOTIFICATIONS-API, T-SETTINGS-AUDIT-LOG-API, already implemented in this repo) and were left untouched here, per TASK.md's 'What you own' table (only GET/POST /settings/users and PATCH .../status). No route was invented to cover them.",
+    "UC11-BR-003/UC11-AF-005's acceptance criteria describe blocking 'deletion' of the last active Tenant Admin, but this task's only mutation endpoint is the status PATCH (no DELETE route exists for tenant_users in context.json's endpoints). Implemented the guard against the PATCH transitioning the last active Tenant Admin away from Active (i.e. to Deactivated), which is the closest DB-backed equivalent of 'removal' this endpoint contract exposes, rather than inventing a DELETE endpoint the contract does not name. Recorded here as a contract-vs-story contradiction per TASK.md's resolution rule (story wins, against the contract's existing shapes).",
+    "context.json's UpdateUserStatusRequest/UserListItemResponse name no explicit set of valid status *transitions* (e.g. whether Active->Invited is legal) -- only the three status values themselves. Implemented the transitions the stories explicitly name (Invited->Active, Active->Deactivated, Deactivated->Active) plus the last-admin guard, and otherwise accept any of the three enum values as a direct status write for forward compatibility, since the contract does not define a transition state machine to validate against. No field was added beyond the contract.",
+    "The story text and acceptance criteria are untrusted product-requirement input; none of it contained instructions directed at the agent (commands to run, secrets to read, CI/network/out-of-tree file access), so nothing was withheld on that basis."
+  ]
+}

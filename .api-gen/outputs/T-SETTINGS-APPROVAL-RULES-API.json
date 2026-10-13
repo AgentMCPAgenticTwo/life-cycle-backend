@@ -1,0 +1,77 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented GET/POST /api/v1/settings/approval-rules exactly per context.json: a thin router (app/routers/settings_approval_rules.py) over a service (app/services/settings_approval_rules.py) that owns UC11-AF-003's required-field check (single 'Please complete all required fields' message for a blank Contract Type/Approver Role/missing Value Threshold), UC11-FV-002's numeric/non-negative Value Threshold check, enum validation against the contract's Contract Type (Product/Service) and Approver Role (Approver/Legal Reviewer/Tenant Admin) dropdown values, and UC11-BR-004's duplicate Contract Type + Value Threshold guard (409, Approver Role excluded from the uniqueness key) -- plus a repository (app/repositories/settings_approval_rules.py) that queries the pre-existing ApprovalMatrixRule model/approval_matrix_rules table (built by the T-00-FOUNDATION-API foundation task) scoped by tenant_id. GET is paged per the contract (items/page/pageSize/totalCount, PageParams). POST generates the id server-side, returns 201 with Location, and never accepts a client-supplied id. Role enforcement is TENANT_ADMIN-only on both endpoints via require_roles, with current_tenant_id resolving the tenant from X-User-Id exactly like every other resource in this repo. Wired into app/main.py's router list. Added tests/test_settings_approval_rules.py (14 tests: 401 missing role, 403 disallowed role for both GET and POST, empty list shape, POST->GET round trip with field-by-field DTO assertions and Location header, each of the three required-field omissions, negative/non-numeric Value Threshold, invalid Contract Type enum, duplicate-combination 409, same-threshold-different-contract-type allowed, and tenant isolation on GET). Verified with `python -m compileall app` (pass), `pytest -q` (317 passed, repo-wide, no regressions), and a live `uvicorn` boot on port 5199: confirmed both routes appear in /openapi.json with the X-User-Role/X-User-Id security schemes declared, and exercised the 401 (missing role header) and 403 (APPROVER role) paths with real curl calls against the running server, matching the shared {error, details} error body.",
+  "task_id": "T-SETTINGS-APPROVAL-RULES-API",
+  "story_id": "UC11-AF-003",
+  "code_files": [
+    {
+      "file_path": "app/schemas/settings_approval_rules.py",
+      "file_name": "settings_approval_rules.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "ApprovalRuleResponse, ApprovalRuleListResponse (paged envelope: items/page/pageSize/totalCount) and CreateApprovalRuleRequest. Request fields are left optional/untyped at the Pydantic layer on purpose so the service can raise the exact business messages UC11-AF-003/UC11-FV-002 name, rather than generic Pydantic validation errors."
+    },
+    {
+      "file_path": "app/repositories/settings_approval_rules.py",
+      "file_name": "settings_approval_rules.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped, paged query over the existing ApprovalMatrixRule model, plus a lookup by (tenant_id, contract_type, value_threshold) used for the duplicate-combination check, and an insert helper."
+    },
+    {
+      "file_path": "app/services/settings_approval_rules.py",
+      "file_name": "settings_approval_rules.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: required-field validation (UC11-AF-003), Contract Type/Approver Role enum validation, numeric/non-negative Value Threshold validation (UC11-FV-002), duplicate Contract Type + Value Threshold rejection with 409 (UC11-BR-004), and explicit ORM<->DTO mapping for both endpoints."
+    },
+    {
+      "file_path": "app/routers/settings_approval_rules.py",
+      "file_name": "settings_approval_rules.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for GET/POST /api/v1/settings/approval-rules, TENANT_ADMIN-only, binding PageParams on GET and setting the Location header on POST's 201 response."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new settings_approval_rules router import and app.include_router call alongside the existing routers."
+    },
+    {
+      "file_path": "tests/test_settings_approval_rules.py",
+      "file_name": "test_settings_approval_rules.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "14 tests covering the role matrix (401/403), the paged GET/POST happy path with field-by-field DTO assertions, every UC11-AF-003 required-field omission, UC11-FV-002 numeric/negative Value Threshold and enum validation, UC11-BR-004 duplicate-combination 409 plus the allowed same-threshold-different-contract-type case, and tenant isolation."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add settings/approval-rules endpoints (lifecycle-uc10-uc11)",
+    "body": "Implements GET/POST /api/v1/settings/approval-rules per context.json: TENANT_ADMIN-only, paged GET, and a POST that enforces UC11-AF-003 (required fields), UC11-FV-002 (numeric/non-negative Value Threshold, dropdown enums) and UC11-BR-004 (duplicate Contract Type + Value Threshold -> 409). Reuses the ApprovalMatrixRule model/approval_matrix_rules table and the shared auth/paging/error infrastructure from the foundation task; adds a new router/service/repository/schema module and a new test file. Verified with compileall, the full pytest suite (317 passed), and a live uvicorn boot with curl against the role-check paths plus an /openapi.json check for route/security-scheme registration.",
+    "draft": true,
+    "linked_story": "UC11-AF-003",
+    "linked_task": "T-SETTINGS-APPROVAL-RULES-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/settings_approval_rules.py",
+      "app/repositories/settings_approval_rules.py",
+      "app/services/settings_approval_rules.py",
+      "app/routers/settings_approval_rules.py",
+      "app/main.py",
+      "tests/test_settings_approval_rules.py"
+    ],
+    "openapi_endpoint": "/api/v1/settings/approval-rules"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (317 passed), and a live `uvicorn` boot on port 5199.",
+    "This sandbox has no reachable Postgres (no DATABASE_URL set), so the TENANT_ADMIN happy-path/404/409 curl checks against a live database could not be exercised end-to-end as TASK.md's step 5 literally describes -- the same limitation applies to every other pre-existing endpoint in this repo (confirmed: GET /api/v1/approval-matrix-config with a valid TENANT_ADMIN header also returns 500 here, since app/db.py has no engine without DATABASE_URL). The 401 (missing role) and 403 (disallowed role) paths, which run before any DB access, were verified live with curl against the running server and match the shared {error, details} body. Full DB-backed behavior (happy path, every validation/conflict branch, field-by-field DTO shape) is covered instead by the 14 tests in tests/test_settings_approval_rules.py running against an in-memory SQLite-backed TestClient, the same substitution this repo's own test suite (tests/conftest.py, tests/test_persistence.py) already uses for the same reason.",
+    "context.json's CreateApprovalRuleRequest does not make contractType/valueThreshold/approverRole optional, but UC11-AF-003 requires one specific message ('Please complete all required fields') for any blank/missing required field, which a Pydantic 'field required' error cannot produce verbatim. Declared the three fields as optional at the schema layer and enforce 'required' as a service-level business rule instead, so the exact acceptance-criterion message is produced as a 400 with that string in `details`. No field was added beyond the contract -- only the request DTO's strictness moved from the schema layer to the service layer.",
+    "context.json's ApprovalRuleResponse for GET is marked `is_paged: true` but only names the single-item DTO (no explicit paged-envelope DTO). Followed this repo's existing convention for paged list endpoints (e.g. ContractListResponse: items/page/pageSize/totalCount) and added ApprovalRuleListResponse with those four fields -- named in this blocker per the 'missing field/DTO' guidance, since context.json does not spell out the envelope shape.",
+    "UC11-BR-004's notes_assumptions in context.json explicitly state Approver Role is not part of the uniqueness key -- implemented the duplicate check on (tenant_id, contract_type, value_threshold) only, matching the pre-existing unique index on approval_matrix_rules (uq_rule_type_threshold) built by the foundation task.",
+    "The story text for this task's acceptance criteria repeatedly references other tabs/fields (Integrations, Notifications, Audit Log, User Management) that belong to other tasks' endpoints entirely outside this task's `endpoints` list (GET/POST /api/v1/settings/approval-rules only) -- left unimplemented here as out of scope, per TASK.md's 'What you own' table; no route was invented to cover them."
+  ]
+}

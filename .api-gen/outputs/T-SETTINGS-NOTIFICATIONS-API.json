@@ -1,0 +1,76 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented GET /api/v1/settings/notifications and PUT /api/v1/settings/notifications/{eventName} exactly per context.json: a thin router (app/routers/settings_notifications.py) over a service (app/services/settings_notifications.py) that owns a fixed list of status-change notification events (Contract Sent for Approval, Contract Approved, Contract Rejected, Contract Sent for Signature, Contract Signed, Contract Expiring Soon, Contract Renewed), idempotent per-tenant seeding of those events with both Email Toggle and In-App Toggle defaulted to On on first GET (UC11-BR-007), and a PUT that updates only the toggle(s) present in the request body -- omitting a field leaves the other toggle's saved value untouched (UC11-FV-004) -- while persisting Off values across reloads instead of reverting to the default. Repository (app/repositories/settings_notifications.py) queries the pre-existing TenantNotificationSetting model/tenant_notification_settings table (built by the T-00-FOUNDATION-API foundation task), scoped by tenant_id. Role enforcement is TENANT_ADMIN-only on both endpoints via require_roles; an unknown eventName path segment returns 404 before any update logic runs. Every update writes a TenantAuditLog entry via the pre-existing app/repositories/settings_audit_log.py `append` helper, so these changes are visible on the already-built GET /api/v1/settings/audit-log endpoint. Wired into app/main.py's router list. Added tests/test_settings_notifications.py (13 tests: 401 missing role on GET/PUT, 403 disallowed role on GET/PUT, GET seeding every event with both toggles On, no duplicate rows on repeat GETs, 404 on an unknown event name, PUT toggling Email without disturbing In-App and vice versa, Off values persisting across a reload, and tenant isolation). Verified with `python -m compileall app` (pass) and `pytest -q` (351 passed, repo-wide, no regressions); confirmed both routes appear in the app's generated OpenAPI schema with the correct method/path. A live uvicorn+curl pass against a real Postgres instance was not possible in this sandbox (see blockers) -- full HTTP-level behavior is instead verified through tests/test_settings_notifications.py running against the FastAPI TestClient with a real (in-memory SQLite) database, the same substitution this repo's own test suite already uses.",
+  "task_id": "T-SETTINGS-NOTIFICATIONS-API",
+  "story_id": "UC11-FV-004",
+  "code_files": [
+    {
+      "file_path": "app/schemas/settings_notifications.py",
+      "file_name": "settings_notifications.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "NotificationEventResponse (eventName/emailToggle/inAppToggle) and UpdateNotificationEventRequest (both toggles optional), matching context.json exactly."
+    },
+    {
+      "file_path": "app/repositories/settings_notifications.py",
+      "file_name": "settings_notifications.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped queries over the existing TenantNotificationSetting model: idempotent ensure_seeded for the fixed status-change event names (both toggles On), list_by_tenant (stable display order), get_by_name, and insert."
+    },
+    {
+      "file_path": "app/services/settings_notifications.py",
+      "file_name": "settings_notifications.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: UC11-BR-007's On-by-default seeding, UC11-FV-004's independent Email/In-App toggle updates (only fields present in the request are applied), 404 on an unrecognized event name, and an audit-log entry for every update."
+    },
+    {
+      "file_path": "app/routers/settings_notifications.py",
+      "file_name": "settings_notifications.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for GET /api/v1/settings/notifications and PUT .../{eventName}, TENANT_ADMIN-only."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new settings_notifications router import and app.include_router call alongside the existing routers."
+    },
+    {
+      "file_path": "tests/test_settings_notifications.py",
+      "file_name": "test_settings_notifications.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "13 tests covering the role matrix (401/403) on both endpoints, GET seeding/idempotency with both toggles On, 404 on an unknown event name, PUT updating one toggle without affecting the other, Off values persisting across a reload, and tenant isolation."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add settings/notifications endpoints (lifecycle-uc10-uc11)",
+    "body": "Implements GET /api/v1/settings/notifications and PUT .../{eventName} per context.json: TENANT_ADMIN-only, status-change notification events seeded idempotently per tenant with both toggles On by default (UC11-BR-007), and a PUT that updates only the toggle(s) present in the request body without disturbing the other (UC11-FV-004), persisting Off values across reloads. Reuses the TenantNotificationSetting model/tenant_notification_settings table and the shared auth/error/audit-log infrastructure from the foundation task; adds a new router/service/repository/schema module and a new test file. Verified with compileall and the full pytest suite (351 passed); a live Postgres-backed curl pass was not possible in this sandbox (no reachable database), so HTTP-level verification used the FastAPI TestClient against a real in-memory database instead.",
+    "draft": true,
+    "linked_story": "UC11-FV-004",
+    "linked_task": "T-SETTINGS-NOTIFICATIONS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/settings_notifications.py",
+      "app/repositories/settings_notifications.py",
+      "app/services/settings_notifications.py",
+      "app/routers/settings_notifications.py",
+      "app/main.py",
+      "tests/test_settings_notifications.py"
+    ],
+    "openapi_endpoint": "/api/v1/settings/notifications"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (351 passed), and inspection of the app's generated OpenAPI schema for both routes.",
+    "This sandbox has no reachable Postgres (no DATABASE_URL set, no local postgres service, and filesystem/process access restricted to the repo directory), so TASK.md's step 5 live `uvicorn` + curl pass against a real database could not be completed end-to-end. Full DB-backed behavior (seeding, defaulting both toggles to On, independent toggle updates, persistence across reload, 404 on unknown event, and the full role matrix) is instead covered by the 13 tests in tests/test_settings_notifications.py running against an in-memory SQLite-backed TestClient, the same substitution this repo's own test suite (tests/conftest.py) already documents and uses.",
+    "The task's story text (UC11-BR-001, UC11-BR-010, UC11-MF-001) repeatedly references other tabs/endpoints (User Management, Routing & Approval, Integrations, Audit Log) that belong entirely to other tasks' `endpoints` lists -- left unimplemented here as out of scope per TASK.md's 'What you own' table (only GET and PUT on settings/notifications); no route was invented to cover them.",
+    "context.json names no fixed enumeration of notification event names anywhere (not in the DTOs, not in a table -- this endpoint's table list is empty, reusing the pre-existing tenant_notification_settings table from the foundation task). Inferred a representative list of 7 status-change event names (Contract Sent for Approval, Contract Approved, Contract Rejected, Contract Sent for Signature, Contract Signed, Contract Expiring Soon, Contract Renewed) from the story text's explicit examples ('e.g. Contract Sent for Approval, Contract Signed') and from status-change stages referenced elsewhere in this module (negotiation, signature). No DTO or table field was added beyond the contract; this is purely seed data, re-derivable and idempotently re-seeded, not a schema change.",
+    "UC11-MF-001's acceptance criteria mention a UI-facing confirmation message ('Notification settings updated') on save, but NotificationEventResponse in context.json has no field to carry it. Did not add a message field to the response DTO since the contract fully enumerates its fields and the message is a client-side toast, not API data; the PUT's 200 response with the updated row is the contract-conformant signal of success."
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "status": "SUCCESS",
+  "summary": "Added the persistence layer for the lifecycle-uc10-uc11 module's 10 tables (ORM entities + one Alembic migration each, chained after the existing CreateObligationAuditLog head) and registered them in app/models/__init__.py. The shared foundation infrastructure (header-auth/role enforcement in app/auth.py, centralized error handling in app/main.py, paging primitives in app/schemas/pagination.py, CORS, DB wiring in app/db.py) was already built by an earlier foundation task and fully satisfies this contract's requirements, so it was reused as-is rather than rebuilt. No business endpoints were implemented, per the task's scope -- the existing /health route proves the wiring. Updated the pre-existing tests/test_persistence.py (which hard-coded assertions tied to a prior module's context.json, e.g. a 'CreateContractsLifecycleColumns' migration name and contracts-table column renames that do not exist in this run) so it validates against the current context.json instead. Verified with python -m compileall, pytest (303 passed), alembic's offline --sql upgrade render, and a live boot of the app on port 5199 with a passing /health check.",
+  "task_id": "T-00-FOUNDATION-API",
+  "story_id": "00-foundation",
+  "code_files": [
+    {
+      "file_path": "app/models/tracker.py",
+      "file_name": "tracker.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "ORM entities for the 10 lifecycle-uc10-uc11 tables: ContractLifecycleStageHistory, ContractOwner, ContractTurnaroundMetrics, TurnaroundOverrideLog, TenantBottleneckThreshold, TenantUser, ApprovalMatrixRule, TenantIntegration, TenantNotificationSetting, TenantAuditLog."
+    },
+    {
+      "file_path": "app/models/__init__.py",
+      "file_name": "__init__.py",
+      "language": "python",
+      "file_type": "entity",
+      "description": "Registers the 10 new tracker entities so Base.metadata and Alembic autogeneration see them."
+    },
+    {
+      "file_path": "alembic/versions/0042_create_contract_lifecycle_stage_history.py",
+      "file_name": "0042_create_contract_lifecycle_stage_history.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateContractLifecycleStageHistory migration."
+    },
+    {
+      "file_path": "alembic/versions/0043_create_contract_owners.py",
+      "file_name": "0043_create_contract_owners.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateContractOwners migration."
+    },
+    {
+      "file_path": "alembic/versions/0044_create_contract_turnaround_metrics.py",
+      "file_name": "0044_create_contract_turnaround_metrics.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateContractTurnaroundMetrics migration."
+    },
+    {
+      "file_path": "alembic/versions/0045_create_turnaround_override_log.py",
+      "file_name": "0045_create_turnaround_override_log.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateTurnaroundOverrideLog migration."
+    },
+    {
+      "file_path": "alembic/versions/0046_create_tenant_bottleneck_thresholds.py",
+      "file_name": "0046_create_tenant_bottleneck_thresholds.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateTenantBottleneckThresholds migration."
+    },
+    {
+      "file_path": "alembic/versions/0047_create_tenant_users.py",
+      "file_name": "0047_create_tenant_users.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateTenantUsers migration."
+    },
+    {
+      "file_path": "alembic/versions/0048_create_approval_matrix_rules.py",
+      "file_name": "0048_create_approval_matrix_rules.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateApprovalMatrixRules migration."
+    },
+    {
+      "file_path": "alembic/versions/0049_create_tenant_integrations.py",
+      "file_name": "0049_create_tenant_integrations.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateTenantIntegrations migration."
+    },
+    {
+      "file_path": "alembic/versions/0050_create_tenant_notification_settings.py",
+      "file_name": "0050_create_tenant_notification_settings.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateTenantNotificationSettings migration."
+    },
+    {
+      "file_path": "alembic/versions/0051_create_tenant_audit_log.py",
+      "file_name": "0051_create_tenant_audit_log.py",
+      "language": "python",
+      "file_type": "migration",
+      "description": "CreateTenantAuditLog migration."
+    },
+    {
+      "file_path": "tests/test_persistence.py",
+      "file_name": "test_persistence.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "Foundation-layer tests: every context.json table has a matching model (columns/nullability/indexes), and the migration chain's tail matches context.json's migrations list in order. Rewritten to drop a prior module's hard-coded deviations (CreateContractsLifecycleColumns, contracts-table column renames) that do not apply to this module's all-new tables."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Foundation: persistence layer for lifecycle-uc10-uc11 (tracker + settings tables)",
+    "body": "Adds the 10 ORM entities and 10 Alembic migrations (CreateContractLifecycleStageHistory ... CreateTenantAuditLog, chained after the existing CreateObligationAuditLog head) that back the lifecycle-uc10-uc11 module's tracker and tenant-settings endpoints. No business endpoints are implemented here -- that is left to the resource tasks that follow. Shared infrastructure (header-auth/role enforcement, centralized error handling, paging primitives, CORS, DB wiring) already existed from an earlier foundation task and needed no changes. Also repairs tests/test_persistence.py, which still asserted a previous module's migration-chain name and contracts-table deviations; it now validates against the current context.json.",
+    "draft": true,
+    "linked_story": "00-foundation",
+    "linked_task": "T-00-FOUNDATION-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/models/tracker.py",
+      "app/models/__init__.py",
+      "tests/test_persistence.py",
+      "alembic/versions/0042_create_contract_lifecycle_stage_history.py",
+      "alembic/versions/0043_create_contract_owners.py",
+      "alembic/versions/0044_create_contract_turnaround_metrics.py",
+      "alembic/versions/0045_create_turnaround_override_log.py",
+      "alembic/versions/0046_create_tenant_bottleneck_thresholds.py",
+      "alembic/versions/0047_create_tenant_users.py",
+      "alembic/versions/0048_create_approval_matrix_rules.py",
+      "alembic/versions/0049_create_tenant_integrations.py",
+      "alembic/versions/0050_create_tenant_notification_settings.py",
+      "alembic/versions/0051_create_tenant_audit_log.py"
+    ],
+    "openapi_endpoint": "/health"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest/alembic -- verified instead with `python -m compileall app alembic`, `pytest -q` (303 passed), `alembic upgrade head --sql` (offline DDL render, no live Postgres in this sandbox), and a live `uvicorn` boot answering GET /health 200.",
+    "The shared foundation infrastructure this task was asked to build (centralized error handling, header-auth/role enforcement, paging primitives, CORS) already exists in app/main.py, app/auth.py, app/schemas/pagination.py and app/db.py from an earlier foundation task in this repo's history, and already matches this contract's roles (TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER) and error-body shape. It was left untouched and reused rather than rebuilt, per CLAUDE.md's module-addition rule against rewriting code a new module doesn't need to touch.",
+    "tests/test_persistence.py pre-existed in the repo but was written against a different (earlier) module's context.json: it hard-coded an expected migration-chain element 'CreateContractsLifecycleColumns' and column-rename/nullability-deviation/shared-table exceptions for a 'contracts' table that this module's context.json does not reference at all. Since context.json is reloaded fresh per run, those assertions failed against the current (lifecycle-uc10-uc11) contract. Rewrote the test to assert against the current context.json's tables/migrations with no hard-coded exceptions, since none of this module's 10 tables pre-date it or are shared with another module.",
+    "No fields were added beyond context.json's table/DTO definitions, and no endpoint outside this task's scope (persistence + shared infra only) was implemented."
+  ]
+}

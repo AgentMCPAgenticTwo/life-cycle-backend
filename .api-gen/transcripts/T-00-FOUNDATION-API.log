@@ -1,0 +1,12 @@
+Output validates cleanly against the schema.
+
+## Summary
+
+Built the persistence layer for the lifecycle-uc10-uc11 foundation task:
+
+- **`app/models/tracker.py`** — 10 new ORM entities (`ContractLifecycleStageHistory`, `ContractOwner`, `ContractTurnaroundMetrics`, `TurnaroundOverrideLog`, `TenantBottleneckThreshold`, `TenantUser`, `ApprovalMatrixRule`, `TenantIntegration`, `TenantNotificationSetting`, `TenantAuditLog`), registered in `app/models/__init__.py`.
+- **10 migrations** (`0042`–`0051`), chained after the existing head `CreateObligationAuditLog`, named exactly as the contract requires.
+- Shared infra (auth/roles, error handling, paging, CORS, DB wiring) already existed from an earlier foundation task and fully met this contract — reused as-is, no rebuild.
+- Fixed a stale `tests/test_persistence.py` that still asserted a previous module's migration-chain/table exceptions; rewrote it to validate against the current `context.json`.
+
+Verified: `python -m compileall` clean, `pytest -q` → 303 passed, Alembic offline `--sql` upgrade renders cleanly, and a live `uvicorn` boot answered `GET /health` with 200 (server killed after). Result written to `.api-gen/outputs/T-00-FOUNDATION-API.json`, status `SUCCESS`, with blockers noting the dotnet-vs-Python tooling mismatch in TASK.md and the pre-existing-infra/test-rewrite judgment calls.
