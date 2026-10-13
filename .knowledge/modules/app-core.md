@@ -1,13 +1,13 @@
 ---
 type: Module
 title: app-core
-description: Cross-cutting FastAPI app wiring shared by every resource module — entry point, header auth, settings, DB session, shared error types and model mixins.
+description: Cross-cutting FastAPI app wiring shared by every resource module — entry point, bearer auth, settings, DB session, shared error types and model mixins.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app
 tags: [backend, core, auth, errors, config]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ a01dca2cd1cf0d1b42a73a36cc3fce4dadcc0c75
+    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
     title: Codebase knowledge graph
 status: stable
 ---
@@ -17,8 +17,9 @@ status: stable
 | File | Role |
 |---|---|
 | `app/main.py` | FastAPI app, CORS middleware, 3 exception handlers, `/health`, all `app.include_router(...)` calls, startup migrations |
-| `app/auth.py` | `CurrentUser`, `current_user`, `require_roles`, `current_tenant_id` |
-| `app/config.py` | `Settings` (PORT, DATABASE_URL, CORS_ORIGINS from env), `settings` singleton |
+| `app/auth.py` | `bearer_scheme`, `CurrentUser`, `current_user`, `require_roles`, `current_tenant_id` |
+| `app/security.py` | password rules/hashing and JWT + refresh-token primitives — see [Auth](/modules/auth.md) |
+| `app/config.py` | `Settings` (PORT, DATABASE_URL, CORS_ORIGINS, JWT_SECRET, access/refresh TTLs, refresh-cookie name/secure flag from env), `settings` singleton |
 | `app/db.py` | `Base`, `engine`, `SessionLocal`, `get_db` dependency |
 | `app/errors.py` | `NotFoundError` (404), `ForbiddenError` (403), `ConflictError` (409), `ValidationFailedError` (400) |
 | `app/models/mixins.py` | `TimestampMixin`, `SoftDeleteMixin` used by (almost) every model |
@@ -30,10 +31,17 @@ status: stable
 * `app.main.http_exception_handler` / `validation_handler` / `unhandled_exception_handler` — the
   single error-handling layer producing `{"error", "details"}` for every non-2xx response. See
   [Conventions](/conventions.md#error-shape-verified-in-apperrorspy-and-appmainpy).
-* `app.auth.require_roles` — fan-in 93, the authorization chokepoint for every router in the
+* `app.auth.require_roles` — the authorization chokepoint for every router in the
   repo. See [Architecture](/architecture.md#authorization-chokepoint).
-* `app.auth.current_tenant_id` — the one place `X-User-Id` is joined against `users` to resolve
-  a tenant scope; every tenant-scoped resource depends on this rather than re-querying `users`.
+* `app.auth.current_user` — resolves `Authorization: Bearer <JWT>` (declared to OpenAPI via
+  `bearer_scheme`, an `HTTPBearer` named `BearerAuth`) by decoding the token with
+  `app.security.decode_access_token` and loading the `users` row; 401 on a missing/invalid token
+  or unknown user, 403 when `is_active` is false. This replaced the former
+  `X-User-Role`/`X-User-Id` header stub — `require_roles` and `current_tenant_id` kept their
+  signatures, so no router changed. See [Auth](/modules/auth.md).
+* `app.auth.current_tenant_id` — the one place the authenticated user id is joined against
+  `users` to resolve a tenant scope; every tenant-scoped resource depends on this rather than
+  re-querying `users`.
 
 # Depended on by
 

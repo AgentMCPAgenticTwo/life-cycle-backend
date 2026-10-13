@@ -7,7 +7,7 @@ tags: [backend, architecture, fastapi]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ a01dca2cd1cf0d1b42a73a36cc3fce4dadcc0c75
+    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
     title: Codebase knowledge graph
 status: stable
 ---
@@ -40,8 +40,11 @@ queries") holds as written across the sampled resources.
 `app/auth.py`'s `require_roles` dependency has **fan-in 93** — the single highest-fan-in symbol
 in the graph (`get_architecture(aspects=["hotspots"])`). Every router wires it via
 `Depends(require_roles("ROLE_A", "ROLE_B", ...))` using the exact role list from that endpoint's
-module contract. `current_user` resolves `X-User-Role`/`X-User-Id` into a `CurrentUser`
-dataclass; `current_tenant_id` additionally joins `X-User-Id` against the `users` table to
+module contract. `current_user` now resolves an `Authorization: Bearer <JWT>` into a
+`CurrentUser` dataclass by decoding the token and loading the `users` row (role, tenant, name,
+email, `must_change_password`) — it replaced the `X-User-Role`/`X-User-Id` header stub without
+changing the dependency's signature, so no router was touched; see [Auth](/modules/auth.md).
+`current_tenant_id` additionally joins the authenticated user id against the `users` table to
 resolve a tenant scope, and is itself the join point every tenant-scoped resource relies on
 instead of re-querying `users`. See [Conventions](/conventions.md) for the status-code contract
 this enforces.
@@ -85,6 +88,11 @@ rather than refactor shared helpers out from under them.
 Verified by reading `app/main.py`'s router includes and router file contents, not just inferred
 from CLAUDE.md's batch descriptions:
 
+* **cross-cutting (not from a module contract)**: `app/routers/auth.py` — the `/auth/*` login
+  surface added by correction trace `7d6ad1406e1b`, the one router `app/main.py` includes twice
+  (with and without the `/api/v1` prefix). It follows the same router -> service -> repository
+  split as the contract modules (`app/services/auth.py`, `app/repositories/auth.py`), with token
+  and password primitives factored into `app/security.py`. See [Auth](/modules/auth.md).
 * **uc123**: dashboard endpoints (`/dashboard/summary`, `/dashboard/my-tasks`,
   `/dashboard/high-risk-contracts`, `/dashboard/filters`) and `/users` live in
   `app/routers/lookups.py` (not a `dashboard.py` router — there isn't one). `contracts.py`,
