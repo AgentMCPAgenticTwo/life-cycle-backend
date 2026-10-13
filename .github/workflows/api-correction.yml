@@ -1,0 +1,1567 @@
+name: api-correction
+
+# sage-maintenance-workflow-fingerprint: 07fadc3734507f85
+# The second lap. The generation workflow builds a branch from task packages; this
+# applies a one-sentence correction to a branch that already exists ("make the primary
+# button green"), fired by the sage-maintenance service via repository_dispatch.
+#
+# GENERATED FILE. It is provisioned by sage-maintenance (scaffold.py / provision.py) and
+# is not overwritten once it exists — edit it here and it stays edited, with ONE exception:
+# the `--model` value below is re-stamped from the service's CLAUDE_MODEL whenever the two
+# differ, so the model is controlled from one .env rather than by committing to this repo.
+#
+# IMPORTANT: repository_dispatch only reaches workflows on the DEFAULT branch. This file must
+# live there. It then checks out the branch named in the payload as its working tree. A
+# dispatch that appears to do nothing is almost always this file missing from the default
+# branch.
+#
+# BRANCH: this workflow reads AND writes the SAME branch — api-correction/<trace_id>.
+# It is a brand-new branch the service creates (via the GitHub git-refs API) before this
+# dispatch is ever fired, forked from whatever ref the caller passed in (normally the
+# project's base_branch). It is never api-gen/** itself: the generation workflow
+# fires on `push: branches: ['api-gen/**']`, so a correction landing there would
+# re-trigger a full regeneration and overwrite itself. api-correction/** matches no
+# generation trigger. Every invoke gets its own branch and its own PR — nothing is ever
+# continued or reused, so an older correction branch is never touched again.
+#
+# Every gate below is deliberate and reversible; the reasoning, cost and exact undo for each
+# is recorded in sage-maintenance/TRADEOFFS.md. Read that before loosening one.
+on:
+  repository_dispatch:
+    types: [api-correction]
+
+run-name: >-
+  api-correction ${{ github.event.client_payload.trace_id }}
+  on ${{ github.event.client_payload.branch }}
+
+permissions:
+  contents: write   # push the corrected commit onto the maintenance branch
+  # No pull-requests: the correction pushes straight to the branch (TRADEOFFS.md #7).
+
+# Must produce the SAME string as the generation workflow's
+# `api-gen-${{ github.ref }}`, which evaluates to
+# `api-gen-refs/heads/api-gen/xxxx`. The payload carries the short
+# form, so refs/heads/ is rebuilt here. Keyed on the SOURCE branch, not the maintenance
+# branch: what must not overlap is a correction reading a tree while its generation run is
+# still writing to it.
+concurrency:
+  group: api-gen-refs/heads/${{ github.event.client_payload.branch }}
+  cancel-in-progress: false
+
+jobs:
+  correct:
+    runs-on: ubuntu-latest
+    # 15 -> 25 when visual verification was added: a chromium install plus a second
+    # (read-only) agent pass costs roughly ten minutes of headroom. Raised again to
+    # 120 (2hrs) so large corrections have real room without the agent's own
+    # polling deadline giving up on a job GitHub is still legitimately running.
+    # The service's JOB_DEADLINE_SECONDS must stay above this, and
+    # AGENT_TIMEOUT_MS above that -- see docker-compose.yml.
+    timeout-minutes: 120
+
+    env:
+      # Dependencies are frozen by default: the gate rejects any diff touching the manifest or
+      # its lockfile. Why (TRADEOFFS.md #1, the short version): a dependency install driven by
+      # free text runs arbitrary postinstall scripts in a runner holding contents:write AND
+      # CLAUDE_CODE_OAUTH_TOKEN. A blocked correction costs one manual PR; a compromised
+      # runner has no cheap undo. And a correction needing a new package is a feature, not a
+      # correction. CLAUDE.md already forbids new deps for the same reason.
+      #
+      # UNFROZEN HERE, deliberately, with the postinstall-script risk above accepted as a
+      # known tradeoff rather than defaulted into. All three ALLOW_DEPENDENCY_CHANGES-marked
+      # changes below were made together, as TRADEOFFS.md #1 requires -- allowlist, lockfile
+      # exclusion from the line budget, and the install step. To refreeze, set this back to
+      # "false"; the other two marked changes are harmless (inert) when this is false, so no
+      # matching reversal is required in the other direction.
+      ALLOW_DEPENDENCY_CHANGES: "true"
+      # Insertions + deletions across the whole correction, as TWO thresholds.
+      #
+      # The original single 200-line hard limit was calibrated for a design that
+      # no longer exists: corrections used to push STRAIGHT ONTO the generated
+      # branch, so an oversized unreviewed diff was genuinely dangerous. Every
+      # correction now lands on its own branch behind a PR, and three other
+      # guards survive independently of any line count -- the path allowlist
+      # (hard-fails anything outside the stack's source dirs), the dependency
+      # freeze (manifests and lockfiles blocked), and human review before merge.
+      #
+      # With that containment in place a 301-line diff is not a hazard, it is a
+      # four-part instruction doing its job -- and hard-failing it threw away
+      # four minutes of correct work and left an empty PR behind.
+      #
+      # WARN: noteworthy, worth a look, does not block.
+      # BUDGET: genuinely alarming. At this size the agent is regenerating the
+      # app rather than correcting it, and that is still worth stopping.
+      # Both read from this service's DIFF_LINE_WARN / DIFF_LINE_BUDGET env
+      # vars (config.diff_line_warn() / config.diff_line_budget(), default
+      # 300 / 2000) -- change the number in ONE place (this service's .env),
+      # not per app repo. The fingerprint mechanism in
+      # provision.ensure_correction_workflow re-provisions every app repo's
+      # committed workflow automatically the next time a correction runs
+      # there, picking up the new value with no manual edit per repo.
+      DIFF_LINE_WARN: "600"
+      DIFF_LINE_BUDGET: "16000"
+      # Pinned, and --strictPort below makes a busy port fail loudly. Matches CLAUDE.md's
+      # visual-verification convention in the app repo.
+      PREVIEW_PORT: "5199"
+      # Where this correction commits. Sent by the service, never derived here — the
+      # service owns the api-gen -> api-correction mapping so one
+      # definition governs both the push below and the result harvest afterwards.
+      MAINTENANCE_BRANCH: ${{ github.event.client_payload.maintenance_branch }}
+      SOURCE_BRANCH: ${{ github.event.client_payload.branch }}
+      # This run's prompts, committed onto the branch by the service before the
+      # dispatch (sage_ui_maintenance/prompts.py). See "Prepare prompts".
+      SAGE_PROMPTS_FILE: .sage-maintenance/${{ github.event.client_payload.trace_id }}.prompts.json
+
+      # ── Which model this job's `claude` calls actually reach ───────────────
+      # Job-level so all three claude steps (the correction, the contract
+      # extraction, the visual check) route identically -- one of them quietly
+      # taking a different path is the kind of split-brain that only shows up as
+      # a billing surprise or a 401 halfway through a run.
+      #
+      # The FLAGS come from the dispatch payload, the SECRETS from the repo:
+      # this service owns the routing decision for its own corrections, and the
+      # app repo's IS_MODEL_RAIL secret is shared with ui-dev-agent/api-dev-agent,
+      # whose deployments may be configured differently. Reading the flag from
+      # the payload is what stops one of those agents' settings from silently
+      # redirecting a correction. The secrets stay as the fallback for a manual
+      # `gh workflow run`-style dispatch that carries no payload at all.
+      #
+      # MODEL_RAIL_INTERNAL_KEY is a BEARER CREDENTIAL and is therefore a secret
+      # only -- never a payload field, which would be readable by anyone who can
+      # read this run.
+      IS_MODEL_RAIL: ${{ github.event.client_payload.is_model_rail || secrets.IS_MODEL_RAIL }}
+      MODEL_RAIL_URL: ${{ github.event.client_payload.rail_url || secrets.MODEL_RAIL_URL }}
+      MODEL_RAIL_ORG_ID: ${{ github.event.client_payload.rail_org_id || secrets.MODEL_RAIL_ORG_ID }}
+      MODEL_RAIL_PROJECT_ID: ${{ github.event.client_payload.rail_project_id || secrets.MODEL_RAIL_PROJECT_ID }}
+      MODEL_RAIL_TEAM_ID: ${{ github.event.client_payload.rail_team_id || secrets.MODEL_RAIL_TEAM_ID }}
+      MODEL_RAIL_POLICY_KEY: ${{ github.event.client_payload.rail_policy_key || secrets.MODEL_RAIL_POLICY_KEY }}
+      MODEL_RAIL_PURPOSE: ${{ github.event.client_payload.rail_purpose || secrets.MODEL_RAIL_PURPOSE }}
+      MODEL_RAIL_INTERNAL_KEY: ${{ secrets.MODEL_RAIL_INTERNAL_KEY }}
+      LITELLM_DIRECT_URL: ${{ secrets.LITELLM_DIRECT_URL }}
+      LITELLM_DIRECT_API_KEY: ${{ secrets.LITELLM_DIRECT_API_KEY }}
+      # runtime-env marker -- the two lines under this are re-stamped IN PLACE
+      # by provision._restamp_runtime_env, exactly like --model further down and
+      # for the same reason: effort and thinking budget are admin-changeable
+      # RUNTIME values, not structural changes to this workflow, so changing one
+      # must reach an already-committed file without a full re-provision.
+      # Nothing between this marker and `steps:` may be edited by hand -- the
+      # restamp owns those lines and rewrites them.
+      CLAUDE_CODE_EFFORT_LEVEL: "medium"
+    steps:
+      # `branch` IS the correction branch here -- always a brand-new one the
+      # service created (git refs API, forked from base_branch/whatever ref it
+      # was given) before this dispatch was ever fired. There is nothing to fork
+      # or continue: this checkout already puts us exactly where the commit
+      # below needs to land, and no other branch is read or written.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.branch }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # A user-supplied skill is committed to the repo, exactly as ui-dev-agent
+      # and api-dev-agent commit theirs -- but ONLY when one was supplied. With
+      # no skill this step prints one line and changes nothing.
+      #
+      # It is COMMITTED here, before Claude runs, rather than left in the working
+      # tree: the diff-containment gate below measures uncommitted changes only,
+      # and .claude/ is outside every stack's allowed path set, so an uncommitted
+      # skill file would fail the run and count against DIFF_LINE_BUDGET. The
+      # commit rides along with the correction's own in "Commit and push".
+      #
+      # Same path, same content -> no new commit. Same path, new content ->
+      # replaced, the same overwrite-in-place the dev agents use so an old copy
+      # never lingers beside a new one.
+      - name: Commit supplied skill
+        env:
+          # Env-bound, never interpolated into the script (TRADEOFFS.md #6).
+          SKILL_MD: ${{ github.event.client_payload.skill_md }}
+          SKILL_NAME: ${{ github.event.client_payload.skill_name }}
+          TRACE_ID: ${{ github.event.client_payload.trace_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SKILL_MD:-}" ]; then
+            echo "No skill supplied with this request -- nothing to commit."
+            exit 0
+          fi
+
+          # The service already slugs this; checked again because it becomes a
+          # filesystem path, and the payload is the one input this job does not
+          # produce itself.
+          if ! printf '%s' "${SKILL_NAME:-}" | grep -Eq '^[a-z0-9][a-z0-9-]{0,63}$'; then
+            echo "::warning::skill_name '${SKILL_NAME:-}' is not a safe folder name -- using 'maintenance'."
+            SKILL_NAME=maintenance
+          fi
+
+          SKILL_PATH=".claude/skills/${SKILL_NAME}/SKILL.md"
+          if [ -f "$SKILL_PATH" ]; then ACTION=replaced; else ACTION=added; fi
+          mkdir -p ".claude/skills/${SKILL_NAME}"
+          printf '%s\n' "$SKILL_MD" > "$SKILL_PATH"
+
+          # -f: a repo that ignores .claude/ must still get the file, or the
+          # skill would be silently left out of the commit.
+          git add -f -- "$SKILL_PATH"
+          if git diff --cached --quiet; then
+            echo "$SKILL_PATH is already current -- nothing to commit."
+          else
+            git -c user.name="api-correction[bot]" \
+                -c user.email="api-correction@users.noreply.github.com" \
+                commit -q -m "chore(api): update SKILL.md (${SKILL_NAME}) for ${TRACE_ID}"
+            echo "SKILL_COMMITTED=true" >> "$GITHUB_ENV"
+            echo "Skill ${ACTION}: $SKILL_PATH"
+          fi
+          echo "SKILL_PATH=$SKILL_PATH" >> "$GITHUB_ENV"
+
+      - name: Install project dependencies
+        run: if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo 'no requirements.txt - skipping'; fi
+      # Node is set up regardless of the stack being corrected: Claude Code installs
+      # through npm.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Claude Code
+        run: npm i -g @anthropic-ai/claude-code
+
+      # ── This run's prompts ────────────────────────────────────────────────
+      # Every instruction this workflow gives Claude Code comes from the runner's
+      # Prompt Library (sage_ui_maintenance/prompts.py, one phase per prompt): the
+      # service committed them onto this branch as $SAGE_PROMPTS_FILE before it
+      # dispatched. Not in the dispatch payload: client_payload is capped at 10
+      # top-level properties and 64KB. The renderer written here fills in what only
+      # CI knows -- allowed paths, budgets, the instruction -- reading each value
+      # from a NAMED env var, so caller text never reaches a command line
+      # (TRADEOFFS.md #6). No file means no instructions: fail here, before any work.
+      - name: Prepare prompts
+        run: |
+          cat > /tmp/sage_prompt.py <<'SAGE_PROMPT_PY'
+          import json, os, re, sys
+
+          path = os.environ.get("SAGE_PROMPTS_FILE", "")
+          try:
+              with open(path, encoding="utf-8") as fh:
+                  prompts = json.load(fh)["prompts"]
+          except Exception as exc:
+              sys.stderr.write(f"sage prompts file unreadable ({path or 'SAGE_PROMPTS_FILE unset'}): {exc}\n")
+              sys.exit(3)
+          key = sys.argv[1]
+          if not prompts.get(key):
+              sys.stderr.write(f"sage prompts file has no prompt '{key}'\n")
+              sys.exit(3)
+          values = {}
+          for arg in sys.argv[2:]:
+              name, _, var = arg.partition("=")
+              values[name] = os.environ.get(var, "")
+          pattern = re.compile(r"\{(" + "|".join(re.escape(k) for k in sorted(values, key=len, reverse=True)) + r")\}") if values else None
+          out = []
+          for line in prompts[key].split("\n"):
+              if pattern:
+                  found = pattern.findall(line)
+                  if found and any(values[n] == "" for n in found):
+                      continue
+                  line = pattern.sub(lambda m: values[m.group(1)], line)
+              out.append(line)
+          # UTF-8 whatever the runner's locale: the prompts carry non-ASCII (em dashes).
+          sys.stdout.buffer.write("\n".join(out).encode("utf-8"))
+          SAGE_PROMPT_PY
+          if [ ! -s "$SAGE_PROMPTS_FILE" ]; then
+            echo "::error::$SAGE_PROMPTS_FILE is missing from this branch -- the service commits it before dispatching. Re-run the correction from the runner."
+            exit 1
+          fi
+          python3 - <<'SAGE_PROMPT_INFO'
+          import json, os
+          d = json.load(open(os.environ["SAGE_PROMPTS_FILE"], encoding="utf-8"))
+          print("prompts version:", d.get("version") or "bundled defaults")
+          for key, source in (d.get("sources") or {}).items():
+              print(f"  {key}: {source}")
+          SAGE_PROMPT_INFO
+
+      # ── One place that decides the rules, before anything reads them ──────
+      # Both the PROMPT (what the agent is told it may touch) and the GATE (what
+      # is actually enforced afterwards) used to compute the allowed path set
+      # independently: the gate widened it for ALLOW_DEPENDENCY_CHANGES at shell
+      # runtime, and the prompt printed the un-widened regex. So with dependency
+      # changes UNFROZEN the agent was told, in the same breath, "you may add a
+      # dependency" and "package.json is not in your allowed path set" -- and it
+      # believed the stricter half. A real run ended with nodemailer pulled in
+      # via a lazy require() inside a try/catch because the agent had concluded
+      # it was not allowed to declare the dependency it needed.
+      #
+      # Computed once here and exported, so the two cannot disagree again.
+      - name: Resolve correction policy
+        env:
+          MODE_IN: ${{ github.event.client_payload.mode }}
+        run: |
+          set -euo pipefail
+
+          ALLOWED='^app/|^src/|^tests?/'
+          if [ "$ALLOW_DEPENDENCY_CHANGES" = "true" ]; then
+            # ^requirements\.txt$|^pyproject\.toml$|^poetry\.lock$|^Pipfile$|^Pipfile\.lock$|^setup\.py$|^setup\.cfg$ is THIS STACK's manifest set, not a hardcoded
+            # package.json/package-lock.json pair. Those two were widened in for
+            # every stack, so a .NET correction that added a NuGet reference
+            # edited a .csproj, landed outside the allowed set, and was killed by
+            # the containment gate below -- while the prompt above had just told
+            # the agent it was free to add a dependency. Gradle, pip, Go modules,
+            # Maven, Bundler and Composer were all in the same position.
+            ALLOWED="${ALLOWED}|^requirements\.txt$|^pyproject\.toml$|^poetry\.lock$|^Pipfile$|^Pipfile\.lock$|^setup\.py$|^setup\.cfg$"
+          fi
+
+          # Unknown or absent -> correction, the tighter of the two. A runner
+          # that has not been taught about modes yet sends nothing and gets
+          # exactly today's behaviour; a typo does not silently grant file
+          # creation.
+          case "${MODE_IN:-}" in
+            feature) MODE=feature ;;
+            *)       MODE=correction ;;
+          esac
+
+          if [ "$MODE" = "feature" ]; then
+            TOOLS='Read,Edit,Write,Glob,Grep,Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(ruff:*)'
+          else
+            TOOLS='Read,Edit,Glob,Grep,Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(ruff:*)'
+          fi
+
+          {
+            echo "ALLOWED_PATHS=$ALLOWED"
+            echo "CORRECTION_MODE=$MODE"
+            echo "ALLOWED_TOOLS=$TOOLS"
+          } >> "$GITHUB_ENV"
+
+          echo "mode:          $MODE"
+          echo "allowed tools: $TOOLS"
+          echo "allowed paths: $ALLOWED"
+
+      - name: Run Claude Code
+        env:
+          # The only secret in this job, and it is not exported to the agent's shell tools —
+          # the CLI reads it from its own process env. A subscription OAuth token
+          # (`claude setup-token`), so runs bill against the Claude plan.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The instruction is caller-controlled text. It is bound as an env var and read as
+          # "$INSTRUCTION" — NEVER interpolated as ${{ ... }} inside a run: block, which
+          # would splice it into the command line before bash parses it. Same below for the
+          # commit message. (TRADEOFFS.md #6)
+          INSTRUCTION: ${{ github.event.client_payload.instruction }}
+          # The counterpart repository's committed contract: real endpoint paths, real
+          # field names, real spellings. Same env-bound, never-interpolated handling as the
+          # instruction, for the same reason. Empty when this is the first side to run.
+          CONTEXT_SHARING: ${{ github.event.client_payload.context_sharing }}
+          # A user-authored SKILL.md bound to this step. Same env-bound,
+          # never-interpolated handling as INSTRUCTION and CONTEXT_SHARING,
+          # and for the same reason (TRADEOFFS.md #6). Empty when no skill
+          # was mapped, which is the normal case.
+          SKILL_MD: ${{ github.event.client_payload.skill_md }}
+        run: |
+          # GitHub runs `run:` blocks as `bash -e {0}` -- errexit is ON before
+          # this script's first line, and `set -uo pipefail` does NOT clear it.
+          # Without `set +e`, bash exits the instant claude/timeout returns
+          # non-zero: `status=$?` never executes and NONE of the diagnostics
+          # below run. That is the entire reason a failed correction showed only
+          # "Error: Process completed with exit code 124" with no explanation --
+          # the stderr was captured to a file that nothing ever read back.
+          # Every failure here is checked explicitly and exited deliberately,
+          # so errexit is not doing any work worth keeping.
+          set +e
+          set -uo pipefail
+          # ── Which model this `claude` call actually talks to ─────────────
+          # Three paths, in strict priority order, and ALL of them are off by
+          # default: with no rail flag and no LiteLLM URL, none of these branches
+          # is taken and the CLI authenticates with CLAUDE_CODE_OAUTH_TOKEN
+          # exactly as it always has. That is the one-flag rollback.
+          #
+          #   1. LITELLM_DIRECT_URL -- TEST-ONLY escape hatch calling LiteLLM
+          #      directly, skipping Model Rail's policy/budget/audit entirely.
+          #   2. IS_MODEL_RAIL=true -- the rail's Anthropic passthrough route
+          #      (POST internal/llm/v1/messages), which resolves the concrete
+          #      model, enforces the budget and meters the usage. The CLI appends
+          #      "/v1/messages" itself, which is why "/llm" is appended here.
+          #   3. otherwise -- the Claude Code subscription OAuth token.
+          #
+          # The OAuth token is UNSET on the first two paths. Left set, the CLI can
+          # quietly fall back to subscription auth the moment the gateway refuses
+          # a call -- billing a plan for a run that was meant to be metered, which
+          # is exactly the failure the rail exists to prevent.
+          if [ -n "${LITELLM_DIRECT_URL:-}" ]; then
+            unset CLAUDE_CODE_OAUTH_TOKEN
+            export ANTHROPIC_BASE_URL="$LITELLM_DIRECT_URL"
+            export ANTHROPIC_AUTH_TOKEN="${LITELLM_DIRECT_API_KEY:-litellm}"
+            export ANTHROPIC_API_KEY=""
+            echo "TEST MODE: routing claude directly to LiteLLM ($LITELLM_DIRECT_URL), bypassing Model Rail"
+          elif [ "${IS_MODEL_RAIL:-false}" = "true" ]; then
+            if [ -z "${MODEL_RAIL_URL:-}" ]; then
+              echo "::error::IS_MODEL_RAIL is true but no MODEL_RAIL_URL was supplied, in the dispatch payload or as a repo secret. Refusing to run: silently falling back to the OAuth token here would bill a subscription for a run that was meant to be metered and budget-checked by the rail."
+              exit 1
+            fi
+            unset CLAUDE_CODE_OAUTH_TOKEN
+            # Trailing slash normalised away: "$URL/" + "/llm" is a 404 that reads
+            # like a routing bug for as long as it takes anyone to notice the //.
+            export ANTHROPIC_BASE_URL="${MODEL_RAIL_URL%/}/llm"
+            export ANTHROPIC_AUTH_TOKEN="${MODEL_RAIL_INTERNAL_KEY:-model-rail}"
+            export ANTHROPIC_API_KEY=""
+            # The passthrough route resolves policy and budget from these headers.
+            # There is no request-body field for them, unlike the rail's native DTO.
+            export ANTHROPIC_CUSTOM_HEADERS="$(printf 'X-Rail-Run-Id: %s\nX-Rail-Repo: %s\nX-Rail-Agent: sage-maintenance-agent\nX-Rail-Stage: api-correction\nX-Rail-Org-Id: %s\nX-Rail-Project-Id: %s\nX-Rail-Team-Id: %s\nX-Rail-Policy-Key: %s\nX-Rail-Purpose: %s' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "${MODEL_RAIL_ORG_ID:-}" "${MODEL_RAIL_PROJECT_ID:-}" "${MODEL_RAIL_TEAM_ID:-}" "${MODEL_RAIL_POLICY_KEY:-}" "${MODEL_RAIL_PURPOSE:-}")"
+            if [ -n "${MODEL_RAIL_INTERNAL_KEY:-}" ]; then RAIL_AUTH="internal key"; else RAIL_AUTH="placeholder (only passes on an unauthenticated rail)"; fi
+            echo "routing claude through Model Rail (${MODEL_RAIL_URL%/}/llm, policy=${MODEL_RAIL_POLICY_KEY:-<static>}, purpose=${MODEL_RAIL_PURPOSE:-<none>}, auth=$RAIL_AUTH)"
+          else
+            echo "routing claude through the Claude Code subscription OAuth token"
+          fi
+
+          # The prompt is assembled into a file and fed on stdin. Caller-controlled text on
+          # a command line is the injection this whole design avoids, and that applies to
+          # the shared contract exactly as it does to the instruction.
+          # Only inject the shared contract when it actually carries something.
+          # An all-empty digest ({"endpoints":[],"types":{}}) is worse than
+          # absent: claude reads it as a contract that exists and says nothing,
+          # and asks which endpoints it should be building against.
+          SHARED_USEFUL=""
+          if [ -n "${CONTEXT_SHARING:-}" ]; then
+            SHARED_USEFUL=$(printf '%s' "$CONTEXT_SHARING" | jq -r '
+              if ((.endpoints // [] | length) > 0)
+                 or ((.types // {} | length) > 0)
+                 or ((.notes // "") != "")
+                 or ((.base_path // "") != "")
+              then "yes" else "" end' 2>/dev/null || echo "yes")
+          fi
+
+          # ── The SYSTEM prompt: who the agent is and what it may not do ──────
+          # Split out of the stdin blob deliberately. Everything in it is OURS --
+          # repo identity, the non-interactive framing, the hard constraints -- and
+          # not one character of it is caller-controlled. The instruction and the
+          # shared contract stay on stdin, where they belong: an instruction reading
+          # "ignore the constraints above" is then a turn inside a session whose
+          # system prompt already said otherwise, not a peer of the constraints.
+          #
+          # The text is this run's phase "correction" or "feature" (by mode), with
+          # the dependency rule chosen by ALLOW_DEPENDENCY_CHANGES and
+          # $ALLOWED_PATHS -- the exact string the containment gate greps with,
+          # dependency widening included (TRADEOFFS.md #8b). See prompts.py for why
+          # each paragraph is there.
+          echo "::group::prompt assembly"
+          if [ "$ALLOW_DEPENDENCY_CHANGES" = "true" ]; then
+            DEP_KEY=dependencies_allowed
+          else
+            DEP_KEY=dependencies_frozen
+          fi
+          if ! DEPENDENCY_RULE=$(python3 /tmp/sage_prompt.py "$DEP_KEY"); then
+            echo "::endgroup::"
+            echo "::error::$SAGE_PROMPTS_FILE has no '$DEP_KEY' prompt"
+            exit 1
+          fi
+          export DEPENDENCY_RULE
+          if ! { python3 /tmp/sage_prompt.py "${CORRECTION_MODE:-correction}" \
+                   allowed_paths=ALLOWED_PATHS dependency_rule=DEPENDENCY_RULE \
+                   diff_line_budget=DIFF_LINE_BUDGET diff_line_warn=DIFF_LINE_WARN \
+                 && printf '\n'; } > /tmp/correction.system.txt; then
+            echo "::endgroup::"
+            echo "::error::$SAGE_PROMPTS_FILE has no '${CORRECTION_MODE:-correction}' prompt"
+            exit 1
+          fi
+
+          # ── The USER prompt: the caller's text, and only the caller's text ──
+          # The counterpart's contract and a bound playbook are each framed by
+          # their own phase, and only included when this run carries one.
+          {
+            if [ -n "$SHARED_USEFUL" ]; then
+              python3 /tmp/sage_prompt.py shared_contract_note contract=CONTEXT_SHARING
+              printf '\n\n'
+            fi
+
+            if [ -n "${SKILL_MD:-}" ]; then
+              # skill_path is the file "Commit supplied skill" wrote. Its line is
+              # left out when that step committed nothing.
+              python3 /tmp/sage_prompt.py playbook_note playbook=SKILL_MD skill_path=SKILL_PATH
+              printf '\n\n'
+            fi
+
+            printf '%s\n' '--- the change to make ---'
+            printf '%s\n' "$INSTRUCTION"
+          } > /tmp/correction.prompt.txt
+
+          # Echoed here (not inside the { } above) so they land in this group's
+          # own output rather than in the files being assembled.
+          echo "----------------------- system prompt -----------------------"
+          cat /tmp/correction.system.txt
+          echo "------------------------ user prompt ------------------------"
+          cat /tmp/correction.prompt.txt
+          echo "::endgroup::"
+
+          # Plain claude, exactly like ui-dev/api-dev: no timeout wrapper, no
+          # heartbeat, no retry machinery. The job's own timeout-minutes is the
+          # single backstop. There is nothing here that can delay an error --
+          # whatever claude prints, prints immediately.
+          #
+          # stderr goes STRAIGHT TO THE JOB LOG (with a copy to a file for the
+          # artifact) rather than being redirected into a file nobody reads
+          # until the run is over. `2>&1 >file |` sends stderr down the pipe and
+          # stdout to the result file. That is the whole reason an auth or quota
+          # failure now appears on screen the instant claude emits it.
+          #
+          # --output-format json gives one result object carrying Claude Code's
+          # own cost/token accounting -- without it every correction is
+          # invisible in billing. In CORRECTION mode there is no Write tool: a
+          # correction edits files that already exist (TRADEOFFS.md #8). FEATURE
+          # mode adds Write, and nothing else -- every gate below is unchanged.
+          #
+          # ── Pre-flight, before any of that: is the account even usable? ────
+          # Claude Code has no headless "check my usage" command -- /usage only
+          # exists inside the interactive REPL, and there is no API for an
+          # OAuth session token to report its own quota from outside it. The
+          # only signal that exists in --print mode is what claude prints when
+          # it actually tries to run, so this fires the SMALLEST possible real
+          # call first: one turn, no tools, nothing that can touch the repo.
+          #
+          # The alternative is discovering the account is locked only after the
+          # real correction has already run for however many minutes and been
+          # killed -- a genuine four-part instruction has taken 8+ minutes doing
+          # real, useful work before hitting a limit. One cheap probe trades a
+          # few seconds and a fraction of a cent for catching that up front.
+          echo "::group::pre-flight probe"
+          PREFLIGHT=$(printf '%s' "ok" | claude --print --max-turns 1 \
+            --allowedTools "" --output-format json 2>/tmp/preflight.stderr.log \
+            || true)
+          PREFLIGHT_ERROR=$(printf '%s' "$PREFLIGHT" \
+            | jq -r 'select(.is_error == true) | .result // empty' \
+              2>/dev/null || true)
+          [ -n "$PREFLIGHT_ERROR" ] || PREFLIGHT_ERROR=$(
+            grep -m1 -v '^[[:space:]]*$' /tmp/preflight.stderr.log 2>/dev/null \
+              || true)
+
+          if [ -n "$PREFLIGHT_ERROR" ]; then
+            echo "----------------- pre-flight check failed -----------------"
+            printf '%s\n' "$PREFLIGHT_ERROR"
+            echo "-------------------------------------------------------------"
+            echo "::endgroup::"
+            echo "::error::Pre-flight check failed before the real correction started: ${PREFLIGHT_ERROR:0:400}"
+            exit 1
+          fi
+
+          # Printed on the SUCCESS path too, unconditionally -- a passing
+          # probe otherwise leaves no trace at all in the log, and "nothing
+          # printed" is indistinguishable from "this code never ran". Anyone
+          # searching the log for confirmation the probe executed needs an
+          # actual line of OUTPUT to find, not just the script's own source
+          # text (which a log viewer's search can match even when that branch
+          # never fired -- exactly what happened here).
+          echo "pre-flight check passed -- account is usable, starting the real correction"
+          echo "::endgroup::"
+
+          echo "::group::claude output"
+          # --allowedTools and --append-system-prompt both come from variables,
+          # not from template substitution: the tool list is chosen per invoke
+          # from the dispatch payload's mode (see "Resolve correction policy"),
+          # and the system prompt is the file assembled above. Neither contains
+          # caller-controlled text -- the instruction is still on stdin, and
+          # still the only thing there.
+          claude \
+            --print \
+            --allowedTools "$ALLOWED_TOOLS" \
+            --append-system-prompt "$(cat /tmp/correction.system.txt)" \
+            --permission-mode acceptEdits \
+            --model "claude-sonnet-5" \
+            --output-format json \
+            < /tmp/correction.prompt.txt \
+            2>&1 > /tmp/correction.result.json | tee /tmp/correction.stderr.log
+          status=${PIPESTATUS[0]}
+          echo "::endgroup::"
+
+          echo "::group::result check"
+          { jq -r '.result // empty' /tmp/correction.result.json 2>/dev/null || true; \
+            cat /tmp/correction.stderr.log; } > /tmp/correction.transcript.txt
+
+          # One line, the CLI's own words. stderr first (that is where auth and
+          # quota failures land), then the result text, then a bare statement
+          # that it said nothing -- which is itself the answer when the process
+          # was killed by the job timeout or OOM.
+          if [ "$status" -ne 0 ]; then
+            MSG=$(grep -m1 -v '^[[:space:]]*$' /tmp/correction.stderr.log 2>/dev/null || true)
+            [ -n "$MSG" ] || MSG=$(jq -r '.result // empty' /tmp/correction.result.json 2>/dev/null | head -n 1 || true)
+            # Claude Code reports some terminal states -- exhausted turns, a
+            # refusal, an aborted session -- as a `subtype` with NO .result text
+            # at all. Without this line the annotation said "printed nothing"
+            # while the actual answer (error_max_turns) was sitting in the JSON
+            # the whole time.
+            [ -n "$MSG" ] || MSG=$(jq -r 'select(.subtype) | "claude stopped: " + (.subtype | tostring)' /tmp/correction.result.json 2>/dev/null | head -n 1 || true)
+            # Last resort: the raw head of whatever WAS written. Saying
+            # "printed nothing" while a non-empty file sits on disk is the one
+            # failure mode this chain must never have again.
+            [ -n "$MSG" ] || MSG=$(head -c 300 /tmp/correction.result.json 2>/dev/null | tr '\n' ' ')
+            [ -n "$MSG" ] || MSG="claude exited $status with empty stderr and an empty result file"
+            echo "::endgroup::"
+            echo "::error::${MSG:0:500}"
+            exit "$status"
+          fi
+
+          # A bad or expired token does not always make the CLI exit non-zero:
+          # it can exit 0 with a result whose is_error is true. Unchecked, that
+          # is a SILENT no-op -- the gate below sees no diff, marks the
+          # correction BLOCKED, and the job goes green while nothing ran.
+          # Gated on is_error alone: it is never a success, whatever the wording.
+          if [ "$(jq -r '.is_error // false' /tmp/correction.result.json 2>/dev/null || echo false)" = "true" ]; then
+            MSG=$(jq -r '.result // empty' /tmp/correction.result.json 2>/dev/null | head -n 1)
+            [ -n "$MSG" ] || MSG=$(jq -r 'select(.subtype) | "claude stopped: " + (.subtype | tostring)' /tmp/correction.result.json 2>/dev/null | head -n 1 || true)
+            [ -n "$MSG" ] || MSG="claude reported an error with no message"
+            echo "::endgroup::"
+            echo "::error::${MSG:0:500}"
+            exit 1
+          fi
+
+          echo "claude finished cleanly -- proceeding to the diff-containment gate"
+          echo "::endgroup::"
+
+
+      - name: Gate - diff containment
+        id: containment
+        run: |
+          set -euo pipefail
+
+          # --permission-mode acceptEdits leaves the agent's work UNCOMMITTED, so the diff
+          # to inspect is the working tree, not BASE..HEAD. (Comparing commits here would
+          # compare HEAD to itself, report zero changes, and pass everything.)
+          # ls-files --others catches anything the agent created rather than edited.
+          CHANGED=$( { git diff --name-only; git ls-files --others --exclude-standard; } \
+            | sort -u )
+
+          if [ -z "$CHANGED" ]; then
+            # A ::warning:: and not a bare echo: without an annotation this run
+            # reports a clean green tick while having changed nothing at all,
+            # and the only way to discover that is counting files in the PR.
+            # Not an ::error:: -- "the instruction is already satisfied" is a
+            # legitimate outcome, and failing it would make re-running a
+            # finished correction look broken.
+            echo "::warning title=Correction made no changes::claude ran but edited nothing. Either the instruction is already satisfied on this branch, or it did not map onto the code here. The committed .ui-gen/corrections/*.json for this trace_id has claude's own summary."
+            echo "The agent made no changes. Nothing to gate."
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            echo "files=" >> "$GITHUB_OUTPUT"
+            echo "lines=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED" | sed 's/^/  /'
+
+          # NOTE ON the corrections dir: the result file this workflow writes is NOT in this
+          # allowlist, and must not be. It is written AFTER this gate has measured, so the
+          # gate only ever sees the agent's own work and the result file is excluded by
+          # ordering rather than by exception. Widening the regex instead would let the
+          # agent edit its own report. Do not reorder these steps.
+          # $ALLOWED_PATHS is resolved ONCE, in "Resolve correction policy" above,
+          # and exported via $GITHUB_ENV -- including the ALLOW_DEPENDENCY_CHANGES
+          # widening. It is deliberately NOT recomputed here: this gate and the
+          # prompt the agent was given must describe the same path set, and when
+          # each worked it out for itself they did not (the prompt printed the
+          # un-widened regex while this gate enforced the widened one, so the
+          # agent avoided a file it was in fact allowed to edit).
+          ALLOWED="$ALLOWED_PATHS"
+
+          if OUTSIDE=$(echo "$CHANGED" | grep -Ev "$ALLOWED"); then
+            echo "::error::Correction touched files outside the allowed set:"
+            echo "$OUTSIDE" | sed 's/^/  /'
+            echo "Allowed paths for this stack: $ALLOWED"
+            echo "Dependency changes are frozen (ALLOW_DEPENDENCY_CHANGES=$ALLOW_DEPENDENCY_CHANGES);"
+            echo "see sage-maintenance/TRADEOFFS.md #1 and #2."
+            exit 1
+          fi
+
+          # Stage before measuring. An untracked file contributes NOTHING to
+          # `git diff --shortstat` — a brand new 5000-line file would be counted as zero and
+          # sail straight past the budget. `git diff --cached` after `git add -A` counts it.
+          git add -A
+
+          # ALLOW_DEPENDENCY_CHANGES: package-lock.json is thousands of lines by itself and
+          # would trip DIFF_LINE_BUDGET on its own, unrelated to the size of the actual
+          # correction. Excluded from the line count (not from the diff itself -- it is still
+          # committed) whenever dependency changes are unfrozen.
+          if [ "$ALLOW_DEPENDENCY_CHANGES" = "true" ]; then
+            LINES=$(git diff --cached --shortstat -- . ':(exclude)package-lock.json' \
+              | grep -oE '[0-9]+ (insertion|deletion)' \
+              | grep -oE '[0-9]+' \
+              | paste -sd+ - \
+              | bc || echo 0)
+          else
+            LINES=$(git diff --cached --shortstat \
+              | grep -oE '[0-9]+ (insertion|deletion)' \
+              | grep -oE '[0-9]+' \
+              | paste -sd+ - \
+              | bc || echo 0)
+          fi
+
+          echo "Diff size: ${LINES:-0} line(s) (warn ${DIFF_LINE_WARN}, hard limit ${DIFF_LINE_BUDGET})."
+          if [ "${LINES:-0}" -gt "$DIFF_LINE_BUDGET" ]; then
+            echo "::error::Correction modified ${LINES} lines, over the ${DIFF_LINE_BUDGET}-line hard limit."
+            echo "A change this size is a regeneration, not a correction. Split the instruction, or raise DIFF_LINE_BUDGET if this is genuinely expected. See TRADEOFFS.md #2."
+            exit 1
+          fi
+          if [ "${LINES:-0}" -gt "$DIFF_LINE_WARN" ]; then
+            # Visible in the Annotations box, but the work still lands. The PR
+            # is where a diff this size gets judged -- that is what the PR is
+            # for, and discarding it here just means doing it again by hand.
+            echo "::warning title=Large correction::${LINES} lines changed, above the ${DIFF_LINE_WARN}-line soft threshold. Review the diff before merging."
+          fi
+
+          echo "empty=false" >> "$GITHUB_OUTPUT"
+          echo "lines=${LINES:-0}" >> "$GITHUB_OUTPUT"
+          {
+            echo "files<<__EOF__"
+            echo "$CHANGED"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      # ALLOW_DEPENDENCY_CHANGES: install any newly added dependency BEFORE the checks below
+      # run, or typecheck/lint/build fail on a manifest entry that was never actually
+      # installed in this runner. Conditional on the flag so this step is a fast no-op when
+      # dependencies are frozen (the package manager finds nothing to reinstall against an
+      # unchanged lockfile, but paying its no-op cost on every frozen run would be wasteful).
+      #
+      # if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo 'no requirements.txt - skipping'; fi, the SAME command "Install project dependencies" ran above -- not a
+      # hardcoded `npm ci`. This step used to be `npm ci` whatever the stack was, so on a
+      # .NET repo (no package-lock.json anywhere) it died with "npm error code EUSAGE -- the
+      # `npm ci` command can only install with an existing package-lock.json", failing the
+      # run AFTER Claude had already committed a correct correction. Every non-Node
+      # toolchain hit this: dotnet restore, pip, go mod download, mvn, bundle, composer.
+      - name: Install newly added dependency (if any)
+        if: steps.containment.outputs.empty == 'false' && env.ALLOW_DEPENDENCY_CHANGES == 'true'
+        run: if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo 'no requirements.txt - skipping'; fi
+
+      - name: Run validation
+        if: steps.containment.outputs.empty == 'false'
+        # CHANGED_FILES is what the containment gate above measured -- the files
+        # this correction actually touched, newline-separated. Gates that can be
+        # scoped to the diff (see _NODE_LINT_GATE in targets.py) read it so the
+        # correction is judged on its own work rather than on the repository's
+        # pre-existing lint debt, which no correction can be expected to clear
+        # and which otherwise blocks the commit step below entirely.
+        env:
+          CHANGED_FILES: ${{ steps.containment.outputs.files }}
+        run: |
+          python -m compileall -q .
+          pytest -q
+
+      # What this side now guarantees the OTHER side, read out of the code that was just
+      # committed rather than recalled. The two repositories (…-frontend and …-backend) are
+      # separate checkouts with separate agents; without this, each one invents its own
+      # spelling of the same field and the integration is a 200 with blank values.
+      #
+      # Read-only tools and NO Edit: this pass reports on the correction, it does not get a
+      # second attempt at the code. Advisory — a failure to extract downgrades nothing, it
+      # just leaves context_sharing empty for the next step.
+      - name: Extract shared contract (advisory)
+        id: shared
+        if: steps.containment.outputs.empty == 'false'
+        continue-on-error: true
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CHANGED_FILES: ${{ steps.containment.outputs.files }}
+          # The contract THIS run received from the counterpart, if any -- same
+          # value the correction prompt was given. Passing it here too is what
+          # closes the gap that produced a live 404: the frontend's digest
+          # named `/api/v1/lookups/hiring-managers` as a route it calls, but
+          # the old extraction prompt only ever asked "what does this diff
+          # implement", never "does it cover what the OTHER side asked for" --
+          # so a backend correction could describe its existing routes
+          # perfectly accurately while silently never mentioning the one route
+          # that was actually the point.
+          INCOMING_CONTRACT: ${{ github.event.client_payload.context_sharing }}
+        run: |
+          set -uo pipefail
+          # ── Which model this `claude` call actually talks to ─────────────
+          # Three paths, in strict priority order, and ALL of them are off by
+          # default: with no rail flag and no LiteLLM URL, none of these branches
+          # is taken and the CLI authenticates with CLAUDE_CODE_OAUTH_TOKEN
+          # exactly as it always has. That is the one-flag rollback.
+          #
+          #   1. LITELLM_DIRECT_URL -- TEST-ONLY escape hatch calling LiteLLM
+          #      directly, skipping Model Rail's policy/budget/audit entirely.
+          #   2. IS_MODEL_RAIL=true -- the rail's Anthropic passthrough route
+          #      (POST internal/llm/v1/messages), which resolves the concrete
+          #      model, enforces the budget and meters the usage. The CLI appends
+          #      "/v1/messages" itself, which is why "/llm" is appended here.
+          #   3. otherwise -- the Claude Code subscription OAuth token.
+          #
+          # The OAuth token is UNSET on the first two paths. Left set, the CLI can
+          # quietly fall back to subscription auth the moment the gateway refuses
+          # a call -- billing a plan for a run that was meant to be metered, which
+          # is exactly the failure the rail exists to prevent.
+          if [ -n "${LITELLM_DIRECT_URL:-}" ]; then
+            unset CLAUDE_CODE_OAUTH_TOKEN
+            export ANTHROPIC_BASE_URL="$LITELLM_DIRECT_URL"
+            export ANTHROPIC_AUTH_TOKEN="${LITELLM_DIRECT_API_KEY:-litellm}"
+            export ANTHROPIC_API_KEY=""
+            echo "TEST MODE: routing claude directly to LiteLLM ($LITELLM_DIRECT_URL), bypassing Model Rail"
+          elif [ "${IS_MODEL_RAIL:-false}" = "true" ]; then
+            if [ -z "${MODEL_RAIL_URL:-}" ]; then
+              echo "::error::IS_MODEL_RAIL is true but no MODEL_RAIL_URL was supplied, in the dispatch payload or as a repo secret. Refusing to run: silently falling back to the OAuth token here would bill a subscription for a run that was meant to be metered and budget-checked by the rail."
+              exit 1
+            fi
+            unset CLAUDE_CODE_OAUTH_TOKEN
+            # Trailing slash normalised away: "$URL/" + "/llm" is a 404 that reads
+            # like a routing bug for as long as it takes anyone to notice the //.
+            export ANTHROPIC_BASE_URL="${MODEL_RAIL_URL%/}/llm"
+            export ANTHROPIC_AUTH_TOKEN="${MODEL_RAIL_INTERNAL_KEY:-model-rail}"
+            export ANTHROPIC_API_KEY=""
+            # The passthrough route resolves policy and budget from these headers.
+            # There is no request-body field for them, unlike the rail's native DTO.
+            export ANTHROPIC_CUSTOM_HEADERS="$(printf 'X-Rail-Run-Id: %s\nX-Rail-Repo: %s\nX-Rail-Agent: sage-maintenance-agent\nX-Rail-Stage: api-correction\nX-Rail-Org-Id: %s\nX-Rail-Project-Id: %s\nX-Rail-Team-Id: %s\nX-Rail-Policy-Key: %s\nX-Rail-Purpose: %s' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "${MODEL_RAIL_ORG_ID:-}" "${MODEL_RAIL_PROJECT_ID:-}" "${MODEL_RAIL_TEAM_ID:-}" "${MODEL_RAIL_POLICY_KEY:-}" "${MODEL_RAIL_PURPOSE:-}")"
+            if [ -n "${MODEL_RAIL_INTERNAL_KEY:-}" ]; then RAIL_AUTH="internal key"; else RAIL_AUTH="placeholder (only passes on an unauthenticated rail)"; fi
+            echo "routing claude through Model Rail (${MODEL_RAIL_URL%/}/llm, policy=${MODEL_RAIL_POLICY_KEY:-<static>}, purpose=${MODEL_RAIL_PURPOSE:-<none>}, auth=$RAIL_AUTH)"
+          else
+            echo "routing claude through the Claude Code subscription OAuth token"
+          fi
+
+          # The prompt is this run's "contract_extraction" phase. When the
+          # counterpart sent a contract, the "contract_carry_forward" phase goes in
+          # the middle of it -- asking whether this side now implements what the
+          # other side asked for, and to carry forward what is still true.
+          INCOMING_SECTION=""
+          if [ -n "${INCOMING_CONTRACT:-}" ]; then
+            INCOMING_SECTION="$(python3 /tmp/sage_prompt.py contract_carry_forward incoming_contract=INCOMING_CONTRACT)"$'\n'
+          fi
+          export INCOMING_SECTION
+          if ! python3 /tmp/sage_prompt.py contract_extraction \
+                 changed_files=CHANGED_FILES incoming_contract_section=INCOMING_SECTION \
+                 > /tmp/shared.prompt.txt; then
+            echo "::warning::$SAGE_PROMPTS_FILE has no contract_extraction prompt -- extraction skipped"
+            exit 0
+          fi
+          claude \
+              --print \
+              --allowedTools "Read,Glob,Grep" \
+              --model "claude-sonnet-5" \
+              --max-turns 20 \
+              --output-format json \
+              < /tmp/shared.prompt.txt \
+              > /tmp/shared.result.json 2>/tmp/shared.stderr.log || true
+
+          jq -r '.result // empty' /tmp/shared.result.json > /tmp/shared.raw.txt 2>/dev/null || true
+          cat /tmp/shared.raw.txt
+
+      # Written AFTER every gate, so a failed gate leaves the branch untouched exactly as
+      # TRADEOFFS.md #2 promises — there is nothing to roll back because nothing was
+      # committed. That also means a FAILED run produces no result file at all, which is
+      # correct: the caller reads the run's own conclusion in that case, and treats a
+      # SUCCEEDED run with no result file as a failure rather than an empty success.
+      - name: Write correction result
+        if: success()
+        env:
+          TRACE_ID: ${{ github.event.client_payload.trace_id }}
+          BRANCH: ${{ github.event.client_payload.branch }}
+          EMPTY: ${{ steps.containment.outputs.empty }}
+          CHANGED_FILES: ${{ steps.containment.outputs.files }}
+          LINES: ${{ steps.containment.outputs.lines }}
+          TARGET: backend
+        run: |
+          set -euo pipefail
+          mkdir -p .api-gen/corrections
+          python3 - <<'PY'
+          import json, os, pathlib, re
+
+          # The expected keys are generated from the service's CorrectionOutput model at
+          # provision time, never hand-listed here — that is the only thing keeping the
+          # writer (this step) and the reader (track.harvest) from drifting apart.
+          REQUIRED = ["trace_id", "branch", "maintenance_branch", "status", "summary", "files_changed", "lines_changed", "blockers", "visual_check", "context_sharing", "usage"]
+
+          # Same fixed, stack-agnostic vocabulary as schemas.FieldSpec -- duplicated here
+          # (not imported) because this script runs in the app repo's own Python 3, with
+          # no dependency on this service's package.
+          _FIELD_TYPES = {'string', 'number', 'boolean', 'date', 'array', 'object', 'enum', 'unknown'}
+
+          def coerce_fields(v):
+              """A field list as {name, type} dicts. Tolerant of the OLD plain-string
+              shape (predates typed fields) and of an unrecognised type, which degrades
+              to "unknown" rather than being dropped."""
+              if not isinstance(v, list):
+                  return []
+              out = []
+              for item in v:
+                  if isinstance(item, str):
+                      if item.strip():
+                          out.append({'name': item, 'type': 'unknown'})
+                  elif isinstance(item, dict):
+                      name = item.get('name') or item.get('field')
+                      if isinstance(name, str) and name.strip():
+                          t = str(item.get('type', 'unknown')).strip().lower()
+                          out.append({'name': name, 'type': t if t in _FIELD_TYPES else 'unknown'})
+              return out
+
+          def load(path, default=None):
+              try:
+                  # strict=False tolerates RAW control characters inside strings. The agent
+                  # writes prose into summary/evidence and routinely emits a literal newline
+                  # where JSON wants an escaped one; that is a formatting quirk of the
+                  # writer, not a broken result.
+                  return json.loads(pathlib.Path(path).read_text(), strict=False)
+              except Exception:
+                  return default
+
+          def _json_objects(raw):
+              """Every plausible JSON object in `raw`, best candidates first.
+
+              The model is asked for bare JSON and usually complies, but it also
+              fences it, prefaces it with a sentence, or trails one after it. A
+              single greedy {.*} span is wrong whenever anything after the real
+              object contains a brace -- it swallows the lot and parses nothing.
+              So: fenced blocks first (an explicit signal), then a brace-balanced
+              scan, then the greedy span as a last resort.
+              """
+              out = []
+              for m in re.finditer(r'```(?:json)?\s*(\{.*?\})\s*```', raw, re.S):
+                  out.append(m.group(1))
+              depth = 0
+              start = -1
+              for i, ch in enumerate(raw):
+                  if ch == '{':
+                      if depth == 0:
+                          start = i
+                      depth += 1
+                  elif ch == '}' and depth:
+                      depth -= 1
+                      if depth == 0 and start >= 0:
+                          out.append(raw[start:i + 1])
+              m = re.search(r'\{.*\}', raw, re.S)
+              if m:
+                  out.append(m.group(0))
+              return out
+
+          def _first_dict(raw, required=()):
+              """The first candidate that parses to a dict, preferring one that
+              carries `required` keys -- a prose paragraph containing braces must
+              not win over the real reply sitting further down."""
+              fallback = None
+              for candidate in _json_objects(raw):
+                  try:
+                      parsed = json.loads(candidate, strict=False)
+                  except ValueError:
+                      continue
+                  if not isinstance(parsed, dict):
+                      continue
+                  if not required or any(k in parsed for k in required):
+                      return parsed
+                  if fallback is None:
+                      fallback = parsed
+              return fallback
+
+          def read_json_reply(path, required=()):
+              """The JSON object in an advisory pass's reply, or None."""
+              try:
+                  raw = pathlib.Path(path).read_text().strip()
+              except Exception:
+                  return None
+              if not raw:
+                  return None
+              return _first_dict(raw, required)
+
+          def split_report(text):
+              """(prose summary, applied list, skipped list) from the agent's reply.
+
+              The correction prompt asks for a bare-JSON accounting line as the
+              very last thing in the reply. It is pulled off here so `summary`
+              stays readable prose, and so a skipped item becomes a real blocker
+              instead of a sentence nobody parses. Entirely optional: a reply
+              without it degrades to "prose only, nothing skipped", which is
+              exactly the old behaviour.
+              """
+              text = (text or '').strip()
+              if not text:
+                  return '', [], []
+
+              # Brace-balanced scan BACKWARDS from the final '}', so `start` is
+              # the real beginning of the trailing object. Searching forward for
+              # the last '{' instead finds the nested {"item": ...} inside
+              # skipped, and trimming there leaves half the JSON glued to the
+              # prose.
+              end = text.rfind('}')
+              start = -1
+              if end != -1:
+                  depth = 0
+                  for i in range(end, -1, -1):
+                      if text[i] == '}':
+                          depth += 1
+                      elif text[i] == '{':
+                          depth -= 1
+                          if depth == 0:
+                              start = i
+                              break
+              if start < 0:
+                  return text, [], []
+              try:
+                  tail = json.loads(text[start:end + 1], strict=False)
+              except ValueError:
+                  return text, [], []
+              if not isinstance(tail, dict) or not ('applied' in tail or 'skipped' in tail):
+                  return text, [], []
+
+              applied = [str(a) for a in tail.get('applied') or [] if str(a).strip()]
+              skipped = []
+              for item in tail.get('skipped') or []:
+                  if isinstance(item, dict):
+                      what = str(item.get('item', '')).strip()
+                      why = str(item.get('reason', '')).strip()
+                      if what or why:
+                          skipped.append(f'{what or "an item"}: {why or "no reason given"}')
+                  elif str(item).strip():
+                      skipped.append(str(item).strip())
+
+              # Trim the accounting line off, plus the code fence it came in --
+              # the OPENING fence sits before the object and so survives the
+              # cut, while the closing one is already past `end`.
+              prose = re.sub(r'```(?:json)?\s*$', '', text[:start].rstrip()).rstrip()
+              # A reply that was ONLY the JSON still needs a readable summary.
+              return (prose or '; '.join(applied) or text), applied, skipped
+
+          result = load('/tmp/correction.result.json', {}) or {}
+          u = result.get('usage') or {}
+
+          visual = {'verdict': 'skipped', 'evidence': '', 'screenshot_path': ''}
+          parsed_visual = read_json_reply('/tmp/visual.raw.txt', ('verdict', 'evidence'))
+          if parsed_visual is not None:
+              verdict = str(parsed_visual.get('verdict', '')).lower()
+              visual = {
+                  'verdict': verdict if verdict in ('pass', 'fail') else 'skipped',
+                  'evidence': str(parsed_visual.get('evidence', ''))[:2000],
+                  'screenshot_path': str(parsed_visual.get('screenshot_path', '')),
+              }
+          elif pathlib.Path('/tmp/visual.raw.txt').exists():
+              visual['evidence'] = 'verifier did not return parseable JSON'
+
+          empty = os.environ.get('EMPTY') == 'true'
+          files = [f for f in os.environ.get('CHANGED_FILES', '').splitlines() if f.strip()]
+
+          summary_text, applied, skipped = split_report(result.get('result') or '')
+
+          # What the next step on the OTHER side gets to read. Shape mirrors the service's
+          # SharedContext model; anything the extractor did not report stays empty rather
+          # than being filled with a plausible guess, because a plausible guess is exactly
+          # the failure this field exists to prevent.
+          shared = {
+              'target': os.environ.get('TARGET', ''),
+              'branch': os.environ['MAINTENANCE_BRANCH'],
+              'base_path': '',
+              'endpoints': [],
+              'types': {},
+              'notes': '',
+          }
+          parsed_shared = read_json_reply('/tmp/shared.raw.txt',
+                                         ('endpoints', 'types', 'base_path'))
+          if parsed_shared is not None:
+              endpoints = parsed_shared.get('endpoints')
+              types = parsed_shared.get('types')
+              shared['base_path'] = str(parsed_shared.get('base_path', ''))
+              shared['endpoints'] = [e for e in endpoints if isinstance(e, dict)] \
+                  if isinstance(endpoints, list) else []
+              shared['types'] = {
+                  str(k): coerce_fields(v)
+                  for k, v in types.items()
+              } if isinstance(types, dict) else {}
+              shared['notes'] = str(parsed_shared.get('notes', ''))[:2000]
+
+          blockers = []
+          if empty:
+              blockers.append(
+                  'The agent made no changes. The instruction may already be satisfied, '
+                  'or it may not map onto the code in this branch.'
+              )
+          # A partially-applied instruction is a real outcome and used to be
+          # invisible: the run went green, the summary said so in prose, and
+          # nothing downstream could tell three-of-four from four-of-four.
+          for item in skipped:
+              blockers.append(f'Not applied -- {item}')
+          if visual['verdict'] == 'fail':
+              blockers.append(f"Visual verification failed: {visual['evidence']}")
+
+          out = {
+              'trace_id': os.environ['TRACE_ID'],
+              'branch': os.environ['BRANCH'],
+              'maintenance_branch': os.environ['MAINTENANCE_BRANCH'],
+              'status': 'BLOCKED' if empty else 'SUCCESS',
+              'summary': summary_text[:4000] or 'no summary reported',
+              'files_changed': files,
+              'lines_changed': int(os.environ.get('LINES') or 0),
+              'blockers': blockers,
+              'visual_check': visual,
+              'context_sharing': shared,
+              'usage': {
+                  'num_turns': result.get('num_turns', 0),
+                  'duration_ms': result.get('duration_ms', 0),
+                  'total_cost_usd': result.get('total_cost_usd', 0.0),
+                  'input_tokens': u.get('input_tokens', 0),
+                  'output_tokens': u.get('output_tokens', 0),
+                  'cache_creation_input_tokens': u.get('cache_creation_input_tokens', 0),
+                  'cache_read_input_tokens': u.get('cache_read_input_tokens', 0),
+                  'is_error': bool(result.get('is_error', False)),
+              },
+          }
+
+          missing = [k for k in REQUIRED if k not in out]
+          if missing:
+              raise SystemExit(f'::error::result is missing required key(s): {missing}')
+
+          dest = pathlib.Path('.api-gen/corrections') / f"{out['trace_id']}.json"
+          # Canonical strict JSON: escaped control characters, so the reader's pydantic
+          # parse (which rejects raw ones just as hard as strict json does) can read it back.
+          dest.write_text(json.dumps(out, indent=2, ensure_ascii=False) + chr(10))
+          print(f'wrote {dest}')
+          PY
+
+      # Everything above runs before any commit exists, so a failed gate leaves both
+      # branches exactly as they were. There is nothing to roll back.
+      #
+      # This is NOT conditional on `empty`: a correction that changed no code still commits
+      # its result file, because that file is how the caller learns the run happened at all
+      # and why it did nothing. Without it a no-op correction is indistinguishable from a
+      # lost one.
+      #
+      # The push target is MAINTENANCE_BRANCH, never SOURCE_BRANCH — see the branch-split
+      # note at the top of this file.
+      - name: Commit and push
+        if: success()
+        env:
+          INSTRUCTION: ${{ github.event.client_payload.instruction }}
+          TRACE_ID: ${{ github.event.client_payload.trace_id }}
+        run: |
+          set -euo pipefail
+
+          git config user.name  "api-correction[bot]"
+          git config user.email "api-correction@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            # "Commit supplied skill" may have committed on its own; that commit
+            # is only local until pushed, so a run whose correction changed
+            # nothing must still push it rather than silently discard it.
+            if [ "${SKILL_COMMITTED:-}" = "true" ]; then
+              git push origin "HEAD:refs/heads/$MAINTENANCE_BRANCH"
+              echo "No correction changes; pushed the supplied skill to $MAINTENANCE_BRANCH."
+            else
+              echo "No changes to commit."
+            fi
+            exit 0
+          fi
+
+          # First line of the instruction only: a commit subject is not a paragraph. Passed
+          # via env and stdin, never spliced into the command line.
+          #
+          # The service prepends a <memory_context>...</memory_context> block to the
+          # instruction for Claude's benefit; skipped here, or every fix commit is titled
+          # "<memory_context>". Same rule as envelope.instruction_label: only a block
+          # that opens the text, and an unclosed one falls back to the plain first line.
+          SUBJECT=$(printf '%s\n' "$INSTRUCTION" \
+            | awk 'NR == 1 && $0 == "<memory_context>" { skip = 1; next }
+                   skip && $0 == "</memory_context>" { skip = 0; next }
+                   !skip && NF { print; exit }' \
+            | cut -c1-72)
+          if [ -z "$SUBJECT" ]; then
+            SUBJECT=$(printf '%s' "$INSTRUCTION" | head -n 1 | cut -c1-72)
+          fi
+          printf 'fix(api): %s\n\ntrace_id: %s\nsource: %s\n' \
+            "$SUBJECT" "$TRACE_ID" "$SOURCE_BRANCH" \
+            | git commit -F -
+
+          git push origin "HEAD:refs/heads/$MAINTENANCE_BRANCH"
+          echo "pushed correction to $MAINTENANCE_BRANCH (source $SOURCE_BRANCH untouched)"
+
+      # ── Codebase knowledge graph + OKF bundle (TRADEOFFS.md #15) ─────────
+      # Runs only after the correction has been committed and pushed, so it can
+      # never trip the containment gate, change the correction, or fail the run:
+      # every step is continue-on-error and gated on the one before it. The
+      # first correction on a repo builds the graph and the bundle from
+      # scratch; every later one re-indexes incrementally (from the committed
+      # snapshot) and updates only the concepts whose files changed.
+      - name: Knowledge - install codebase-memory-mcp
+        id: kg_install
+        if: success()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/v0.11.0/install.sh" \
+            | CBM_DOWNLOAD_URL="https://github.com/DeusData/codebase-memory-mcp/releases/download/v0.11.0" \
+              bash -s -- --skip-config
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Knowledge - index repository
+        id: kg_index
+        if: success() && steps.kg_install.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          # The commit the PREVIOUS snapshot was built from, read before this
+          # index overwrites artifact.json. Empty on the first run.
+          PREV=""
+          if [ -f .codebase-memory/artifact.json ]; then
+            PREV=$(jq -r '.commit // empty' .codebase-memory/artifact.json 2>/dev/null || true)
+          fi
+          echo "KG_PREV_COMMIT=$PREV" >> "$GITHUB_ENV"
+          echo "CBM_PROJECT=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
+
+          codebase-memory-mcp cli --progress index_repository \
+            --repo-path "$GITHUB_WORKSPACE" \
+            --name "${GITHUB_REPOSITORY#*/}" \
+            --persistence true
+          [ -f .codebase-memory/.gitattributes ] \
+            || printf 'graph.db.zst merge=ours binary\n' > .codebase-memory/.gitattributes
+
+      - name: Knowledge - CLAUDE.md rules block
+        id: kg_rules
+        if: success() && steps.kg_index.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          cat > /tmp/knowledge.rules.md <<'KG_RULES_EOF'
+          ## Codebase knowledge (OKF)
+
+          This repository keeps a codebase knowledge graph and an agent-readable knowledge
+          bundle generated from it. Both are refreshed by the sage-maintenance workflow at
+          the end of every maintenance run -- read them before exploring the code.
+
+          - **Graph:** `.codebase-memory/graph.db.zst`, served by the codebase-memory-mcp
+            MCP server as project `<project>`. Prefer `search_graph`, `trace_path`,
+            `get_code_snippet`, `get_file_outline` and `get_architecture` over grepping or
+            reading whole files.
+          - **Bundle:** `.knowledge/`, in Google's Open Knowledge Format (OKF) v0.2.
+            Start at `.knowledge/index.md`.
+
+          ### Rules for writing `.knowledge/` -- always follow these
+
+          Whenever you create or update any file under `.knowledge/`, write it in
+          OKF v0.2 exactly as below.
+
+          1. The bundle is a directory of markdown files. `index.md` and `log.md` are
+             reserved at every level; every other `.md` file is one **concept**.
+          2. Every concept file starts with a YAML frontmatter block between `---` lines.
+             `type` is REQUIRED and non-empty. Also write `title`, `description` (one
+             sentence), `tags`, `resource`, `generated`, `sources` and `status`:
+
+             ```yaml
+             ---
+             type: Module
+             title: components/hero
+             description: Scroll-driven hero section that renders a canvas frame sequence.
+             resource: https://github.com/<org>/<repo>/tree/<default-branch>/components/hero
+             tags: [frontend, hero]
+             generated: { by: sage-maintenance/claude-code, at: 2026-01-01T00:00:00Z }
+             sources:
+               - id: cbm-graph
+                 resource: codebase-memory-mcp project <project> @ <commit sha>
+                 title: Codebase knowledge graph
+             status: stable
+             ---
+             ```
+
+          3. Concept types: `Codebase Overview`, `Architecture`, `Convention`, `Module`,
+             `Playbook`, `Reference`. Every timestamp is ISO 8601 UTC with a `Z`.
+          4. Layout:
+
+             ```
+             .knowledge/
+               index.md                    # bundle root index
+               log.md                      # update history
+               overview.md                 # type: Codebase Overview -- purpose, stack, scripts, entry points
+               architecture.md             # type: Architecture -- clusters, layers, boundaries, hotspots, call/render tree
+               conventions.md              # type: Convention
+               modules/index.md
+               modules/<module-slug>.md    # type: Module -- one per source package/directory (at most 40)
+               playbooks/common-tasks.md   # type: Playbook -- "to change X, go to Y"
+               reference/graph-queries.md  # type: Reference -- how to query the live graph
+             ```
+
+          5. `index.md` files carry NO frontmatter, except the bundle-root `index.md`,
+             whose frontmatter is only `okf_version: "0.2"`. The body is `# Heading`
+             sections of `* [Title](path) - description` entries, using each concept's own
+             `description`.
+          6. `log.md` carries no frontmatter: `# Knowledge Update Log`, then `## YYYY-MM-DD`
+             groups, newest first, with entries such as `* **Update**: ...` or
+             `* **Creation**: ...`. Add new entries at the top; never rewrite old ones.
+          7. Link concepts with bundle-absolute markdown links, e.g.
+             `[Hero](/modules/components-hero.md)`. The links are the knowledge-graph
+             edges; state the relationship in the prose ("depends on", "rendered by").
+          8. Bodies use headings, tables and lists rather than long prose. Every file path
+             and symbol you name must exist in the graph.
+          9. When updating a concept, keep human edits and any `verified` entries. When
+             the code a concept describes is removed, set `status: deprecated` rather than
+             deleting the file.
+          KG_RULES_EOF
+          cat > /tmp/knowledge_claude_md.py <<'KG_PY_EOF'
+          import os
+          import pathlib
+
+          START = "<!-- sage:knowledge:start -->"
+          END = "<!-- sage:knowledge:end -->"
+          NOTE = ("<!-- Managed by sage-maintenance. This block is rewritten on every "
+                  "maintenance run; edit KNOWLEDGE_RULES in the service instead. -->")
+
+          rules = pathlib.Path(os.environ["RULES_FILE"]).read_text(encoding="utf-8").strip()
+          rules = rules.replace("<project>", os.environ.get("CBM_PROJECT", "<project>"))
+          block = START + "\n" + NOTE + "\n\n" + rules + "\n\n" + END
+
+          path = pathlib.Path(os.environ.get("CLAUDE_MD", "CLAUDE.md"))
+          text = path.read_text(encoding="utf-8") if path.exists() else ""
+          start, end = text.find(START), text.find(END)
+          if start != -1 and end > start:
+              new = text[:start] + block + text[end + len(END):]
+          else:
+              new = (text.rstrip() + "\n\n" if text.strip() else "") + block + "\n"
+
+          if new == text:
+              print("CLAUDE.md: knowledge block already current")
+          else:
+              path.write_text(new, encoding="utf-8")
+              print("CLAUDE.md: knowledge block written")
+          KG_PY_EOF
+          RULES_FILE=/tmp/knowledge.rules.md python3 /tmp/knowledge_claude_md.py
+
+      - name: Knowledge - regenerate OKF bundle
+        id: kg_bundle
+        if: success() && steps.kg_index.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          TRACE_ID: ${{ github.event.client_payload.trace_id }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -uo pipefail
+          KDIR=".knowledge"
+
+          # full: no bundle yet, or no reachable baseline commit to diff from.
+          # update: diff since the commit the last snapshot was built from --
+          # which also catches commits made outside sage since then.
+          MODE=full
+          : > /tmp/knowledge.changed.txt
+          if [ -f "$KDIR/index.md" ] && [ -n "${KG_PREV_COMMIT:-}" ] \
+             && git cat-file -e "${KG_PREV_COMMIT}^{commit}" 2>/dev/null; then
+            MODE=update
+            git diff --name-only "$KG_PREV_COMMIT" HEAD \
+              | awk -v k="$KDIR/" -v c=".api-gen/corrections/" \
+                  'index($0, ".codebase-memory/") != 1 && index($0, ".sage-maintenance/") != 1 && index($0, k) != 1 && index($0, c) != 1 && $0 != "CLAUDE.md"' \
+              > /tmp/knowledge.changed.txt
+            if [ ! -s /tmp/knowledge.changed.txt ]; then
+              echo "No source changes since the bundle was last generated -- nothing to regenerate."
+              exit 0
+            fi
+          fi
+          echo "knowledge bundle mode: $MODE ($(wc -l < /tmp/knowledge.changed.txt | tr -d ' ') changed file(s))"
+
+          # The static half of the prompt is this run's "knowledge" phase; the run
+          # context and KNOWLEDGE_RULES follow it.
+          if ! { python3 /tmp/sage_prompt.py knowledge && printf '\n'; } > /tmp/knowledge.prompt.txt; then
+            echo "::warning::$SAGE_PROMPTS_FILE has no knowledge prompt -- the bundle is not regenerated"
+            exit 1
+          fi
+          {
+            echo ""
+            echo "## Run context"
+            echo "- Mode: $MODE"
+            echo "- Graph project: $CBM_PROJECT"
+            echo "- Resource base URL: https://github.com/$GITHUB_REPOSITORY/tree/${DEFAULT_BRANCH:-main}/"
+            echo "- Commit: $(git rev-parse HEAD)"
+            echo "- Generated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "- Trace: ${TRACE_ID:-manual}"
+            if [ "$MODE" = update ]; then
+              echo "- Changed files:"
+              head -n 300 /tmp/knowledge.changed.txt | sed 's/^/  - /'
+            fi
+            echo ""
+            cat /tmp/knowledge.rules.md
+          } >> /tmp/knowledge.prompt.txt
+
+          cat > /tmp/knowledge.mcp.json <<KG_MCP_EOF
+          {"mcpServers":{"codebase-memory-mcp":{"command":"$HOME/.local/bin/codebase-memory-mcp","args":[]}}}
+          KG_MCP_EOF
+
+          # ── Which model this `claude` call actually talks to ─────────────
+          # Three paths, in strict priority order, and ALL of them are off by
+          # default: with no rail flag and no LiteLLM URL, none of these branches
+          # is taken and the CLI authenticates with CLAUDE_CODE_OAUTH_TOKEN
+          # exactly as it always has. That is the one-flag rollback.
+          #
+          #   1. LITELLM_DIRECT_URL -- TEST-ONLY escape hatch calling LiteLLM
+          #      directly, skipping Model Rail's policy/budget/audit entirely.
+          #   2. IS_MODEL_RAIL=true -- the rail's Anthropic passthrough route
+          #      (POST internal/llm/v1/messages), which resolves the concrete
+          #      model, enforces the budget and meters the usage. The CLI appends
+          #      "/v1/messages" itself, which is why "/llm" is appended here.
+          #   3. otherwise -- the Claude Code subscription OAuth token.
+          #
+          # The OAuth token is UNSET on the first two paths. Left set, the CLI can
+          # quietly fall back to subscription auth the moment the gateway refuses
+          # a call -- billing a plan for a run that was meant to be metered, which
+          # is exactly the failure the rail exists to prevent.
+          if [ -n "${LITELLM_DIRECT_URL:-}" ]; then
+            unset CLAUDE_CODE_OAUTH_TOKEN
+            export ANTHROPIC_BASE_URL="$LITELLM_DIRECT_URL"
+            export ANTHROPIC_AUTH_TOKEN="${LITELLM_DIRECT_API_KEY:-litellm}"
+            export ANTHROPIC_API_KEY=""
+            echo "TEST MODE: routing claude directly to LiteLLM ($LITELLM_DIRECT_URL), bypassing Model Rail"
+          elif [ "${IS_MODEL_RAIL:-false}" = "true" ]; then
+            if [ -z "${MODEL_RAIL_URL:-}" ]; then
+              echo "::error::IS_MODEL_RAIL is true but no MODEL_RAIL_URL was supplied, in the dispatch payload or as a repo secret. Refusing to run: silently falling back to the OAuth token here would bill a subscription for a run that was meant to be metered and budget-checked by the rail."
+              exit 1
+            fi
+            unset CLAUDE_CODE_OAUTH_TOKEN
+            # Trailing slash normalised away: "$URL/" + "/llm" is a 404 that reads
+            # like a routing bug for as long as it takes anyone to notice the //.
+            export ANTHROPIC_BASE_URL="${MODEL_RAIL_URL%/}/llm"
+            export ANTHROPIC_AUTH_TOKEN="${MODEL_RAIL_INTERNAL_KEY:-model-rail}"
+            export ANTHROPIC_API_KEY=""
+            # The passthrough route resolves policy and budget from these headers.
+            # There is no request-body field for them, unlike the rail's native DTO.
+            export ANTHROPIC_CUSTOM_HEADERS="$(printf 'X-Rail-Run-Id: %s\nX-Rail-Repo: %s\nX-Rail-Agent: sage-maintenance-agent\nX-Rail-Stage: api-correction\nX-Rail-Org-Id: %s\nX-Rail-Project-Id: %s\nX-Rail-Team-Id: %s\nX-Rail-Policy-Key: %s\nX-Rail-Purpose: %s' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "${MODEL_RAIL_ORG_ID:-}" "${MODEL_RAIL_PROJECT_ID:-}" "${MODEL_RAIL_TEAM_ID:-}" "${MODEL_RAIL_POLICY_KEY:-}" "${MODEL_RAIL_PURPOSE:-}")"
+            if [ -n "${MODEL_RAIL_INTERNAL_KEY:-}" ]; then RAIL_AUTH="internal key"; else RAIL_AUTH="placeholder (only passes on an unauthenticated rail)"; fi
+            echo "routing claude through Model Rail (${MODEL_RAIL_URL%/}/llm, policy=${MODEL_RAIL_POLICY_KEY:-<static>}, purpose=${MODEL_RAIL_PURPOSE:-<none>}, auth=$RAIL_AUTH)"
+          else
+            echo "routing claude through the Claude Code subscription OAuth token"
+          fi
+          claude \
+            --print \
+            --mcp-config /tmp/knowledge.mcp.json \
+            --strict-mcp-config \
+            --allowedTools "mcp__codebase-memory-mcp,Read,Glob,Grep,Write,Edit" \
+            --permission-mode acceptEdits \
+            --model "claude-sonnet-5" \
+            --output-format json \
+            < /tmp/knowledge.prompt.txt > /tmp/knowledge.result.json 2> /tmp/knowledge.stderr.log
+          status=$?
+          jq -r '.result // empty' /tmp/knowledge.result.json 2>/dev/null | tail -n 20 || true
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::knowledge bundle regeneration failed (exit $status) -- the graph snapshot is still refreshed and the previous bundle is kept"
+            tail -c 2000 /tmp/knowledge.stderr.log || true
+            exit 1
+          fi
+
+      - name: Knowledge - OKF conformance check
+        id: kg_check
+        if: success() && steps.kg_index.outcome == 'success'
+        continue-on-error: true
+        env:
+          BUNDLE_OUTCOME: ${{ steps.kg_bundle.outcome }}
+        run: |
+          set -uo pipefail
+          KDIR=".knowledge"
+          revert() {
+            echo "::warning::$1 -- reverting $KDIR/ to the committed version"
+            git checkout HEAD -- "$KDIR" 2>/dev/null || true
+            git clean -fdq -- "$KDIR"
+          }
+          # A failed or cut-off regeneration may leave a half-written bundle
+          # that still parses; never commit one.
+          if [ "$BUNDLE_OUTCOME" != "success" ]; then
+            revert "bundle regeneration did not succeed"
+            exit 0
+          fi
+          [ -d "$KDIR" ] || { echo "no bundle at $KDIR"; exit 0; }
+          cat > /tmp/okf_check.py <<'KG_PY_EOF'
+          import os
+          import pathlib
+          import re
+          import sys
+
+          root = pathlib.Path(os.environ.get("KNOWLEDGE_DIR", ".knowledge"))
+          errors, warnings = [], []
+
+
+          def frontmatter(text):
+              if not text.startswith("---\n"):
+                  return None
+              close = text.find("\n---", 4)
+              return None if close == -1 else text[4:close]
+
+
+          def top_keys(block):
+              return {line.split(":", 1)[0].strip() for line in block.splitlines()
+                      if line.strip() and not line[0].isspace() and not line.startswith("#")
+                      and ":" in line}
+
+
+          if not root.is_dir():
+              print(f"OKF: no bundle at {root}")
+              sys.exit(1)
+          if not (root / "index.md").is_file():
+              errors.append("index.md is missing at the bundle root")
+
+          for path in sorted(root.rglob("*.md")):
+              rel = path.relative_to(root).as_posix()
+              text = path.read_text(encoding="utf-8")
+              fm = frontmatter(text)
+              if path.name == "index.md":
+                  if fm is not None and (rel != "index.md" or top_keys(fm) - {"okf_version"}):
+                      errors.append(f"{rel}: index.md carries frontmatter only at the bundle root, and only okf_version")
+              elif path.name == "log.md":
+                  if fm is not None:
+                      errors.append(f"{rel}: log.md must not carry frontmatter")
+                  for line in text.splitlines():
+                      if line.startswith("## ") and not re.fullmatch(r"## \d{4}-\d{2}-\d{2}", line.strip()):
+                          errors.append(f"{rel}: log date heading must be '## YYYY-MM-DD', got {line.strip()!r}")
+              else:
+                  if fm is None:
+                      errors.append(f"{rel}: missing YAML frontmatter block")
+                      continue
+                  match = re.search(r"(?m)^type:[ \t]*(.*?)[ \t]*$", fm)
+                  if not match or not match.group(1).strip("'\""):
+                      errors.append(f"{rel}: frontmatter has no non-empty 'type'")
+              for target in re.findall(r"\]\((/[^)#\s]*)", text):
+                  if not (root / target.lstrip("/")).exists():
+                      warnings.append(f"{rel}: broken link {target}")
+
+          for message in warnings:
+              print(f"::warning::OKF: {message}")
+          for message in errors:
+              print(f"::error::OKF: {message}")
+          print(f"OKF: {len(errors)} error(s), {len(warnings)} warning(s)")
+          sys.exit(1 if errors else 0)
+          KG_PY_EOF
+          if ! KNOWLEDGE_DIR="$KDIR" python3 /tmp/okf_check.py; then
+            revert "the regenerated bundle is not OKF v0.2 conformant"
+            exit 1
+          fi
+
+      # Only these three paths are ever staged, whatever else the regeneration
+      # touched. Same branch as the correction, so the graph and the bundle ride
+      # in the correction's own PR and reach the default branch when it merges.
+      - name: Knowledge - commit and push
+        if: success() && steps.kg_index.outcome == 'success'
+        continue-on-error: true
+        env:
+          TRACE_ID: ${{ github.event.client_payload.trace_id }}
+        run: |
+          set -euo pipefail
+          KDIR=".knowledge"
+          git config user.name  "api-correction[bot]"
+          git config user.email "api-correction@users.noreply.github.com"
+          if [ -d .codebase-memory ]; then git add -- .codebase-memory; fi
+          if [ -d "$KDIR" ]; then git add -- "$KDIR"; fi
+          if [ -f CLAUDE.md ]; then git add -- CLAUDE.md; fi
+          if git diff --cached --quiet; then
+            echo "Knowledge graph already current."
+            exit 0
+          fi
+          git commit -q -m "chore(memory): refresh knowledge graph [skip ci]" -m "trace_id: ${TRACE_ID:-manual}"
+          git push origin "HEAD:refs/heads/$MAINTENANCE_BRANCH"
+          echo "pushed knowledge graph refresh to $MAINTENANCE_BRANCH"
+
+      # Runs even when an earlier step exited, so a failure that happened before
+      # the log-dumping above (checkout, install, a cancelled job) still says
+      # something in the job log rather than only in a downloadable zip.
+      - name: Dump captured logs on failure
+        if: failure()
+        run: |
+          for f in /tmp/correction.stderr.log /tmp/correction.result.json                    /tmp/shared.raw.txt /tmp/visual.raw.txt /tmp/dev-server.log; do
+            if [ -s "$f" ]; then
+              echo "::group::$f"
+              tail -c 4000 "$f"
+              echo "::endgroup::"
+            fi
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: correction-transcript-${{ github.event.client_payload.trace_id }}
+          path: |
+            /tmp/correction.transcript.txt
+            /tmp/visual.raw.txt
+            /tmp/shared.raw.txt
+            /tmp/knowledge.result.json
+            /tmp/knowledge.stderr.log
+          if-no-files-found: ignore
