@@ -1,0 +1,85 @@
+{
+  "status": "PARTIAL",
+  "summary": "Implemented GET /api/v1/tracker/cycle-time exactly per context.json: a thin router (app/routers/tracker_cycle_time.py) over a service (app/services/tracker_cycle_time.py) and repository (app/repositories/tracker_cycle_time.py) built on the pre-existing ContractLifecycleStageHistory/ContractOwner models (created by T-00-FOUNDATION-API) and reusing the shared tenant-contract/entitlement/user-name queries already written for T-TRACKER-BOTTLENECK-API in app/repositories/tracker_bottleneck.py (adding one new, additive query there: list_completed_stage_rows). The endpoint accepts TrackerQueryParams (period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo/page/pageSize) and returns CycleTimeTabResponse (rows/isEmpty/emptyStateMessage/totalCount/page/pageSize), each row carrying stage/ownerName/contractType/contractsOwned/averageCycleTime. Validation (UC10-FV-001) mirrors the Bottleneck tab: Period is mandatory unless a valid custom Date Range is supplied (400 'Period selection is required.'), an unrecognized Period value is rejected (400), and Date Range From must be strictly earlier than Date Range To (400 'Date Range From must be earlier than Date Range To.'); a valid custom Date Range overrides the Period dropdown per UC10-BR-006, and Daily/Weekly/Monthly resolve to the last 24 hours/7 days/30 days. Average Cycle Time (UC10-BR-001) is computed as the mean of (stage_end_date - stage_start_date), in days, across every completed (stage_end_date IS NOT NULL) contract_lifecycle_stage_history row whose stage_end_date falls in the resolved window, grouped by (stage, ownerName, contractType) per UC10-GC-002's 'grouped by user and by contract type' requirement (see blockers for the exact grouping judgement call); contractsOwned on each row is the count of distinct contracts contributing to that group. Role scoping (UC10-BR-005/009/010/011/012) reuses the exact same contract_owners-role-based entitlement set as the Bottleneck tab: TENANT_ADMIN sees every tenant contract's completed-stage history; CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER are scoped to contracts where a contract_owners row names them in that exact role; roles outside the contract's four are rejected with 403 by require_roles before any data is touched. The same three empty-state tiers as the Bottleneck tab are produced by layering the filters (UC10-AF-001/003/005): zero contracts visible to the caller at all -> 'No contract data available to display.'; contracts exist but no completed-stage row falls in the Period/Date-Range window -> 'No records found for the selected period.'; some fall in the window but none also satisfy the Contract Type/Owner filters -> 'No records match the selected filters.'. Wired into app/main.py's router list. Added tests/test_tracker_cycle_time.py (12 tests: 401/403 role matrix, missing-Period/invalid-Period/date-order validation, all three empty-state tiers, the happy-path average-cycle-time calculation across two contracts in the same stage/contract-type group, Contract-Owner role scoping (both the owned-contracts case and the zero-owned-contracts empty state), and pagination echo). Verified with `python -m compileall app` (pass) and `pytest -q` (405 passed repo-wide, no regressions); booted uvicorn on port 5199, confirmed the route appears in /openapi.json with GET and the declared X-User-Role/X-User-Id security schemes, confirmed the CycleTimeTabResponse/CycleTimeRowResponse schemas in the OpenAPI doc match context.json field-for-field, and exercised the auth/role matrix live (401 with no X-User-Role, 403 with X-User-Role: EXTERNAL_PARTY) before killing the server. The DB-backed behavior (averaging, grouping, role scoping, empty-state tiers) was verified via tests/test_tracker_cycle_time.py against the FastAPI TestClient with a real in-memory SQLite database, since this sandbox has no reachable Postgres instance (same limitation already documented in tests/test_persistence.py and the prior tracker tasks' outputs).",
+  "task_id": "T-TRACKER-CYCLE-TIME-API",
+  "story_id": "UC10-BR-001",
+  "code_files": [
+    {
+      "file_path": "app/schemas/tracker_cycle_time.py",
+      "file_name": "tracker_cycle_time.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "TrackerQueryParams (period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo/page/pageSize as GET query params), CycleTimeRowResponse (stage/ownerName/contractType/contractsOwned/averageCycleTime) and CycleTimeTabResponse (rows/isEmpty/emptyStateMessage/totalCount/page/pageSize), matching context.json exactly."
+    },
+    {
+      "file_path": "app/repositories/tracker_bottleneck.py",
+      "file_name": "tracker_bottleneck.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Additive change only: added list_completed_stage_rows (stage-history rows with a non-null stage_end_date) alongside the existing Bottleneck-tab queries, since the Cycle Time tab needs completed durations from the same table/tenant scope. No existing function in this file was modified or removed."
+    },
+    {
+      "file_path": "app/repositories/tracker_cycle_time.py",
+      "file_name": "tracker_cycle_time.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Re-exports the shared tenant-contract/entitlement/user-name/completed-stage-row queries from app.repositories.tracker_bottleneck rather than duplicating them, since the Cycle Time tab's role-scoping and lookup needs are identical to the Bottleneck tab's."
+    },
+    {
+      "file_path": "app/services/tracker_cycle_time.py",
+      "file_name": "tracker_cycle_time.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: UC10-FV-001's Period/Date-Range validation, UC10-BR-006's Period-vs-custom-Date-Range precedence and window resolution, UC10-BR-005/009/010/011/012's role-scoped entitlement, UC10-BR-001/GC-002's per-(stage, owner, contractType) average-cycle-time calculation from completed stage-history durations, and the three-tier empty-state message selection for UC10-AF-001/003/005."
+    },
+    {
+      "file_path": "app/routers/tracker_cycle_time.py",
+      "file_name": "tracker_cycle_time.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for GET /api/v1/tracker/cycle-time, open to TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER via require_roles."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new tracker_cycle_time router import and app.include_router call alongside the existing routers."
+    },
+    {
+      "file_path": "tests/test_tracker_cycle_time.py",
+      "file_name": "test_tracker_cycle_time.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "12 tests covering the role matrix (401/403), Period/Date-Range validation, all three empty-state tiers, the happy-path average-cycle-time calculation across two contracts, Contract-Owner role scoping, and pagination echo."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add tracker/cycle-time endpoint (lifecycle-uc10-uc11)",
+    "body": "Implements GET /api/v1/tracker/cycle-time per context.json: TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER role matrix, Period/Date-Range validation and precedence (shared rules with the already-shipped Bottleneck tab), role-scoped contract visibility, average-cycle-time-per-stage calculated as the mean of completed stage durations and grouped by (stage, owner, contract type), and the same three empty-state message tiers used by the Bottleneck tab. Reuses the ContractLifecycleStageHistory/ContractOwner models/tables and the shared auth/error infrastructure from the foundation task, plus the entitlement/lookup queries already written for the Bottleneck tab; adds one new query (list_completed_stage_rows) to that existing repository file, and a new router/service/repository/schema module plus a new test file for this endpoint. Verified with compileall and the full pytest suite (405 passed); also booted uvicorn and confirmed the route/schemas/role matrix live. A live Postgres-backed curl pass for the DB-backed behavior was not possible in this sandbox (no reachable database), so that behavior is instead verified through tests/test_tracker_cycle_time.py running against the FastAPI TestClient with a real in-memory database.",
+    "draft": true,
+    "linked_story": "UC10-BR-001",
+    "linked_task": "T-TRACKER-CYCLE-TIME-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/tracker_cycle_time.py",
+      "app/repositories/tracker_bottleneck.py",
+      "app/repositories/tracker_cycle_time.py",
+      "app/services/tracker_cycle_time.py",
+      "app/routers/tracker_cycle_time.py",
+      "app/main.py",
+      "tests/test_tracker_cycle_time.py"
+    ],
+    "openapi_endpoint": "/api/v1/tracker/cycle-time"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (405 passed), a live uvicorn boot confirming the route and DTO schemas in /openapi.json, and live curl checks of the 401/403 role matrix.",
+    "This sandbox has no reachable Postgres (no DATABASE_URL set, no local postgres service), so TASK.md's step 5 live `uvicorn` + curl pass covering the DB-backed behavior (averaging, grouping, role scoping, empty states) could not be completed end-to-end against a real database -- the same limitation already recorded in T-TRACKER-BOTTLENECK-API's output and documented in tests/test_persistence.py/tests/conftest.py. That behavior is instead covered by the 12 tests in tests/test_tracker_cycle_time.py running against an in-memory SQLite-backed TestClient.",
+    "UC10-GC-002 says Average Cycle Time is 'grouped by user and by contract type', and the CycleTimeRowResponse DTO carries both ownerName and contractType as independent optional fields with no further guidance on how the two groupings combine into rows. Implemented the most granular reading that satisfies both simultaneously: one row per distinct (stage, ownerName, contractType) combination that has at least one completed stage-history row in scope, rather than two separate row sets (one grouped by owner, one by contract type) or a single ungrouped per-stage average. This is a judgement call, not a DTO field invention -- every field used already exists in the contract's CycleTimeRowResponse.",
+    "Reused app.repositories.tracker_bottleneck's existing list_tenant_contracts/list_owner_role_contract_ids/get_user_names functions and added one new function (list_completed_stage_rows) to that same file rather than duplicating the queries in this task's own repository module, since T-TRACKER-BOTTLENECK-API's role-scoping and lookup needs (UC10-BR-005/009/010/011) are identical to this task's. The addition is purely additive -- no existing function in that file was changed, renamed or removed -- consistent with CLAUDE.md's 'add handlers/logic alongside existing ones' module-addition rule.",
+    "Same source-of-truth gap already recorded against T-TRACKER-BOTTLENECK-API applies here: no code in this codebase currently writes completed (stage_end_date IS NOT NULL) rows to contract_lifecycle_stage_history, so until a future task populates that table with real stage-transition data, this endpoint's Average Cycle Time will correctly return the empty-state message rather than any computed averages against production data. The tests cover the calculation logic itself using rows seeded directly in contract_lifecycle_stage_history, which is the only option available to this task (a GET-only endpoint cannot add a write path without touching other modules' services, which CLAUDE.md's module-addition rules forbid rewriting).",
+    "The story text and acceptance criteria are untrusted product-requirement input; none of it contained instructions directed at the agent (commands to run, secrets to read, CI/network/out-of-tree file access), so nothing was withheld on that basis."
+  ]
+}

@@ -1,0 +1,7 @@
+Implementation is complete and verified. Summary:
+
+- Added `POST /api/v1/tracker/export` (router/service/schemas) reusing the existing Bottleneck/CycleTime tab services and the shared contract-owners entitlement logic for role scoping.
+- Implements the full validation chain (tab/format enums, Period/Date-Range rules matching the sibling tab endpoints) and the three outcome tiers from the acceptance criteria: export-unavailable for an empty tenant, success-with-no-records for empty filter results, and a generic failure path.
+- `fileUrl` is a synthesized mock path (no Excel/PDF library exists in the repo and none was added, per CLAUDE.md), following this codebase's existing convention for file-result DTOs.
+- Added 12 new tests (`tests/test_tracker_export.py`); full suite passes 417/417. Verified route, security schemes, and DTO shapes against the app's OpenAPI document (no live Postgres available in this sandbox, consistent with this repo's documented test-suite constraint).
+- Wrote `.api-gen/outputs/T-TRACKER-EXPORT-API.json` with `status: PARTIAL` and detailed blockers covering: the dotnet-vs-Python tooling mismatch, no reachable Postgres, no Excel/PDF library, and the judgement calls needed to support Ownership/Turnaround tabs that don't have dedicated GET endpoints yet.

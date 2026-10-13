@@ -1,0 +1,7 @@
+Implemented `GET /api/v1/tracker/turnaround` and `PUT /api/v1/tracker/turnaround/{contractId}/estimated-override` per CLAUDE.md's lifecycle-uc10-uc11 contract, matching the pattern already used by the sibling bottleneck/cycle-time/ownership tabs:
+
+- **Schema/router/service/repository** for `tracker_turnaround` (role matrix, Period/Date-Range validation, three-tier empty states, BR-3 variance coloring, BR-4/BR-7 "Not Set" derivation, BR-7 override + audit log).
+- Wired into `app/main.py`.
+- 20 new tests (`tests/test_tracker_turnaround.py`); full suite passes 449/449.
+- Verified live via uvicorn: both routes show in `/openapi.json`, 401/403 role-matrix confirmed by curl.
+- Result written to `.api-gen/outputs/T-TRACKER-TURNAROUND-API.json` with status `PARTIAL` — main blockers are that no module populates `contract_turnaround_metrics` (no UC2 target-completion-date field exists yet) and this sandbox has no reachable Postgres for full DB-backed curl verification, both documented and consistent with prior tracker tasks' handling.

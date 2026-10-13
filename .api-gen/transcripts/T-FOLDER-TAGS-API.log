@@ -1,8 +1,0 @@
-Task complete. The `GET /api/v1/folder-tags` endpoint this task owns was already built as part of the module's broader life-cycle-uc8-uc9 work — model, migration (0035), repository, service, schema, and router, correctly enforcing all four roles and returning the exact `FolderTagOptionResponse` shape.
-
-I verified it with:
-- `python -m compileall app` — passes
-- `pytest -q` — 303 passed, including `test_list_folder_tag_options`
-- A FastAPI TestClient run (uvicorn+curl isn't viable here since no live Postgres is reachable in this sandbox): 200 happy path with exact field shape, 401 on missing `X-User-Role`, 403 on a disallowed role, and the route present in `/openapi.json` with both auth headers declared as security schemes
-
-Result written to `.api-gen/outputs/T-FOLDER-TAGS-API.json` with `status: SUCCESS` and blockers documenting the stack-tooling substitution (CLAUDE.md's Python conventions over TASK.md's .NET-flavored verification steps) and a minor `base_path` metadata inconsistency in `context.json`.

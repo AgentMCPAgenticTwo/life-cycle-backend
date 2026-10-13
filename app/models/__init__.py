@@ -47,6 +47,18 @@ from app.models.lifecycle_negotiation import (
 )
 from app.models.tenant import Tenant
 from app.models.template import Template, TemplateVersion
+from app.models.tracker import (
+    ApprovalMatrixRule,
+    ContractLifecycleStageHistory,
+    ContractOwner,
+    ContractTurnaroundMetrics,
+    TenantAuditLog,
+    TenantBottleneckThreshold,
+    TenantIntegration,
+    TenantNotificationSetting,
+    TenantUser,
+    TurnaroundOverrideLog,
+)
 from app.models.uploaded_file import UploadedFile
 from app.models.user import User
 
@@ -91,4 +103,14 @@ __all__ = [
     "RenewalAlert",
     "ContractLifecycleAction",
     "ObligationAuditLog",
+    "ContractLifecycleStageHistory",
+    "ContractOwner",
+    "ContractTurnaroundMetrics",
+    "TurnaroundOverrideLog",
+    "TenantBottleneckThreshold",
+    "TenantUser",
+    "ApprovalMatrixRule",
+    "TenantIntegration",
+    "TenantNotificationSetting",
+    "TenantAuditLog",
 ]

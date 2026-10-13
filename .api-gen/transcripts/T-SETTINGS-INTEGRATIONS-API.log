@@ -1,0 +1,12 @@
+I've completed the `T-SETTINGS-INTEGRATIONS-API` task:
+
+**Implemented** (schema, repository, service, router) for the 3 owned endpoints:
+- `GET /api/v1/settings/integrations` — seeds and returns the 7 fixed integration cards per tenant
+- `POST /api/v1/settings/integrations/{integrationName}/connect` — validates credentials, masks on success, logs audit entries on success and failure
+- `POST /api/v1/settings/integrations/{integrationName}/disconnect` — transitions back to Disconnected
+
+Also added an `append` helper to the existing `settings_audit_log` repository so these events surface on the already-built audit log endpoint, and wired the new router into `main.py`.
+
+**Verified**: `compileall` passes, full `pytest -q` suite passes (340 tests, 15 new), and a live `uvicorn` boot confirmed all 3 routes + security schemes in `/openapi.json` plus live 401/403 curl checks (no Postgres was reachable in this sandbox, so DB-backed paths were verified via the SQLite-backed test suite instead).
+
+Output written to `.api-gen/outputs/T-SETTINGS-INTEGRATIONS-API.json` with `status: SUCCESS` and 7 blockers documenting judgment calls (non-paged array response shape, inferred token-expiry mechanism since there's no scheduler, audit log `logAction` constrained to the Created/Updated/Deleted enum with event details in `details`, and the inferred "invalid credentials" rule).

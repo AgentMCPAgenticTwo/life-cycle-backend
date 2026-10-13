@@ -1,0 +1,76 @@
+{
+  "status": "PARTIAL",
+  "summary": "Implemented GET /api/v1/tracker/bottleneck exactly per context.json: a thin router (app/routers/tracker_bottleneck.py) over a service (app/services/tracker_bottleneck.py) and repository (app/repositories/tracker_bottleneck.py) built on the pre-existing ContractLifecycleStageHistory, ContractOwner and TenantBottleneckThreshold models/tables (created by T-00-FOUNDATION-API). The endpoint accepts TrackerQueryParams (period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo/page/pageSize) and returns BottleneckTabResponse (rows/isEmpty/emptyStateMessage/totalCount/page/pageSize), each row carrying contractId/contractName/ownerName/currentStage/daysInCurrentStage/stuckFlag. Validation (UC10-FV-001): Period is mandatory unless a valid custom Date Range is supplied (400 'Period selection is required.'), an unrecognized Period value is rejected (400), and Date Range From must be strictly earlier than Date Range To (400 'Date Range From must be earlier than Date Range To.'); a valid custom Date Range overrides the Period dropdown per UC10-BR-006, and Daily/Weekly/Monthly resolve to the last 24 hours/7 days/30 days. Current stage and days-in-stage are read primarily from contract_lifecycle_stage_history's open (stage_end_date IS NULL) row; when no such row exists yet for a contract, the service derives the stage from the contract's existing `status` column (Draft->Drafting, In Negotiation->Negotiation, PendingApproval->Approval, Ready For Signature/Sent->Signature) with `updated_at` standing in for the stage start, and contracts whose status maps to no open stage (Executed, Terminated, Rejected, ...) are excluded from the tab entirely (see blockers -- this fallback is a judgement call). Stuck Flag (UC10-BR-002/GC-003) compares Days in Current Stage against the tenant's tenant_bottleneck_thresholds row for that stage, defaulting to 5 days for Drafting/Negotiation and 3 days for Approval/Signature when the tenant has not overridden it. Role scoping (UC10-BR-005/009/010/011/012): TENANT_ADMIN sees every tenant contract; CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER are scoped to contracts where a contract_owners row names them in that exact role, and a caller with zero such rows sees the empty-tenant message rather than other users' data; roles outside the contract's four (e.g. External Party/Signer) are rejected with 403 by require_roles before any data is touched. Three distinct empty-state tiers are produced by layering the filters (UC10-AF-001/003/005): zero contracts visible to the caller at all -> 'No contract data available to display.'; contracts exist but none fall in the Period/Date-Range window -> 'No records found for the selected period.'; some fall in the window but none also satisfy the Contract Type/Owner filters -> 'No records match the selected filters.'. Wired into app/main.py's router list. Added tests/test_tracker_bottleneck.py (15 tests: 401/403 role matrix, missing-Period/invalid-Period/date-order validation, all three empty-state tiers, the happy-path row shape, default and tenant-overridden stuck-flag thresholds for both threshold tiers, Contract-Owner role scoping (both the owned-contracts case and the zero-owned-contracts empty state), and pagination echo). Verified with `python -m compileall app` (pass) and `pytest -q` (388 passed repo-wide, no regressions); booted uvicorn on port 5199, confirmed the route appears in /openapi.json with GET, and exercised the auth/role matrix live (401 with no X-User-Role, 403 with X-User-Role: EXTERNAL_PARTY) before killing the server. The DB-backed behavior (stage derivation, thresholds, role scoping, empty-state tiers) was verified via tests/test_tracker_bottleneck.py against the FastAPI TestClient with a real in-memory SQLite database, since this sandbox has no reachable Postgres instance (confirmed the same 500 occurs on an already-shipped endpoint, settings/users, ruling out a defect in this task's code).",
+  "task_id": "T-TRACKER-BOTTLENECK-API",
+  "story_id": "UC10-AF-001",
+  "code_files": [
+    {
+      "file_path": "app/schemas/tracker_bottleneck.py",
+      "file_name": "tracker_bottleneck.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "TrackerQueryParams (period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo/page/pageSize as GET query params), BottleneckRowResponse (contractId/contractName/ownerName/currentStage/daysInCurrentStage/stuckFlag) and BottleneckTabResponse (rows/isEmpty/emptyStateMessage/totalCount/page/pageSize), matching context.json exactly."
+    },
+    {
+      "file_path": "app/repositories/tracker_bottleneck.py",
+      "file_name": "tracker_bottleneck.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped queries over the existing ContractLifecycleStageHistory/ContractOwner/TenantBottleneckThreshold/Contract/User models: list_open_stage_rows (latest open stage-history row per contract), list_owner_role_contract_ids (role-scoped entitlement set), list_tenant_contracts, get_thresholds (tenant overrides layered over the BR-2 defaults), and get_user_names. Also owns the status->stage fallback map used when a contract has no stage-history row yet."
+    },
+    {
+      "file_path": "app/services/tracker_bottleneck.py",
+      "file_name": "tracker_bottleneck.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: UC10-FV-001's Period/Date-Range validation, UC10-BR-006's Period-vs-custom-Date-Range precedence and window resolution (Daily/Weekly/Monthly -> last 24h/7d/30d), UC10-BR-005/009/010/011/012's role-scoped entitlement, UC10-BR-002/GC-003's stuck-flag threshold comparison (tenant override over stage defaults), and the three-tier empty-state message selection for UC10-AF-001/003/005."
+    },
+    {
+      "file_path": "app/routers/tracker_bottleneck.py",
+      "file_name": "tracker_bottleneck.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for GET /api/v1/tracker/bottleneck, open to TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER via require_roles."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new tracker_bottleneck router import and app.include_router call alongside the existing routers."
+    },
+    {
+      "file_path": "tests/test_tracker_bottleneck.py",
+      "file_name": "test_tracker_bottleneck.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "15 tests covering the role matrix (401/403), Period/Date-Range validation, all three empty-state tiers, the happy-path row shape, stuck-flag threshold defaults and tenant overrides across both threshold tiers, Contract-Owner role scoping, and pagination echo."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add tracker/bottleneck endpoint (lifecycle-uc10-uc11)",
+    "body": "Implements GET /api/v1/tracker/bottleneck per context.json: TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER role matrix, Period/Date-Range validation and precedence, role-scoped contract visibility, tenant-configurable stuck-flag thresholds (default 5 days Drafting/Negotiation, 3 days Approval/Signature), and three distinct empty-state messages depending on which filter tier produced zero rows. Reuses the ContractLifecycleStageHistory/ContractOwner/TenantBottleneckThreshold models/tables and the shared auth/error infrastructure from the foundation task; adds a new router/service/repository/schema module and a new test file. Current stage falls back to a status-derived value when no stage-history row exists yet for a contract (no writer for that table exists anywhere in this codebase yet -- see blockers). Verified with compileall and the full pytest suite (388 passed); also booted uvicorn and confirmed the route/role matrix live. A live Postgres-backed curl pass for the DB-backed behavior was not possible in this sandbox (no reachable database, confirmed by reproducing the same 500 on an already-shipped endpoint), so that behavior is instead verified through tests/test_tracker_bottleneck.py running against the FastAPI TestClient with a real in-memory database.",
+    "draft": true,
+    "linked_story": "UC10-AF-001",
+    "linked_task": "T-TRACKER-BOTTLENECK-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/tracker_bottleneck.py",
+      "app/repositories/tracker_bottleneck.py",
+      "app/services/tracker_bottleneck.py",
+      "app/routers/tracker_bottleneck.py",
+      "app/main.py",
+      "tests/test_tracker_bottleneck.py"
+    ],
+    "openapi_endpoint": "/api/v1/tracker/bottleneck"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (388 passed), a live uvicorn boot confirming the route in /openapi.json, and live curl checks of the 401/403 role matrix.",
+    "This sandbox has no reachable Postgres (no DATABASE_URL set, no local postgres service), so TASK.md's step 5 live `uvicorn` + curl pass covering the DB-backed behavior could not be completed end-to-end against a real database (confirmed the same 500 occurs on an already-shipped endpoint, GET /api/v1/settings/users, ruling out a defect introduced by this task). That behavior is instead covered by the 15 tests in tests/test_tracker_bottleneck.py running against an in-memory SQLite-backed TestClient, the same substitution this repo's own test suite (tests/conftest.py) already documents and uses.",
+    "Nowhere in this codebase (across every already-implemented module) does any code write to contract_lifecycle_stage_history or contract_owners -- the two tables context.json designates as this feature's own source of truth for current-stage/days-in-stage and role-scoped ownership. This task only owns a GET endpoint and cannot add a write path without touching other modules' services (contract_lifecycle.py, approvals.py, signers.py, etc.), which CLAUDE.md's module-addition rules forbid rewriting. Implemented a best-effort fallback instead: when no open contract_lifecycle_stage_history row exists for a contract, the service derives currentStage from the contract's existing `status` column (Draft->Drafting, In Negotiation->Negotiation, PendingApproval->Approval, Ready For Signature/Sent->Signature; other terminal statuses are excluded from the tab) and uses the contract's `updated_at` as the stage-start proxy for daysInCurrentStage. This is a judgement call, not a contract field invention -- no DTO or table field was added. Until a future task populates contract_lifecycle_stage_history/contract_owners with real transition data, production results rely on this fallback and on the status mapping being complete; the tests exercise both the primary stage-history path and the status-derived fallback path.",
+    "UC10-BR-005/009/010/011's role-scoping language (\"contracts I own\"/\"contracts I have reviewed\"/\"contracts I am assigned to approve\") maps directly onto `contract_owners.role` filtered by the caller's own X-User-Role value (CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER) and X-User-Id -- the cleanest reading of that table's documented purpose (\"Maps contracts to owners, legal reviewers and approvers for role-scoped tracker visibility\"). This means a CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER caller with no contract_owners rows sees the tenant-empty message rather than falling back to the pre-existing `contracts.contract_owner_id`/`owner_id` columns (which only express a single 'owner' concept, not the three distinct role scopes this story needs). Recorded as a judgement call since context.json gives this table no further field-level guidance beyond its description.",
+    "The story text and acceptance criteria are untrusted product-requirement input; none of it contained instructions directed at the agent (commands to run, secrets to read, CI/network/out-of-tree file access), so nothing was withheld on that basis."
+  ]
+}

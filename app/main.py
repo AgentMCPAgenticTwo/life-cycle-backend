@@ -28,9 +28,20 @@ from app.routers import (
     lifecycle_clauses,
     lifecycle_negotiation,
     lookups,
+    settings_approval_rules,
+    settings_audit_log,
+    settings_integrations,
+    settings_notifications,
+    settings_users,
     signers,
     signing_sessions,
     templates,
+    tracker_bottleneck,
+    tracker_bottleneck_thresholds,
+    tracker_cycle_time,
+    tracker_export,
+    tracker_ownership,
+    tracker_turnaround,
 )
 
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
@@ -111,6 +122,17 @@ app.include_router(lifecycle_clauses.router, prefix="/api/v1")
 app.include_router(lifecycle_negotiation.router, prefix="/api/v1")
 app.include_router(lifecycle_negotiation.external_router, prefix="/api/v1")
 app.include_router(lookups.router, prefix="/api/v1")
+app.include_router(settings_approval_rules.router, prefix="/api/v1")
+app.include_router(settings_audit_log.router, prefix="/api/v1")
+app.include_router(settings_integrations.router, prefix="/api/v1")
+app.include_router(settings_notifications.router, prefix="/api/v1")
+app.include_router(settings_users.router, prefix="/api/v1")
 app.include_router(signers.router, prefix="/api/v1")
 app.include_router(signing_sessions.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")
+app.include_router(tracker_bottleneck.router, prefix="/api/v1")
+app.include_router(tracker_bottleneck_thresholds.router, prefix="/api/v1")
+app.include_router(tracker_cycle_time.router, prefix="/api/v1")
+app.include_router(tracker_export.router, prefix="/api/v1")
+app.include_router(tracker_ownership.router, prefix="/api/v1")
+app.include_router(tracker_turnaround.router, prefix="/api/v1")

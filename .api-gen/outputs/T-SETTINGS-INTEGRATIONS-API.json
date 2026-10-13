@@ -1,0 +1,86 @@
+{
+  "status": "SUCCESS",
+  "summary": "Implemented GET /api/v1/settings/integrations, POST /api/v1/settings/integrations/{integrationName}/connect and POST /api/v1/settings/integrations/{integrationName}/disconnect exactly per context.json: a thin router (app/routers/settings_integrations.py) over a service (app/services/settings_integrations.py) that owns the 7 fixed integration cards (Salesforce, HubSpot, ERP, Google Drive, SharePoint, DocuSign, Adobe Sign), idempotent per-tenant seeding of those cards as Disconnected on first GET (UC11-FV-003), credential validation that maps to UC11-AF-004/UC11-BR-016's exact failure message ('Connection failed. Please check your credentials and try again') on an empty or blank-valued credentials object while leaving the row Disconnected, the Connected transition with immediate, permanent credential masking and no plaintext retention (UC11-BR-009), manual disconnect (UC11-BR-017), and an automatic Connected -> 'Disconnected - reconnect required' transition on the GET read path once a connected integration's modeled token_expires_at has passed (UC11-AF-007). Every state transition (connect success, connect failure, disconnect, token-expiry) writes a TenantAuditLog entry (Log Date/Time, Log User, Log Action, Log Entity, with the specific event in `details`) via a new `append` helper added to the pre-existing app/repositories/settings_audit_log.py, so these events are visible on the already-built GET /api/v1/settings/audit-log endpoint. Repository (app/repositories/settings_integrations.py) queries the pre-existing TenantIntegration model/tenant_integrations table (built by the T-00-FOUNDATION-API foundation task), scoped by tenant_id. Role enforcement is TENANT_ADMIN-only on all three endpoints via require_roles; an unknown integrationName path segment returns 404 before any credential/state logic runs. Wired into app/main.py's router list. Added tests/test_settings_integrations.py (15 tests: 401 missing role, 403 disallowed role on GET/connect/disconnect, GET seeding all 7 cards as Disconnected with no masked credential, no duplicate rows on repeat GETs, 404 on an unknown integration name for both connect and disconnect, connect rejecting an empty credentials object and a blank-valued credential (both 400, Disconnected unchanged), connect with valid credentials transitioning to Connected with a masked (not plaintext) credential, confirming no plaintext ever appears in a subsequent GET, disconnect transitioning Connected back to Disconnected, the automatic token-expiry transition to 'Disconnected - reconnect required' surfacing on GET, and tenant isolation). Verified with `python -m compileall app` (pass), `pytest -q` (340 passed, repo-wide, no regressions), and a live `uvicorn` boot on port 5199: confirmed all three routes appear in /openapi.json with the X-User-Role/X-User-Id security schemes declared, and exercised the 401 (missing role header) and 403 (APPROVER role) paths with real curl calls against the running server, matching the shared {error, details} error body.",
+  "task_id": "T-SETTINGS-INTEGRATIONS-API",
+  "story_id": "UC11-AF-004",
+  "code_files": [
+    {
+      "file_path": "app/schemas/settings_integrations.py",
+      "file_name": "settings_integrations.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "IntegrationResponse (integrationName/connectionStatus enums, optional maskedCredential) and ConnectIntegrationRequest (credentials: dict), matching context.json exactly."
+    },
+    {
+      "file_path": "app/repositories/settings_integrations.py",
+      "file_name": "settings_integrations.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped queries over the existing TenantIntegration model: idempotent ensure_seeded for the 7 fixed integration names, list_by_tenant (stable display order), get_by_name, and insert."
+    },
+    {
+      "file_path": "app/services/settings_integrations.py",
+      "file_name": "settings_integrations.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: credential validation and the UC11-AF-004/BR-016 failure message, UC11-BR-009 masking (first non-blank credential value, last 4 characters visible, plaintext never persisted), the Connected/Disconnected/'Disconnected - reconnect required' transitions (UC11-BR-017, UC11-AF-007), and an audit-log entry for every transition."
+    },
+    {
+      "file_path": "app/routers/settings_integrations.py",
+      "file_name": "settings_integrations.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for GET /api/v1/settings/integrations and POST .../{integrationName}/connect|disconnect, TENANT_ADMIN-only."
+    },
+    {
+      "file_path": "app/repositories/settings_audit_log.py",
+      "file_name": "settings_audit_log.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Added an `append` helper (data access only, no new rules) so this task's service can record TenantAuditLog entries without constructing rows itself; the existing read-only GET /api/v1/settings/audit-log endpoint from T-SETTINGS-AUDIT-LOG-API is unchanged."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new settings_integrations router import and app.include_router call alongside the existing routers."
+    },
+    {
+      "file_path": "tests/test_settings_integrations.py",
+      "file_name": "test_settings_integrations.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "15 tests covering the role matrix (401/403) on all three endpoints, GET seeding/idempotency, 404 on an unknown integration name, invalid/blank credential rejection with Disconnected status preserved, successful connect with masking and no plaintext leakage, disconnect, the automatic token-expiry transition, and tenant isolation."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add settings/integrations endpoints (lifecycle-uc10-uc11)",
+    "body": "Implements GET /api/v1/settings/integrations and POST .../{integrationName}/connect|disconnect per context.json: TENANT_ADMIN-only, 7 fixed integration cards seeded idempotently per tenant, credential validation with UC11-AF-004/BR-016's exact failure message, UC11-BR-009 permanent credential masking, UC11-BR-017 manual disconnect, and UC11-AF-007's automatic token-expiry transition surfaced on GET. Every transition writes an audit-log entry visible via the existing GET /api/v1/settings/audit-log endpoint. Reuses the TenantIntegration model/tenant_integrations table and the shared auth/error infrastructure from the foundation task; adds a new router/service/repository/schema module, a small `append` helper on the existing audit-log repository, and a new test file. Verified with compileall, the full pytest suite (340 passed), and a live uvicorn boot with curl against the role-check paths plus an /openapi.json check for route/security-scheme registration.",
+    "draft": true,
+    "linked_story": "UC11-AF-004",
+    "linked_task": "T-SETTINGS-INTEGRATIONS-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/settings_integrations.py",
+      "app/repositories/settings_integrations.py",
+      "app/services/settings_integrations.py",
+      "app/routers/settings_integrations.py",
+      "app/repositories/settings_audit_log.py",
+      "app/main.py",
+      "tests/test_settings_integrations.py"
+    ],
+    "openapi_endpoint": "/api/v1/settings/integrations"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (340 passed), and a live `uvicorn` boot on port 5199.",
+    "This sandbox has no reachable Postgres (no DATABASE_URL set), so the TENANT_ADMIN happy-path/404 curl checks against a live database could not be exercised end-to-end as TASK.md's step 5 literally describes. The 401 (missing role) and 403 (disallowed role) paths, which run before any DB access, were verified live with curl against the running server and match the shared {error, details} body; full DB-backed behavior (seeding, connect/disconnect, masking, expiry) is covered instead by the 15 tests in tests/test_settings_integrations.py running against an in-memory SQLite-backed TestClient, the same substitution this repo's own test suite (tests/conftest.py) already uses.",
+    "context.json's GET /api/v1/settings/integrations is marked `is_paged: false` and its response_dto is the single-item `IntegrationResponse`, with no list/paged envelope DTO named anywhere in context.json for this endpoint. Implemented GET as returning a plain JSON array of IntegrationResponse (`response_model=list[IntegrationResponse]`) rather than inventing an envelope object, since the contract explicitly marks this endpoint non-paged and names no wrapper DTO -- unlike this module's other list endpoints (e.g. approval-rules, audit-log) which are `is_paged: true` and do get an items/page/pageSize/totalCount envelope.",
+    "No table in context.json defines what determines UC11-AF-007's automatic Connected -> 'Disconnected - reconnect required' transition on token expiry (there is no scheduled job infrastructure in this repo and no endpoint to trigger it). Added a `token_expires_at` write on connect (24h from connection time, using the pre-existing `tenant_integrations.token_expires_at` column from the foundation task) and check-and-transition logic on the GET read path, since GET is the only route the UI polls for current status. No DTO or table field was added beyond the contract; the 24-hour lifetime is an inferred, not confirmed, business value.",
+    "UC11-BR-009/AF-004/AF-007/BR-016/BR-017's acceptance criteria require an Audit Log entry for every integration state transition (connect success, connect failure, disconnect, token expiry), but context.json's AuditLogEntryResponse.logAction (defined by the sibling T-SETTINGS-AUDIT-LOG-API task's schema) is a closed enum of Created/Updated/Deleted -- it cannot literally say 'Connected' or 'Connection Failed'. Logged every integration transition as logAction='Updated' (an integration record being updated) with the specific event name (e.g. 'Salesforce connected', 'DocuSign connection failed: invalid credentials', 'Google Drive token expired') placed in the optional `details` field, so no audit-log DTO contract was violated and the specific event is still fully recoverable from the entry.",
+    "Defined 'invalid or incomplete credentials' (named by UC11-AF-004/BR-016 but not specified in context.json, which only types `credentials` as an opaque object) as: an empty credentials object, or an object where any provided value is blank/whitespace-only. This is an inferred validation rule, not one confirmed against an external schema, since there is no real external identity provider in this environment to validate against.",
+    "The story text for this task's acceptance criteria repeatedly references other tabs/fields (Routing & Approval, Notifications, Audit Log, User Management) that belong to other tasks' endpoints entirely outside this task's `endpoints` list (GET /api/v1/settings/integrations and POST .../connect|disconnect only) -- left unimplemented here as out of scope, per TASK.md's 'What you own' table; no route was invented to cover them."
+  ]
+}

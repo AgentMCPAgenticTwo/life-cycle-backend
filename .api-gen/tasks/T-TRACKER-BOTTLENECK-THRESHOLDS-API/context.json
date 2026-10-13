@@ -1,0 +1,92 @@
+{
+  "group_id": "tracker-bottleneck-thresholds",
+  "task_id": "T-TRACKER-BOTTLENECK-THRESHOLDS-API",
+  "kind": "resource",
+  "resource": "tracker-bottleneck-thresholds",
+  "base_path": "/api/v1",
+  "primary_story_id": "UC10-BR-002",
+  "story_ids": [
+    "UC10-BR-002"
+  ],
+  "endpoints": [
+    {
+      "id": "GET_tracker_bottleneck_thresholds",
+      "path": "/api/v1/tracker/bottleneck-thresholds",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "GET",
+      "summary": "Get tenant-configured stuck-flag thresholds per stage",
+      "is_paged": false,
+      "story_refs": [
+        "UC10-BR-002"
+      ],
+      "response_dto": "BottleneckThresholdResponse",
+      "auth_required": true
+    }
+  ],
+  "dtos": [
+    {
+      "name": "BottleneckThresholdResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "enum": [
+            "Drafting",
+            "Negotiation",
+            "Approval",
+            "Signature"
+          ],
+          "name": "stage",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "thresholdDays",
+          "type": "integer",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "migrations": [],
+  "stories": [
+    {
+      "epic": "Tracker",
+      "actor": "Tenant Admin",
+      "title": "Flag Contracts as Bottlenecks Based on Stage Threshold",
+      "story_id": "UC10-BR-002",
+      "references": [
+        "UC10-BR-2",
+        "DP-UC10-001",
+        "DP-UC10-002",
+        "DP-UC10-003",
+        "DP-UC10-004",
+        "DP-UC10-005",
+        "DP-UC10-010",
+        "DP-UC10-011",
+        "DP-UC10-012",
+        "DP-UC10-013",
+        "DP-UC10-014",
+        "DP-UC10-015",
+        "DP-UC10-016",
+        "DP-UC10-017",
+        "DP-UC10-018",
+        "DP-UC10-020"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want contracts to be automatically flagged as a Bottleneck when Days in Current Stage exceeds the tenant-configured threshold for that stage, so that stalled contracts are surfaced for timely intervention.",
+      "source_reference": "UC10 / Business Rules / BR-2",
+      "notes_assumptions": "DP-UC10-020 'Change UC10 BR4 to' appears to reference a reviewer-requested amendment to BR-4 rather than a standalone field; included here as a tenant-threshold-configuration override note to satisfy full data point coverage per instructions.",
+      "acceptance_criteria": [
+        "Given the Bottleneck Tab is selected with Period, Contract Type Filter, Owner Filter, Date Range From, and Date Range To applied, When the Tracker loads contract data, Then the Bottleneck tab table displays Owner Name, Contracts Owned, Average Cycle Time, Current Stage, Days in Current Stage, Stuck Flag, Estimated Turnaround, Actual Turnaround, and Variance for each applicable contract.",
+        "Given a contract is in the Drafting or Negotiation stage, When Days in Current Stage exceeds the tenant-configured threshold (default 5 days), Then the Stuck Flag is set to Yes.",
+        "Given a contract is in the Approval or Signature stage, When Days in Current Stage exceeds the tenant-configured threshold (default 3 days), Then the Stuck Flag is set to Yes.",
+        "Given a contract's Days in Current Stage does not exceed the applicable tenant-configured threshold for its Current Stage, When the Bottleneck tab is rendered, Then the Stuck Flag is set to No.",
+        "Given a Tenant Admin has overridden the default thresholds for Drafting, Negotiation, Approval, or Signature stages, When the Bottleneck flag is evaluated, Then the Stuck Flag calculation uses the tenant-configured threshold instead of the default value (Change UC10 BR4 to reflect tenant-specific configuration is applied where set).",
+        "Given the Tracker screen is reopened, When the Bottleneck tab is viewed again, Then Period and Tab selections reset per BR-13 while Stuck Flag values are recalculated fresh based on current Days in Current Stage data."
+      ]
+    }
+  ]
+}

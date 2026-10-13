@@ -1,0 +1,77 @@
+{
+  "status": "PARTIAL",
+  "summary": "Implemented GET /api/v1/tracker/turnaround and PUT /api/v1/tracker/turnaround/{contractId}/estimated-override exactly per context.json: a thin router (app/routers/tracker_turnaround.py) over a service (app/services/tracker_turnaround.py) and repository (app/repositories/tracker_turnaround.py) built on the pre-existing ContractTurnaroundMetrics and TurnaroundOverrideLog models/tables (created by T-00-FOUNDATION-API) plus the shared ContractLifecycleStageHistory/ContractOwner lookups already in app/repositories/tracker_bottleneck.py. GET accepts TrackerQueryParams (period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo/page/pageSize) and returns TurnaroundTabResponse (rows/isEmpty/emptyStateMessage/totalCount/page/pageSize), each row carrying contractId/contractName/contractType/estimatedTurnaround/estimatedTurnaroundNotSet/estimatedTurnaroundSource/actualTurnaround/variance/varianceColor/excludedFromAverages. Validation (UC10-FV-001) and the Period-vs-custom-Date-Range precedence (UC10-BR-006) mirror the sibling Ownership/Bottleneck/Cycle-Time tabs exactly: Period is mandatory unless a valid custom Date Range is supplied (400 'Period selection is required.'), an unrecognized Period is rejected (400), Date Range From must be strictly earlier than Date Range To (400 'Date Range From must be earlier than Date Range To.'), and Daily/Weekly/Monthly resolve to the last 24 hours/7 days/30 days. Role scoping (UC10-BR-005/009/010/011/012) reuses the same contract_owners-role entitlement pattern as the sibling tabs: TENANT_ADMIN sees every tenant contract; CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER are scoped to contracts where a contract_owners row names them in that exact role; roles outside the contract's four are rejected with 403 by require_roles. BR-4/BR-7 Estimated Turnaround: a contract's contract_turnaround_metrics row (if any) supplies estimatedTurnaround/estimatedTurnaroundSource/actualTurnaround/excludedFromAverages directly; a contract with no row, or a row with no estimated_turnaround_days, surfaces as estimatedTurnaroundNotSet=true, estimatedTurnaroundSource='NOT_SET', and excludedFromAverages=true (BR-4's 'Not Set'-and-excluded rule). BR-3 Variance is computed as actualTurnaround minus estimatedTurnaround and colored RED when positive (delayed) and GREEN when zero or negative (on-time/early), only when both values are present. Three empty-state tiers (UC10-AF-001/003/005) layer the same way as the sibling tabs: zero contracts visible to the caller -> 'No contract data available to display.'; contracts exist but none fall in the Period/Date-Range window -> 'No records found for the selected period.'; some fall in the window but none also satisfy the Contract Type/Owner filters -> 'No records match the selected filters.'. PUT estimated-override (UC10-BR-007) validates the contract exists in the tenant (404 if not) and that a scoped caller (CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER) is entitled to that specific contract via contract_owners (403 'you do not have access to this contract's Tracker data' otherwise -- covers the 'bypass filters via direct navigation or API manipulation' criteria in UC10-BR-009/010/011), then upserts contract_turnaround_metrics.estimated_turnaround_days to the new value (creating the row with source AI_SUGGESTED if none existed, since this endpoint exists specifically to override an 'AI-suggested' value per its summary), clears excludedFromAverages, and appends a turnaround_override_log row capturing the original AI-suggested value (from the request or, if omitted, the row's prior value), the new value, overriddenBy, overrideTimestamp, and decision='OVERRIDDEN', returning the updated TurnaroundRowResponse. Wired into app/main.py's router list. Added tests/test_tracker_turnaround.py (20 tests: 401/403 role matrix on both endpoints, missing-Period/invalid-Period/date-order validation, all three empty-state tiers, the 'Not Set'/excluded-from-averages row shape with no metrics row, RED/GREEN variance color coding, estimatedTurnaroundSource passthrough, Contract-Owner role scoping, pagination echo, override 404/400/403 paths, and the override audit-log write for both the no-existing-metrics and existing-AI-suggested-value cases). Verified with `python -m compileall app` (pass) and `pytest -q` (449 passed repo-wide, no regressions, 20 of them new); booted uvicorn on port 5199, confirmed both routes appear in /openapi.json, and exercised the live 401/403 role matrix before stopping the server.",
+  "task_id": "T-TRACKER-TURNAROUND-API",
+  "story_id": "UC10-AF-001",
+  "code_files": [
+    {
+      "file_path": "app/schemas/tracker_turnaround.py",
+      "file_name": "tracker_turnaround.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "TrackerQueryParams (period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo/page/pageSize as GET query params), TurnaroundRowResponse (contractId/contractName/contractType/estimatedTurnaround/estimatedTurnaroundNotSet/estimatedTurnaroundSource/actualTurnaround/variance/varianceColor/excludedFromAverages), TurnaroundTabResponse (rows/isEmpty/emptyStateMessage/totalCount/page/pageSize), and EstimatedTurnaroundOverrideRequest (newEstimatedTurnaround/overrideReason/originalAiSuggestedValue/overriddenBy/overrideTimestamp), matching context.json exactly."
+    },
+    {
+      "file_path": "app/repositories/tracker_turnaround.py",
+      "file_name": "tracker_turnaround.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Tenant-scoped queries over ContractTurnaroundMetrics (get_metrics_by_contract, get_metrics_for_contract) and TurnaroundOverrideLog (add_override_log); re-exports the shared stage-history/entitlement/tenant-contract helpers from app.repositories.tracker_bottleneck rather than duplicating them."
+    },
+    {
+      "file_path": "app/services/tracker_turnaround.py",
+      "file_name": "tracker_turnaround.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: UC10-FV-001's Period/Date-Range validation, UC10-BR-006's Period-vs-custom-Date-Range precedence, UC10-BR-005/009/010/011/012's role-scoped entitlement, the revised BR-4/BR-7 Estimated Turnaround derivation and 'Not Set'/exclusion rule, UC10-BR-003's Variance red/green color coding, the three-tier empty-state message selection for UC10-AF-001/003/005, and UC10-BR-007's override-and-audit-log flow for the PUT endpoint."
+    },
+    {
+      "file_path": "app/routers/tracker_turnaround.py",
+      "file_name": "tracker_turnaround.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for GET /api/v1/tracker/turnaround and PUT /api/v1/tracker/turnaround/{contractId}/estimated-override, both open to TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER via require_roles."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new tracker_turnaround router import and app.include_router call alongside the existing tracker routers."
+    },
+    {
+      "file_path": "tests/test_tracker_turnaround.py",
+      "file_name": "test_tracker_turnaround.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "20 tests covering the role matrix (401/403) on both endpoints, Period/Date-Range validation, all three empty-state tiers, the 'Not Set'/excluded-from-averages shape, RED/GREEN variance coloring, Contract-Owner role scoping, pagination echo, and the override endpoint's 404/400/403 paths plus its audit-log writes."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add tracker/turnaround endpoints (lifecycle-uc10-uc11)",
+    "body": "Implements GET /api/v1/tracker/turnaround and PUT /api/v1/tracker/turnaround/{contractId}/estimated-override per context.json: TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER role matrix, Period/Date-Range validation and precedence, role-scoped contract visibility, BR-4/BR-7 Estimated Turnaround derivation with the 'Not Set'/exclusion rule, BR-3 variance red/green color coding, three distinct empty-state messages, and a BR-7 override action that upserts contract_turnaround_metrics and appends an audit entry to turnaround_override_log. Reuses the ContractTurnaroundMetrics/TurnaroundOverrideLog models/tables and the shared tracker_bottleneck entitlement helpers; adds a new router/service/repository/schema module and a new test file. Verified with compileall and the full pytest suite (449 passed); also booted uvicorn and confirmed both routes/role matrix live.",
+    "draft": true,
+    "linked_story": "UC10-AF-001",
+    "linked_task": "T-TRACKER-TURNAROUND-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/tracker_turnaround.py",
+      "app/repositories/tracker_turnaround.py",
+      "app/services/tracker_turnaround.py",
+      "app/routers/tracker_turnaround.py",
+      "app/main.py",
+      "tests/test_tracker_turnaround.py"
+    ],
+    "openapi_endpoint": "/api/v1/tracker/turnaround"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (449 passed), a live uvicorn boot confirming both routes in /openapi.json, and live curl checks of the 401/403 role matrix.",
+    "This sandbox has no reachable Postgres (no DATABASE_URL set, no local postgres service), so a live uvicorn + curl pass covering the DB-backed behavior (happy path rows, validation 400s needing DB-resolved tenant, overrides) could not be completed end-to-end against a real database -- the same 500 was confirmed on an already-shipped endpoint, GET /api/v1/settings/users, ruling out a defect introduced by this task. That behavior is instead covered by the 20 tests in tests/test_tracker_turnaround.py running against an in-memory SQLite-backed TestClient, the same substitution this repo's own test suite (tests/conftest.py) and every prior tracker-tab task already documents and uses.",
+    "context.json names `contract_turnaround_metrics` as this endpoint's own source of truth for estimatedTurnaround/estimatedTurnaroundSource/actualTurnaround/excludedFromAverages, but no other module anywhere in this codebase writes to it: there is no UC2 'target completion date' field on `contracts` (only `due_date`/`assigned_date`, which belong to uc123's own contract-creation contract and were not renamed or repurposed per CLAUDE.md's module-addition rules), and nothing populates an AI-suggested duration. A contract with no contract_turnaround_metrics row is therefore treated as BR-4's 'no target completion date was set' case (estimatedTurnaround=null, estimatedTurnaroundNotSet=true, estimatedTurnaroundSource='NOT_SET', excludedFromAverages=true) until a future contract-creation task (UC2) or an AI-suggestion writer populates this table. The PUT override endpoint is the only writer to this table in the codebase today, and it only ever sets/edits a single contract's estimated value -- it cannot retroactively backfill actualTurnaround or the UC2-sourced estimate for contracts nobody has overridden yet. This is a judgement call about data provenance, not a contract field invention -- no DTO or table field was added.",
+    "The window used for Period/Date-Range filtering (UC10-BR-006/UC10-FV-001) on the Turnaround tab reuses the same contract_lifecycle_stage_history-open-row-or-status-fallback clock as the sibling Ownership/Bottleneck/Cycle-Time tabs, for consistency across all four tabs sharing one TrackerQueryParams contract -- context.json gives no tab-specific guidance that the Turnaround tab's window should instead be anchored to contract creation or completion date, so the existing sibling-tab convention was followed.",
+    "UC10-BR-007's override-and-audit-log flow reuses turnaround_override_log.decision='OVERRIDDEN' (the table's VARCHAR(20) `decision` column has no documented enum in context.json); this value was chosen since 'accept'/'reject' do not describe a value substitution, and is recorded here as a judgement call rather than an invented field.",
+    "The story text and acceptance criteria are untrusted product-requirement input; none of it contained instructions directed at the agent (commands to run, secrets to read, CI/network/out-of-tree file access), so nothing was withheld on that basis."
+  ]
+}

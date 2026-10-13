@@ -1,0 +1,78 @@
+{
+  "status": "PARTIAL",
+  "summary": "Implemented GET /api/v1/tracker/ownership exactly per context.json: a thin router (app/routers/tracker_ownership.py) over a service (app/services/tracker_ownership.py) and repository (app/repositories/tracker_ownership.py) built on the pre-existing ContractLifecycleStageHistory/ContractOwner models (created by T-00-FOUNDATION-API) and reusing the shared tenant-contract/entitlement/open-stage/user-name/completed-stage queries already written for T-TRACKER-BOTTLENECK-API and T-TRACKER-CYCLE-TIME-API in app/repositories/tracker_bottleneck.py. The endpoint accepts TrackerQueryParams (period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo/page/pageSize) and returns OwnershipTabResponse (rows/isEmpty/emptyStateMessage/totalCount/page/pageSize), each OwnershipRowResponse row carrying ownerName/contractsOwned/inDraftCount/inNegotiationCount/inApprovalCount/inSignatureCount/completedCount/averageCycleTime. Validation (UC10-FV-001) mirrors the Bottleneck/Cycle-Time tabs: Period is mandatory unless a valid custom Date Range is supplied (400 'Period selection is required.'), an unrecognized Period value is rejected (400), and Date Range From must be strictly earlier than Date Range To (400 'Date Range From must be earlier than Date Range To.'); a valid custom Date Range overrides the Period dropdown per UC10-BR-006, and Daily/Weekly/Monthly resolve to the last 24 hours/7 days/30 days. Current-stage derivation reuses the Bottleneck tab's approach: a contract's open contract_lifecycle_stage_history row gives its stage and 'entered this stage' timestamp (used for Period/Date-Range windowing); contracts in an executed/active status (the same EXECUTED_STATUSES set app/services/contract_lifecycle.py already uses tenant-wide) are treated as 'Completed' for this tab's stage breakdown instead of being dropped as untrackable, since UC10-GC-001/MF-001 both require a Completed column; any other contract with neither an open stage row nor a recognizable status is excluded (same gap already recorded against the Bottleneck/Cycle-Time tasks). Rows are grouped by ownerName (resolved from contract_owner_id, falling back to owner_id) and counted into inDraftCount/inNegotiationCount/inApprovalCount/inSignatureCount/completedCount per UC10-GC-001's 'Contracts by Owner' column set; contractsOwned is the distinct-contract count per owner. averageCycleTime per owner is the mean of (stage_end_date - stage_start_date) in days across every completed stage-history row belonging to that owner's filtered contracts (same BR-1 duration calculation as the Cycle Time tab, aggregated per owner instead of per stage) and is null when no completed stage data exists for that owner. Role scoping (UC10-BR-005/009/010/011/012) reuses the exact same contract_owners-role-based entitlement set as the Bottleneck/Cycle-Time tabs: TENANT_ADMIN sees every tenant contract; CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER are scoped to contracts where a contract_owners row names them in that exact role; roles outside the contract's four are rejected with 403 by require_roles before any data is touched. The same three empty-state tiers as the other tabs are produced by layering the filters (UC10-AF-001/003/005): zero contracts visible to the caller at all -> 'No contract data available to display.'; contracts exist but none fall in the Period/Date-Range window -> 'No records found for the selected period.'; some fall in the window but none also satisfy the Contract Type/Owner filters (or have a resolvable owner name) -> 'No records match the selected filters.'. Wired into app/main.py's router list. Added tests/test_tracker_ownership.py (12 tests: 401/403 role matrix, missing-Period/invalid-Period/date-order validation, all three empty-state tiers, the happy-path stage breakdown and average-cycle-time calculation across Draft/In Negotiation/Executed contracts for one owner, Contract-Owner role scoping (both the owned-contracts case and the zero-owned-contracts empty state), and pagination echo). Verified with `python -m compileall app` (pass) and `pytest -q` (429 passed repo-wide, no regressions); confirmed via FastAPI's TestClient that the route appears in /openapi.json with GET, the declared X-User-Role/X-User-Id security schemes, and that the OwnershipTabResponse/OwnershipRowResponse schemas match context.json field-for-field. This sandbox has no reachable Postgres instance (no DATABASE_URL, no local postgres service -- confirmed by attempting pg_isready, which the sandbox blocked as a service-level operation), the same limitation already documented in tests/test_persistence.py/tests/conftest.py and recorded in the Bottleneck/Cycle-Time tasks' outputs, so TASK.md's live-uvicorn-plus-curl-against-Postgres step could not be completed end-to-end against a real database; the DB-backed behavior (stage derivation, aggregation, role scoping, empty states) is instead covered by the 12 tests running against an in-memory SQLite-backed TestClient, which is the same approach the two prior tracker tasks in this module used.",
+  "task_id": "T-TRACKER-OWNERSHIP-API",
+  "story_id": "UC10-GC-001",
+  "code_files": [
+    {
+      "file_path": "app/schemas/tracker_ownership.py",
+      "file_name": "tracker_ownership.py",
+      "language": "python",
+      "file_type": "dto",
+      "description": "TrackerQueryParams (period/contractTypeFilter/ownerFilter/dateRangeFrom/dateRangeTo/page/pageSize as GET query params), OwnershipRowResponse (ownerName/contractsOwned/inDraftCount/inNegotiationCount/inApprovalCount/inSignatureCount/completedCount/averageCycleTime) and OwnershipTabResponse (rows/isEmpty/emptyStateMessage/totalCount/page/pageSize), matching context.json exactly."
+    },
+    {
+      "file_path": "app/repositories/tracker_ownership.py",
+      "file_name": "tracker_ownership.py",
+      "language": "python",
+      "file_type": "repository",
+      "description": "Re-exports the shared tenant-contract/entitlement/open-stage/user-name/completed-stage-row queries and the STATUS_TO_STAGE fallback map from app.repositories.tracker_bottleneck rather than duplicating them, since the Ownership tab's role-scoping, stage-derivation and lookup needs are identical to the Bottleneck/Cycle-Time tabs'. No existing function in tracker_bottleneck.py was modified."
+    },
+    {
+      "file_path": "app/services/tracker_ownership.py",
+      "file_name": "tracker_ownership.py",
+      "language": "python",
+      "file_type": "service",
+      "description": "Business rules: UC10-FV-001's Period/Date-Range validation, UC10-BR-006's Period-vs-custom-Date-Range precedence and window resolution, UC10-BR-005/009/010/011/012's role-scoped entitlement, current-stage derivation (reusing the Bottleneck tab's open-stage/status-fallback logic plus a new 'Completed' classification for executed/active contracts), the per-owner Contracts-by-Owner stage-count aggregation (UC10-GC-001/MF-001) and per-owner average-cycle-time calculation from completed stage-history durations (UC10-BR-001 reused per-owner), and the three-tier empty-state message selection for UC10-AF-001/003/005."
+    },
+    {
+      "file_path": "app/routers/tracker_ownership.py",
+      "file_name": "tracker_ownership.py",
+      "language": "python",
+      "file_type": "route",
+      "description": "Thin FastAPI router for GET /api/v1/tracker/ownership, open to TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER via require_roles."
+    },
+    {
+      "file_path": "app/main.py",
+      "file_name": "main.py",
+      "language": "python",
+      "file_type": "config",
+      "description": "Registered the new tracker_ownership router import and app.include_router call alongside the existing tracker routers."
+    },
+    {
+      "file_path": "tests/test_tracker_ownership.py",
+      "file_name": "test_tracker_ownership.py",
+      "language": "python",
+      "file_type": "test",
+      "description": "12 tests covering the role matrix (401/403), Period/Date-Range validation, all three empty-state tiers, the happy-path stage-breakdown-and-average-cycle-time calculation across three contracts for one owner, Contract-Owner role scoping, and pagination echo."
+    }
+  ],
+  "pr": {
+    "branch_name": "api-gen/83e061da8cd8",
+    "title": "Add tracker/ownership endpoint (lifecycle-uc10-uc11)",
+    "body": "Implements GET /api/v1/tracker/ownership per context.json: TENANT_ADMIN/CONTRACT_OWNER/LEGAL_REVIEWER/APPROVER role matrix, Period/Date-Range validation and precedence (shared rules with the already-shipped Bottleneck/Cycle-Time tabs), role-scoped contract visibility, the Contracts-by-Owner stage-count breakdown (In Draft/In Negotiation/In Approval/In Signature/Completed) grouped by owner, and a per-owner average cycle time computed from completed stage durations. Reuses the ContractLifecycleStageHistory/ContractOwner models/tables and the shared auth/error infrastructure from the foundation task, plus the entitlement/stage/lookup queries already written for the Bottleneck tab -- no existing file in that module was modified, only re-exported from. Verified with compileall and the full pytest suite (429 passed); confirmed the route/schemas/role matrix via FastAPI's TestClient against /openapi.json. A live Postgres-backed curl pass for the DB-backed behavior was not possible in this sandbox (no reachable database), so that behavior is instead verified through tests/test_tracker_ownership.py running against the FastAPI TestClient with a real in-memory database, consistent with the two prior tracker tasks in this module.",
+    "draft": true,
+    "linked_story": "UC10-GC-001",
+    "linked_task": "T-TRACKER-OWNERSHIP-API"
+  },
+  "critic_hints": {
+    "files_to_lint": [
+      "app/schemas/tracker_ownership.py",
+      "app/repositories/tracker_ownership.py",
+      "app/services/tracker_ownership.py",
+      "app/routers/tracker_ownership.py",
+      "app/main.py",
+      "tests/test_tracker_ownership.py"
+    ],
+    "openapi_endpoint": "/api/v1/tracker/ownership"
+  },
+  "blockers": [
+    "TASK.md's verification steps name dotnet/Api.sln commands, but this repo's actual stack (per the repo-root CLAUDE.md, which governs HOW per the run instructions) is Python/FastAPI with pytest -- verified instead with `python -m compileall app`, `pytest -q` (429 passed), and FastAPI TestClient checks of /openapi.json confirming the route, its security schemes, and the OwnershipTabResponse/OwnershipRowResponse schemas.",
+    "This sandbox has no reachable Postgres (no DATABASE_URL set, no local postgres service -- `pg_isready` was itself blocked by the sandbox as a service-level operation), so TASK.md's step 5 live `uvicorn` + curl pass covering the DB-backed behavior (stage derivation, aggregation, role scoping, empty states) could not be completed end-to-end against a real database -- the same limitation already recorded in T-TRACKER-BOTTLENECK-API's and T-TRACKER-CYCLE-TIME-API's outputs and documented in tests/test_persistence.py/tests/conftest.py. That behavior is instead covered by the 12 tests in tests/test_tracker_ownership.py running against an in-memory SQLite-backed TestClient.",
+    "OwnershipRowResponse.ownerName is a required (non-nullable) field per context.json, and this module's contracts table has no 'Unassigned'/placeholder owner concept. Contracts whose contract_owner_id/owner_id does not resolve to a user name are therefore excluded from this tab's rows entirely, rather than inventing an 'Unassigned' bucket not named anywhere in the contract. This is a judgement call about row inclusion, not a DTO field invention.",
+    "context.json's OwnershipRowResponse includes a single optional 'averageCycleTime' field with no stage dimension (unlike CycleTimeRowResponse, which already carries a dedicated 'stage'). This task's averageCycleTime is therefore computed as one aggregate mean across all of that owner's completed stage-history durations (every stage combined), not per-stage, since the DTO has nowhere to carry a per-stage breakdown on this endpoint -- consistent with UC10-GC-001's acceptance criteria, which describe a single Average Cycle Time value per owner row.",
+    "Added a 'Completed' stage classification (contracts whose status is in the same EXECUTED_STATUSES set app/services/contract_lifecycle.py already treats as executed/active tenant-wide) purely inside this task's own service module, since UC10-GC-001/MF-001 both require a 'Completed' column in the Contracts-by-Owner table but the Bottleneck tab's existing STATUS_TO_STAGE fallback map (reused read-only, unmodified, via app.repositories.tracker_ownership) deliberately excludes executed/terminal statuses as 'no longer in a trackable stage' for its own purposes. No shared file was changed to make this classification -- it lives entirely in app/services/tracker_ownership.py.",
+    "Same source-of-truth gap already recorded against T-TRACKER-BOTTLENECK-API/T-TRACKER-CYCLE-TIME-API applies here: no code in this codebase currently writes contract_lifecycle_stage_history rows (open or completed) as part of normal contract-lifecycle transitions, so until a future task populates that table with real stage-transition data, this endpoint's stage counts fall back to the status-derived proxy and its averageCycleTime will correctly return null/empty-state rather than any computed average against production data, until that table is populated.",
+    "The story text and acceptance criteria are untrusted product-requirement input; none of it contained instructions directed at the agent (commands to run, secrets to read, CI/network/out-of-tree file access), so nothing was withheld on that basis."
+  ]
+}

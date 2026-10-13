@@ -3,13 +3,13 @@
   "task_id": "T-00-FOUNDATION-API",
   "kind": "foundation",
   "resource": "",
-  "base_path": "/api/v1/contracts",
+  "base_path": "/api/v1",
   "primary_story_id": "00-foundation",
   "story_ids": [],
   "endpoints": [
     {
-      "id": "GET_contracts",
-      "path": "/api/v1/contracts",
+      "id": "GET_tracker_ownership",
+      "path": "/api/v1/tracker/ownership",
       "roles": [
         "TENANT_ADMIN",
         "CONTRACT_OWNER",
@@ -17,36 +17,33 @@
         "APPROVER"
       ],
       "method": "GET",
-      "summary": "Search, filter, sort and paginate contracts visible to the current user",
+      "summary": "Get Ownership tab data (Contracts by Owner) with period/filters",
       "is_paged": true,
       "story_refs": [
-        "UC8-MF-001",
-        "UC8-AF-001",
-        "UC8-AF-002",
-        "UC8-AF-003",
-        "UC8-AF-004",
-        "UC8-BR-001",
-        "UC8-BR-002",
-        "UC8-BR-004",
-        "UC8-BR-005",
-        "UC8-BR-007",
-        "UC8-BR-008",
-        "UC8-BR-009",
-        "UC8-BR-010",
-        "UC8-BR-011",
-        "UC8-FV-001",
-        "UC8-FV-002",
-        "UC8-FV-003",
-        "UC8-FV-004",
-        "UC8-GC-001"
+        "UC10-MF-001",
+        "UC10-AF-001",
+        "UC10-AF-002",
+        "UC10-AF-003",
+        "UC10-AF-004",
+        "UC10-AF-005",
+        "UC10-BR-005",
+        "UC10-BR-006",
+        "UC10-BR-008",
+        "UC10-BR-009",
+        "UC10-BR-010",
+        "UC10-BR-011",
+        "UC10-BR-012",
+        "UC10-BR-013",
+        "UC10-FV-001",
+        "UC10-GC-001"
       ],
-      "request_dto": "ContractSearchRequest",
-      "response_dto": "ContractListItemResponse",
+      "request_dto": "TrackerQueryParams",
+      "response_dto": "OwnershipTabResponse",
       "auth_required": true
     },
     {
-      "id": "GET_contract_detail",
-      "path": "/api/v1/contracts/{contractId}",
+      "id": "GET_tracker_cycle_time",
+      "path": "/api/v1/tracker/cycle-time",
       "roles": [
         "TENANT_ADMIN",
         "CONTRACT_OWNER",
@@ -54,81 +51,34 @@
         "APPROVER"
       ],
       "method": "GET",
-      "summary": "Get contract core metadata (Details tab) for an authorized contract, enforcing direct-link access control",
-      "is_paged": false,
-      "story_refs": [
-        "UC8-MF-001",
-        "UC8-AF-003",
-        "UC8-BR-001",
-        "UC8-BR-005",
-        "UC8-BR-007",
-        "UC8-BR-008",
-        "UC8-BR-009",
-        "UC8-BR-010",
-        "UC8-BR-011"
-      ],
-      "response_dto": "ContractDetailResponse",
-      "auth_required": true
-    },
-    {
-      "id": "GET_contract_document",
-      "path": "/api/v1/contracts/{contractId}/document",
-      "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER",
-        "LEGAL_REVIEWER",
-        "APPROVER"
-      ],
-      "method": "GET",
-      "summary": "Get document viewer metadata for the Document tab",
-      "is_paged": false,
-      "story_refs": [
-        "UC8-MF-001",
-        "UC8-BR-006"
-      ],
-      "response_dto": "ContractDocumentResponse",
-      "auth_required": true
-    },
-    {
-      "id": "GET_contract_document_download",
-      "path": "/api/v1/contracts/{contractId}/document/download",
-      "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER",
-        "LEGAL_REVIEWER",
-        "APPROVER"
-      ],
-      "method": "GET",
-      "summary": "Download the current document file; returns error for corrupted/missing/oversized files",
-      "is_paged": false,
-      "story_refs": [
-        "UC8-AF-005",
-        "UC8-BR-006"
-      ],
-      "response_dto": "DocumentDownloadResponse",
-      "auth_required": true
-    },
-    {
-      "id": "GET_contract_versions",
-      "path": "/api/v1/contracts/{contractId}/versions",
-      "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER",
-        "LEGAL_REVIEWER",
-        "APPROVER"
-      ],
-      "method": "GET",
-      "summary": "Get version history list (Versions tab)",
+      "summary": "Get Cycle Time tab data (avg cycle time per stage grouped by user/contract type)",
       "is_paged": true,
       "story_refs": [
-        "UC8-MF-001"
+        "UC10-MF-001",
+        "UC10-AF-001",
+        "UC10-AF-002",
+        "UC10-AF-003",
+        "UC10-AF-004",
+        "UC10-AF-005",
+        "UC10-BR-001",
+        "UC10-BR-005",
+        "UC10-BR-006",
+        "UC10-BR-008",
+        "UC10-BR-009",
+        "UC10-BR-010",
+        "UC10-BR-011",
+        "UC10-BR-012",
+        "UC10-BR-013",
+        "UC10-FV-001",
+        "UC10-GC-002"
       ],
-      "response_dto": "ContractVersionResponse",
+      "request_dto": "TrackerQueryParams",
+      "response_dto": "CycleTimeTabResponse",
       "auth_required": true
     },
     {
-      "id": "GET_contract_activity_log",
-      "path": "/api/v1/contracts/{contractId}/activity-log",
+      "id": "GET_tracker_bottleneck",
+      "path": "/api/v1/tracker/bottleneck",
       "roles": [
         "TENANT_ADMIN",
         "CONTRACT_OWNER",
@@ -136,262 +86,358 @@
         "APPROVER"
       ],
       "method": "GET",
-      "summary": "Get immutable, read-only Activity Log entries for the contract",
+      "summary": "Get Bottleneck tab data (current stage, days in stage, stuck flag)",
       "is_paged": true,
       "story_refs": [
-        "UC8-MF-001",
-        "UC8-BR-003",
-        "UC8-BR-007"
+        "UC10-MF-001",
+        "UC10-AF-001",
+        "UC10-AF-002",
+        "UC10-AF-003",
+        "UC10-AF-004",
+        "UC10-AF-005",
+        "UC10-BR-002",
+        "UC10-BR-005",
+        "UC10-BR-006",
+        "UC10-BR-008",
+        "UC10-BR-009",
+        "UC10-BR-010",
+        "UC10-BR-011",
+        "UC10-BR-012",
+        "UC10-BR-013",
+        "UC10-FV-001",
+        "UC10-GC-003"
       ],
-      "response_dto": "ActivityLogEntryResponse",
+      "request_dto": "TrackerQueryParams",
+      "response_dto": "BottleneckTabResponse",
       "auth_required": true
     },
     {
-      "id": "POST_contract_folder_tag",
-      "path": "/api/v1/contracts/{contractId}/folder-tags",
+      "id": "GET_tracker_turnaround",
+      "path": "/api/v1/tracker/turnaround",
       "roles": [
         "TENANT_ADMIN",
-        "CONTRACT_OWNER"
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER"
+      ],
+      "method": "GET",
+      "summary": "Get Turnaround tab data (estimated vs actual turnaround, variance)",
+      "is_paged": true,
+      "story_refs": [
+        "UC10-MF-001",
+        "UC10-AF-001",
+        "UC10-AF-002",
+        "UC10-AF-003",
+        "UC10-AF-004",
+        "UC10-AF-005",
+        "UC10-BR-003",
+        "UC10-BR-004",
+        "UC10-BR-005",
+        "UC10-BR-006",
+        "UC10-BR-007",
+        "UC10-BR-008",
+        "UC10-BR-009",
+        "UC10-BR-010",
+        "UC10-BR-011",
+        "UC10-BR-012",
+        "UC10-BR-013",
+        "UC10-FV-001",
+        "UC10-GC-004"
+      ],
+      "request_dto": "TrackerQueryParams",
+      "response_dto": "TurnaroundTabResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_tracker_export",
+      "path": "/api/v1/tracker/export",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER"
       ],
       "method": "POST",
-      "summary": "Assign one or more folders/tags to a contract via the Add Folder/Tag dialog",
+      "summary": "Export currently selected tab data for selected period/filters to Excel or PDF",
       "is_paged": false,
       "story_refs": [
-        "UC8-MF-001",
-        "UC8-BR-004",
-        "UC8-BR-007",
-        "UC8-BR-008",
-        "UC8-BR-009",
-        "UC8-BR-010",
-        "UC8-FV-004"
+        "UC10-MF-001",
+        "UC10-AF-001",
+        "UC10-AF-003",
+        "UC10-AF-004",
+        "UC10-BR-003",
+        "UC10-BR-008",
+        "UC10-BR-009",
+        "UC10-GC-001"
       ],
-      "request_dto": "AssignFolderTagRequest",
-      "response_dto": "ContractFolderTagResponse",
+      "request_dto": "TrackerExportRequest",
+      "response_dto": "TrackerExportResponse",
       "auth_required": true
     },
     {
-      "id": "GET_folder_tags",
-      "path": "/api/v1/folder-tags",
+      "id": "PUT_tracker_turnaround_override",
+      "path": "/api/v1/tracker/turnaround/{contractId}/estimated-override",
       "roles": [
         "TENANT_ADMIN",
         "CONTRACT_OWNER",
         "LEGAL_REVIEWER",
         "APPROVER"
       ],
-      "method": "GET",
-      "summary": "List available folders/tags for the Folder/Tag Filter and Add Folder/Tag dialog",
+      "method": "PUT",
+      "summary": "Override AI-suggested Estimated Turnaround value and log audit entry",
       "is_paged": false,
       "story_refs": [
-        "UC8-MF-001",
-        "UC8-BR-004",
-        "UC8-FV-001",
-        "UC8-FV-004"
+        "UC10-BR-007"
       ],
-      "response_dto": "FolderTagOptionResponse",
+      "request_dto": "EstimatedTurnaroundOverrideRequest",
+      "response_dto": "TurnaroundRowResponse",
       "auth_required": true
     },
     {
-      "id": "GET_contract_obligations",
-      "path": "/api/v1/contracts/{contractId}/obligations",
+      "id": "GET_tracker_bottleneck_thresholds",
+      "path": "/api/v1/tracker/bottleneck-thresholds",
       "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER",
-        "LEGAL_REVIEWER"
+        "TENANT_ADMIN"
       ],
       "method": "GET",
-      "summary": "List obligations for an Executed contract (Obligations & Renewal screen)",
+      "summary": "Get tenant-configured stuck-flag thresholds per stage",
+      "is_paged": false,
+      "story_refs": [
+        "UC10-BR-002"
+      ],
+      "response_dto": "BottleneckThresholdResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_settings_users",
+      "path": "/api/v1/settings/users",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "GET",
+      "summary": "List tenant users table (Name/Email/Role/Status/Last Login)",
       "is_paged": true,
       "story_refs": [
-        "UC9-MF-001",
-        "UC9-AF-001",
-        "UC9-AF-002",
-        "UC9-AF-003",
-        "UC9-BR-001",
-        "UC9-BR-002",
-        "UC9-BR-009",
-        "UC9-BR-010",
-        "UC9-BR-011",
-        "UC9-BR-012",
-        "UC9-GC-001"
+        "UC11-MF-001",
+        "UC11-AF-001",
+        "UC11-FV-001",
+        "UC11-GC-001",
+        "UC11-BR-001",
+        "UC11-BR-010",
+        "UC11-BR-012"
       ],
-      "response_dto": "ObligationResponse",
+      "response_dto": "UserListItemResponse",
       "auth_required": true
     },
     {
-      "id": "POST_contract_obligation_manual",
-      "path": "/api/v1/contracts/{contractId}/obligations",
+      "id": "POST_settings_users",
+      "path": "/api/v1/settings/users",
       "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER"
+        "TENANT_ADMIN"
       ],
       "method": "POST",
-      "summary": "Manually add an obligation when none were AI-extracted",
+      "summary": "Add a new user with Name/Email/Role, validate uniqueness",
       "is_paged": false,
       "story_refs": [
-        "UC9-AF-001",
-        "UC9-FV-001"
+        "UC11-MF-001",
+        "UC11-AF-002",
+        "UC11-BR-002",
+        "UC11-FV-001"
       ],
-      "request_dto": "CreateObligationRequest",
-      "response_dto": "ObligationResponse",
+      "request_dto": "CreateUserRequest",
+      "response_dto": "UserListItemResponse",
       "auth_required": true
     },
     {
-      "id": "PATCH_contract_obligation",
-      "path": "/api/v1/contracts/{contractId}/obligations/{obligationId}",
+      "id": "PATCH_settings_user_status",
+      "path": "/api/v1/settings/users/{userId}/status",
       "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER"
+        "TENANT_ADMIN"
       ],
       "method": "PATCH",
-      "summary": "Edit obligation fields (Description, Type, Owner, Due Date, Status), transitioning Source label to Confirmed",
+      "summary": "Deactivate, reactivate, or auto-activate a user; blocks removing last active Tenant Admin",
       "is_paged": false,
       "story_refs": [
-        "UC9-MF-001",
-        "UC9-AF-004",
-        "UC9-BR-002",
-        "UC9-BR-005",
-        "UC9-BR-006",
-        "UC9-BR-009",
-        "UC9-BR-010",
-        "UC9-BR-013",
-        "UC9-BR-014",
-        "UC9-BR-015",
-        "UC9-FV-001"
+        "UC11-AF-005",
+        "UC11-BR-003",
+        "UC11-BR-013",
+        "UC11-BR-014",
+        "UC11-BR-015"
       ],
-      "request_dto": "UpdateObligationRequest",
-      "response_dto": "ObligationResponse",
+      "request_dto": "UpdateUserStatusRequest",
+      "response_dto": "UserListItemResponse",
       "auth_required": true
     },
     {
-      "id": "POST_contract_obligation_accept",
-      "path": "/api/v1/contracts/{contractId}/obligations/{obligationId}/accept",
+      "id": "GET_settings_approval_rules",
+      "path": "/api/v1/settings/approval-rules",
       "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER"
-      ],
-      "method": "POST",
-      "summary": "Accept an AI-suggested obligation, changing label from AI Suggested to Confirmed",
-      "is_paged": false,
-      "story_refs": [
-        "UC9-MF-001",
-        "UC9-BR-005",
-        "UC9-BR-006",
-        "UC9-FV-002"
-      ],
-      "response_dto": "ObligationResponse",
-      "auth_required": true
-    },
-    {
-      "id": "GET_contract_renewal",
-      "path": "/api/v1/contracts/{contractId}/renewal",
-      "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER",
-        "LEGAL_REVIEWER"
+        "TENANT_ADMIN"
       ],
       "method": "GET",
-      "summary": "Get renewal panel data (alert banner, end date, notice period, action button states)",
-      "is_paged": false,
+      "summary": "List approval matrix rules (Contract Type/Value Threshold/Approver Role)",
+      "is_paged": true,
       "story_refs": [
-        "UC9-MF-001",
-        "UC9-AF-001",
-        "UC9-AF-002",
-        "UC9-AF-003",
-        "UC9-BR-003",
-        "UC9-BR-004",
-        "UC9-BR-008",
-        "UC9-BR-011",
-        "UC9-BR-012",
-        "UC9-FV-002",
-        "UC9-GC-001"
+        "UC11-MF-001",
+        "UC11-BR-001",
+        "UC11-BR-010",
+        "UC11-GC-002"
       ],
-      "response_dto": "RenewalPanelResponse",
+      "response_dto": "ApprovalRuleResponse",
       "auth_required": true
     },
     {
-      "id": "POST_contract_renew",
-      "path": "/api/v1/contracts/{contractId}/renew",
+      "id": "POST_settings_approval_rules",
+      "path": "/api/v1/settings/approval-rules",
       "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER"
+        "TENANT_ADMIN"
       ],
       "method": "POST",
-      "summary": "Create a linked renewal contract and transition original to Renewed",
+      "summary": "Add approval rule, validate required fields and duplicate combination",
       "is_paged": false,
       "story_refs": [
-        "UC9-MF-001",
-        "UC9-AF-005",
-        "UC9-BR-004",
-        "UC9-BR-006",
-        "UC9-BR-007",
-        "UC9-BR-008",
-        "UC9-BR-009",
-        "UC9-BR-010",
-        "UC9-BR-016",
-        "UC9-FV-002"
+        "UC11-MF-001",
+        "UC11-AF-003",
+        "UC11-BR-004",
+        "UC11-FV-002"
       ],
-      "response_dto": "LinkedContractActionResponse",
+      "request_dto": "CreateApprovalRuleRequest",
+      "response_dto": "ApprovalRuleResponse",
       "auth_required": true
     },
     {
-      "id": "POST_contract_amend",
-      "path": "/api/v1/contracts/{contractId}/amend",
+      "id": "GET_settings_integrations",
+      "path": "/api/v1/settings/integrations",
       "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER"
+        "TENANT_ADMIN"
       ],
-      "method": "POST",
-      "summary": "Create a linked amendment contract and transition original to Amended",
+      "method": "GET",
+      "summary": "List integration cards (Integration Name/Connection Status)",
       "is_paged": false,
       "story_refs": [
-        "UC9-MF-001",
-        "UC9-AF-005",
-        "UC9-BR-004",
-        "UC9-BR-006",
-        "UC9-BR-007",
-        "UC9-BR-008",
-        "UC9-BR-009",
-        "UC9-BR-010",
-        "UC9-BR-017",
-        "UC9-FV-002"
+        "UC11-MF-001",
+        "UC11-BR-001",
+        "UC11-BR-009",
+        "UC11-BR-010",
+        "UC11-FV-003"
       ],
-      "response_dto": "LinkedContractActionResponse",
+      "response_dto": "IntegrationResponse",
       "auth_required": true
     },
     {
-      "id": "POST_contract_terminate",
-      "path": "/api/v1/contracts/{contractId}/terminate",
+      "id": "POST_settings_integration_connect",
+      "path": "/api/v1/settings/integrations/{integrationName}/connect",
       "roles": [
-        "TENANT_ADMIN",
-        "CONTRACT_OWNER"
+        "TENANT_ADMIN"
       ],
       "method": "POST",
-      "summary": "Terminate the contract with a required Termination Reason and Effective Termination Date on or after today",
+      "summary": "Submit credentials and authorize integration connection, masks credentials on success",
       "is_paged": false,
       "story_refs": [
-        "UC9-MF-001",
-        "UC9-AF-005",
-        "UC9-AF-006",
-        "UC9-BR-004",
-        "UC9-BR-006",
-        "UC9-BR-007",
-        "UC9-BR-008",
-        "UC9-BR-009",
-        "UC9-BR-010",
-        "UC9-BR-018",
-        "UC9-FV-001",
-        "UC9-FV-002",
-        "UC9-FV-003"
+        "UC11-MF-001",
+        "UC11-AF-004",
+        "UC11-AF-007",
+        "UC11-BR-009",
+        "UC11-BR-016",
+        "UC11-BR-017",
+        "UC11-FV-003"
       ],
-      "request_dto": "TerminateContractRequest",
-      "response_dto": "LinkedContractActionResponse",
+      "request_dto": "ConnectIntegrationRequest",
+      "response_dto": "IntegrationResponse",
+      "auth_required": true
+    },
+    {
+      "id": "POST_settings_integration_disconnect",
+      "path": "/api/v1/settings/integrations/{integrationName}/disconnect",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "POST",
+      "summary": "Manually disconnect an integration",
+      "is_paged": false,
+      "story_refs": [
+        "UC11-BR-017",
+        "UC11-FV-003"
+      ],
+      "response_dto": "IntegrationResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_settings_notifications",
+      "path": "/api/v1/settings/notifications",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "GET",
+      "summary": "List notification events with Email/In-App toggles",
+      "is_paged": false,
+      "story_refs": [
+        "UC11-MF-001",
+        "UC11-BR-001",
+        "UC11-BR-007",
+        "UC11-BR-010",
+        "UC11-FV-004"
+      ],
+      "response_dto": "NotificationEventResponse",
+      "auth_required": true
+    },
+    {
+      "id": "PUT_settings_notifications",
+      "path": "/api/v1/settings/notifications/{eventName}",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "PUT",
+      "summary": "Update Email Toggle and/or In-App Toggle for a notification event",
+      "is_paged": false,
+      "story_refs": [
+        "UC11-MF-001",
+        "UC11-BR-007",
+        "UC11-FV-004"
+      ],
+      "request_dto": "UpdateNotificationEventRequest",
+      "response_dto": "NotificationEventResponse",
+      "auth_required": true
+    },
+    {
+      "id": "GET_settings_audit_log",
+      "path": "/api/v1/settings/audit-log",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "GET",
+      "summary": "Get read-only audit log entries sorted newest first with Filter Date Range",
+      "is_paged": true,
+      "story_refs": [
+        "UC11-MF-001",
+        "UC11-AF-002",
+        "UC11-AF-004",
+        "UC11-AF-006",
+        "UC11-AF-007",
+        "UC11-BR-001",
+        "UC11-BR-003",
+        "UC11-BR-004",
+        "UC11-BR-005",
+        "UC11-BR-006",
+        "UC11-BR-010",
+        "UC11-BR-011",
+        "UC11-BR-013",
+        "UC11-BR-014",
+        "UC11-BR-015",
+        "UC11-BR-016",
+        "UC11-BR-017",
+        "UC11-FV-005",
+        "UC11-GC-003"
+      ],
+      "request_dto": "AuditLogQueryParams",
+      "response_dto": "AuditLogEntryResponse",
       "auth_required": true
     }
   ],
   "dtos": [],
   "tables": [
     {
-      "name": "contracts",
+      "name": "contract_lifecycle_stage_history",
       "columns": [
         {
           "name": "id",
@@ -399,68 +445,33 @@
           "nullable": false
         },
         {
-          "name": "contract_name",
-          "type": "VARCHAR(255)",
-          "nullable": false
-        },
-        {
-          "name": "counterparty",
-          "type": "VARCHAR(255)",
-          "nullable": false
-        },
-        {
-          "name": "status",
-          "type": "VARCHAR(30)",
-          "nullable": false
-        },
-        {
-          "name": "value",
-          "type": "NUMERIC(18,2)",
-          "nullable": true
-        },
-        {
-          "name": "start_date",
-          "type": "DATE",
-          "nullable": true
-        },
-        {
-          "name": "end_date",
-          "type": "DATE",
-          "nullable": true
-        },
-        {
-          "name": "notice_period",
-          "type": "VARCHAR(100)",
-          "nullable": true
-        },
-        {
-          "name": "owner_id",
+          "name": "contract_id",
           "type": "UUID",
           "nullable": false
+        },
+        {
+          "name": "stage",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "stage_start_date",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "stage_end_date",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "contracts_owned_snapshot",
+          "type": "INTEGER",
+          "nullable": true
         },
         {
           "name": "tenant_id",
           "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "document_index_status",
-          "type": "VARCHAR(20)",
-          "nullable": true
-        },
-        {
-          "name": "linked_contract_id",
-          "type": "UUID",
-          "nullable": true
-        },
-        {
-          "name": "linked_relation_type",
-          "type": "VARCHAR(20)",
-          "nullable": true
-        },
-        {
-          "name": "renewal_action_in_progress",
-          "type": "BOOLEAN",
           "nullable": false
         },
         {
@@ -496,42 +507,29 @@
       ],
       "indexes": [
         {
-          "name": "idx_contracts_tenant_status",
+          "name": "idx_stage_history_contract",
           "columns": [
-            "tenant_id",
-            "status"
-          ]
-        },
-        {
-          "name": "idx_contracts_owner",
-          "columns": [
-            "owner_id"
+            "contract_id"
           ]
         }
       ],
       "story_refs": [
-        "UC8-MF-001",
-        "UC8-BR-001",
-        "UC8-BR-005",
-        "UC8-BR-011",
-        "UC9-MF-001",
-        "UC9-BR-004",
-        "UC9-BR-007",
-        "UC9-BR-016",
-        "UC9-BR-017",
-        "UC9-BR-018"
+        "UC10-BR-001",
+        "UC10-BR-002",
+        "UC10-GC-002",
+        "UC10-GC-003"
       ],
-      "description": "Core contract record with lifecycle status, value, dates, and ownership",
+      "description": "Stores stage start/end timestamps per contract to power cycle time and bottleneck calculations, with denormalized contracts-owned snapshot for cycle time grouping",
       "foreign_keys": [
         {
-          "column": "linked_contract_id",
+          "column": "contract_id",
           "references_table": "contracts",
           "references_column": "id"
         }
       ]
     },
     {
-      "name": "contract_assignments",
+      "name": "contract_owners",
       "columns": [
         {
           "name": "id",
@@ -550,7 +548,264 @@
         },
         {
           "name": "role",
-          "type": "VARCHAR(30)",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_contract_owners_user",
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC10-BR-005",
+        "UC10-BR-009",
+        "UC10-BR-010",
+        "UC10-BR-011",
+        "UC10-BR-012"
+      ],
+      "description": "Maps contracts to owners, legal reviewers and approvers for role-scoped tracker visibility",
+      "foreign_keys": [
+        {
+          "column": "contract_id",
+          "references_table": "contracts",
+          "references_column": "id"
+        },
+        {
+          "column": "user_id",
+          "references_table": "users",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "contract_turnaround_metrics",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "estimated_turnaround_days",
+          "type": "NUMERIC",
+          "nullable": true
+        },
+        {
+          "name": "estimated_turnaround_source",
+          "type": "VARCHAR",
+          "nullable": true
+        },
+        {
+          "name": "actual_turnaround_days",
+          "type": "NUMERIC",
+          "nullable": true
+        },
+        {
+          "name": "excluded_from_averages",
+          "type": "BOOLEAN",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_turnaround_contract",
+          "columns": [
+            "contract_id"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC10-BR-003",
+        "UC10-BR-004",
+        "UC10-BR-007",
+        "UC10-GC-004"
+      ],
+      "description": "Stores estimated/actual turnaround source and values per contract",
+      "foreign_keys": [
+        {
+          "column": "contract_id",
+          "references_table": "contracts",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "turnaround_override_log",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "original_ai_value",
+          "type": "NUMERIC",
+          "nullable": true
+        },
+        {
+          "name": "new_value",
+          "type": "NUMERIC",
+          "nullable": false
+        },
+        {
+          "name": "override_user_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "override_timestamp",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "decision",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [],
+      "story_refs": [
+        "UC10-BR-007"
+      ],
+      "description": "Audit log of overrides to AI-suggested Estimated Turnaround values, capturing original AI-suggested value, new user-entered value, overriding user, and timestamp",
+      "foreign_keys": [
+        {
+          "column": "contract_id",
+          "references_table": "contracts",
+          "references_column": "id"
+        }
+      ]
+    },
+    {
+      "name": "tenant_bottleneck_thresholds",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "stage",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "threshold_days",
+          "type": "INTEGER",
           "nullable": false
         },
         {
@@ -576,31 +831,21 @@
       ],
       "indexes": [
         {
-          "name": "idx_contract_assignments_user",
+          "name": "idx_threshold_tenant_stage",
           "columns": [
-            "user_id",
-            "role"
+            "tenant_id",
+            "stage"
           ]
         }
       ],
       "story_refs": [
-        "UC8-BR-001",
-        "UC8-BR-009",
-        "UC8-BR-010",
-        "UC9-BR-011",
-        "UC9-BR-012"
+        "UC10-BR-002"
       ],
-      "description": "Maps users to contracts as Legal Reviewer or Approver for visibility/access control",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        }
-      ]
+      "description": "Tenant-configured Days-in-Stage thresholds for Stuck Flag per stage",
+      "foreign_keys": []
     },
     {
-      "name": "contract_documents",
+      "name": "tenant_users",
       "columns": [
         {
           "name": "id",
@@ -608,32 +853,281 @@
           "nullable": false
         },
         {
-          "name": "contract_id",
+          "name": "tenant_id",
           "type": "UUID",
           "nullable": false
         },
         {
-          "name": "file_name",
-          "type": "VARCHAR(255)",
+          "name": "name",
+          "type": "VARCHAR",
           "nullable": false
         },
         {
-          "name": "file_type",
-          "type": "VARCHAR(10)",
+          "name": "email",
+          "type": "VARCHAR",
           "nullable": false
         },
         {
-          "name": "file_size_bytes",
-          "type": "BIGINT",
+          "name": "role",
+          "type": "VARCHAR",
           "nullable": false
         },
         {
-          "name": "storage_path",
-          "type": "VARCHAR(500)",
+          "name": "status",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "last_login",
+          "type": "TIMESTAMPTZ",
           "nullable": true
         },
         {
-          "name": "is_corrupted_or_missing",
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "uq_tenant_user_email",
+          "unique": true,
+          "columns": [
+            "tenant_id",
+            "email"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC11-MF-001",
+        "UC11-AF-002",
+        "UC11-AF-005",
+        "UC11-BR-002",
+        "UC11-BR-003",
+        "UC11-BR-013",
+        "UC11-BR-014",
+        "UC11-BR-015",
+        "UC11-FV-001",
+        "UC11-GC-001"
+      ],
+      "description": "Stores tenant user records for User Management tab",
+      "foreign_keys": []
+    },
+    {
+      "name": "approval_matrix_rules",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "contract_type",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "value_threshold",
+          "type": "NUMERIC",
+          "nullable": false
+        },
+        {
+          "name": "approver_role",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "deleted_by",
+          "type": "UUID",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "uq_rule_type_threshold",
+          "unique": true,
+          "columns": [
+            "tenant_id",
+            "contract_type",
+            "value_threshold"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC11-MF-001",
+        "UC11-AF-003",
+        "UC11-BR-001",
+        "UC11-BR-004",
+        "UC11-BR-010",
+        "UC11-FV-002",
+        "UC11-GC-002"
+      ],
+      "description": "Stores Routing & Approval matrix rules per tenant",
+      "foreign_keys": []
+    },
+    {
+      "name": "tenant_integrations",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "integration_name",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "connection_status",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "credential_ciphertext",
+          "type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "credential_masked_display",
+          "type": "VARCHAR",
+          "nullable": true
+        },
+        {
+          "name": "token_expires_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "uq_tenant_integration_name",
+          "unique": true,
+          "columns": [
+            "tenant_id",
+            "integration_name"
+          ]
+        }
+      ],
+      "story_refs": [
+        "UC11-MF-001",
+        "UC11-AF-004",
+        "UC11-AF-007",
+        "UC11-BR-001",
+        "UC11-BR-009",
+        "UC11-BR-010",
+        "UC11-BR-016",
+        "UC11-BR-017",
+        "UC11-FV-003"
+      ],
+      "description": "Stores integration connection records with masked credentials",
+      "foreign_keys": []
+    },
+    {
+      "name": "tenant_notification_settings",
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "event_name",
+          "type": "VARCHAR",
+          "nullable": false
+        },
+        {
+          "name": "email_toggle",
+          "type": "BOOLEAN",
+          "nullable": false
+        },
+        {
+          "name": "in_app_toggle",
           "type": "BOOLEAN",
           "nullable": false
         },
@@ -660,91 +1154,26 @@
       ],
       "indexes": [
         {
-          "name": "idx_contract_documents_contract",
+          "name": "uq_tenant_event_name",
+          "unique": true,
           "columns": [
-            "contract_id"
+            "tenant_id",
+            "event_name"
           ]
         }
       ],
       "story_refs": [
-        "UC8-AF-005",
-        "UC8-BR-006"
+        "UC11-MF-001",
+        "UC11-BR-001",
+        "UC11-BR-007",
+        "UC11-BR-010",
+        "UC11-FV-004"
       ],
-      "description": "Stores document file metadata for a contract (current document)",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        }
-      ]
+      "description": "Stores notification event preferences per tenant",
+      "foreign_keys": []
     },
     {
-      "name": "contract_versions",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "contract_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "version_number",
-          "type": "INTEGER",
-          "nullable": false
-        },
-        {
-          "name": "change_summary",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "idx_contract_versions_contract",
-          "columns": [
-            "contract_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC8-MF-001"
-      ],
-      "description": "Version history entries for a contract document",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "folder_tags",
+      "name": "tenant_audit_log",
       "columns": [
         {
           "name": "id",
@@ -757,152 +1186,23 @@
           "nullable": false
         },
         {
-          "name": "name",
-          "type": "VARCHAR(100)",
-          "nullable": false
-        },
-        {
-          "name": "kind",
-          "type": "VARCHAR(10)",
-          "nullable": false
-        },
-        {
-          "name": "created_at",
+          "name": "log_date_time",
           "type": "TIMESTAMPTZ",
           "nullable": false
         },
         {
-          "name": "created_by",
-          "type": "UUID",
+          "name": "log_user",
+          "type": "VARCHAR",
           "nullable": false
         },
         {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
+          "name": "log_action",
+          "type": "VARCHAR",
           "nullable": false
         },
         {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "idx_folder_tags_tenant",
-          "columns": [
-            "tenant_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC8-BR-004",
-        "UC8-FV-001",
-        "UC8-FV-004"
-      ],
-      "description": "Tenant-level folder or tag definitions",
-      "foreign_keys": []
-    },
-    {
-      "name": "contract_folder_tags",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "contract_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "folder_tag_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "idx_contract_folder_tags_contract",
-          "columns": [
-            "contract_id"
-          ]
-        },
-        {
-          "name": "idx_contract_folder_tags_folder_tag",
-          "columns": [
-            "folder_tag_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC8-MF-001",
-        "UC8-BR-004",
-        "UC8-BR-007",
-        "UC8-BR-008",
-        "UC8-FV-004"
-      ],
-      "description": "Many-to-many mapping of contracts to folders/tags",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        },
-        {
-          "column": "folder_tag_id",
-          "references_table": "folder_tags",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "activity_log_entries",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "contract_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "action_type",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "performed_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "performed_at",
-          "type": "TIMESTAMPTZ",
+          "name": "log_entity",
+          "type": "VARCHAR",
           "nullable": false
         },
         {
@@ -919,91 +1219,6 @@
           "name": "created_by",
           "type": "UUID",
           "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "idx_activity_log_contract",
-          "columns": [
-            "contract_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC8-BR-003",
-        "UC8-BR-007"
-      ],
-      "description": "Immutable, append-only log of create/edit/approve/reject/sign/tag actions on a contract",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "obligations",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "contract_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "obligation_description",
-          "type": "TEXT",
-          "nullable": false
-        },
-        {
-          "name": "obligation_type",
-          "type": "VARCHAR(30)",
-          "nullable": false
-        },
-        {
-          "name": "owner_id",
-          "type": "UUID",
-          "nullable": true
-        },
-        {
-          "name": "due_date",
-          "type": "DATE",
-          "nullable": true
-        },
-        {
-          "name": "status",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "source",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "confirmation_label",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "evidence_reference",
-          "type": "VARCHAR(500)",
-          "nullable": true
-        },
-        {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
         },
         {
           "name": "updated_at",
@@ -1018,328 +1233,49 @@
       ],
       "indexes": [
         {
-          "name": "idx_obligations_contract",
+          "name": "idx_audit_log_date",
           "columns": [
-            "contract_id"
-          ]
-        },
-        {
-          "name": "idx_obligations_status_due",
-          "columns": [
-            "status",
-            "due_date"
+            "tenant_id",
+            "log_date_time"
           ]
         }
       ],
       "story_refs": [
-        "UC9-MF-001",
-        "UC9-AF-001",
-        "UC9-AF-004",
-        "UC9-BR-001",
-        "UC9-BR-002",
-        "UC9-BR-005",
-        "UC9-BR-009",
-        "UC9-BR-010",
-        "UC9-BR-011",
-        "UC9-BR-013",
-        "UC9-BR-014",
-        "UC9-BR-015",
-        "UC9-FV-001",
-        "UC9-GC-001"
+        "UC11-MF-001",
+        "UC11-AF-002",
+        "UC11-AF-004",
+        "UC11-AF-006",
+        "UC11-AF-007",
+        "UC11-BR-001",
+        "UC11-BR-003",
+        "UC11-BR-004",
+        "UC11-BR-005",
+        "UC11-BR-006",
+        "UC11-BR-010",
+        "UC11-BR-011",
+        "UC11-BR-013",
+        "UC11-BR-014",
+        "UC11-BR-015",
+        "UC11-BR-016",
+        "UC11-BR-017",
+        "UC11-FV-005",
+        "UC11-GC-003"
       ],
-      "description": "Obligation records extracted (AI) or manually added for Executed contracts",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "renewal_alerts",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "contract_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "threshold_days",
-          "type": "INTEGER",
-          "nullable": false
-        },
-        {
-          "name": "alert_basis",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "triggered_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "idx_renewal_alerts_contract",
-          "columns": [
-            "contract_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC9-BR-003",
-        "UC9-FV-002"
-      ],
-      "description": "Computed/recorded renewal alert threshold events per contract (90/60/30 day) for End Date and Notice Period",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "contract_lifecycle_actions",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "original_contract_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "linked_contract_id",
-          "type": "UUID",
-          "nullable": true
-        },
-        {
-          "name": "action_type",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "status",
-          "type": "VARCHAR(20)",
-          "nullable": false
-        },
-        {
-          "name": "termination_reason",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "effective_termination_date",
-          "type": "DATE",
-          "nullable": true
-        },
-        {
-          "name": "contract_end_date_snapshot",
-          "type": "DATE",
-          "nullable": true
-        },
-        {
-          "name": "notice_period_snapshot",
-          "type": "VARCHAR(100)",
-          "nullable": true
-        },
-        {
-          "name": "renewal_alert_banner_snapshot",
-          "type": "VARCHAR(255)",
-          "nullable": true
-        },
-        {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "updated_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "updated_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "idx_lifecycle_actions_original",
-          "columns": [
-            "original_contract_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC9-AF-005",
-        "UC9-AF-006",
-        "UC9-BR-004",
-        "UC9-BR-006",
-        "UC9-BR-007",
-        "UC9-BR-008",
-        "UC9-BR-009",
-        "UC9-BR-010",
-        "UC9-BR-016",
-        "UC9-BR-017",
-        "UC9-BR-018",
-        "UC9-FV-002",
-        "UC9-FV-003"
-      ],
-      "description": "Records Renew/Amend/Terminate actions, their in-progress state, termination details, and snapshot context (Contract End Date, Notice Period, Renewal Alert Banner) at time of action for audit purposes",
-      "foreign_keys": [
-        {
-          "column": "original_contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        },
-        {
-          "column": "linked_contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        }
-      ]
-    },
-    {
-      "name": "obligation_audit_log",
-      "columns": [
-        {
-          "name": "id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "contract_id",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "obligation_id",
-          "type": "UUID",
-          "nullable": true
-        },
-        {
-          "name": "action_type",
-          "type": "VARCHAR(30)",
-          "nullable": false
-        },
-        {
-          "name": "field_name",
-          "type": "VARCHAR(100)",
-          "nullable": true
-        },
-        {
-          "name": "before_value",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "after_value",
-          "type": "TEXT",
-          "nullable": true
-        },
-        {
-          "name": "performed_by",
-          "type": "UUID",
-          "nullable": false
-        },
-        {
-          "name": "performed_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_at",
-          "type": "TIMESTAMPTZ",
-          "nullable": false
-        },
-        {
-          "name": "created_by",
-          "type": "UUID",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "idx_obligation_audit_contract",
-          "columns": [
-            "contract_id"
-          ]
-        },
-        {
-          "name": "idx_obligation_audit_obligation",
-          "columns": [
-            "obligation_id"
-          ]
-        }
-      ],
-      "story_refs": [
-        "UC9-BR-006"
-      ],
-      "description": "Immutable audit log of accept/edit actions on obligations and renew/amend/terminate contract lifecycle actions",
-      "foreign_keys": [
-        {
-          "column": "contract_id",
-          "references_table": "contracts",
-          "references_column": "id"
-        },
-        {
-          "column": "obligation_id",
-          "references_table": "obligations",
-          "references_column": "id"
-        }
-      ]
+      "description": "Immutable, system-generated audit log for all Settings/Admin actions and AI clause decisions",
+      "foreign_keys": []
     }
   ],
   "migrations": [
-    "CreateContracts",
-    "CreateContractAssignments",
-    "CreateContractDocuments",
-    "CreateContractVersions",
-    "CreateFolderTags",
-    "CreateContractFolderTags",
-    "CreateActivityLogEntries",
-    "CreateObligations",
-    "CreateRenewalAlerts",
-    "CreateContractLifecycleActions",
-    "CreateObligationAuditLog"
+    "CreateContractLifecycleStageHistory",
+    "CreateContractOwners",
+    "CreateContractTurnaroundMetrics",
+    "CreateTurnaroundOverrideLog",
+    "CreateTenantBottleneckThresholds",
+    "CreateTenantUsers",
+    "CreateApprovalMatrixRules",
+    "CreateTenantIntegrations",
+    "CreateTenantNotificationSettings",
+    "CreateTenantAuditLog"
   ],
   "stories": []
 }
