@@ -8,6 +8,7 @@ import uuid
 
 from app.models.tenant import Tenant
 from app.models.user import User
+from tests.conftest import auth_headers
 
 TENANT_ADMIN = "TENANT_ADMIN"
 CONTRACT_OWNER = "CONTRACT_OWNER"
@@ -17,7 +18,7 @@ _CONTENT_B64 = base64.b64encode(b"%PDF-1.4 fake contents").decode()
 
 
 def _headers(role: str, user_id: uuid.UUID) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
 def _seed_tenant(db_session) -> uuid.UUID:

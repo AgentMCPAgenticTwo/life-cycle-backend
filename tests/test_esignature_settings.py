@@ -7,6 +7,7 @@ import uuid
 
 from app.models.tenant import Tenant
 from app.models.user import User
+from tests.conftest import auth_headers
 
 TENANT_ADMIN = "TENANT_ADMIN"
 APPROVER = "APPROVER"
@@ -42,11 +43,11 @@ def _seed_tenant_and_user(db_session, role: str, tenant_id: uuid.UUID | None = N
 
 
 def _headers(role: str, user_id: uuid.UUID) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
-def test_get_requires_role_header(client):
-    response = client.get("/api/v1/esignature-settings")
+def test_get_requires_role_header(db_client):
+    response = db_client.get("/api/v1/esignature-settings")
     assert response.status_code == 401
 
 

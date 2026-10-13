@@ -8,6 +8,7 @@ import uuid
 from app.models.tenant import Tenant
 from app.models.tracker import TenantUser
 from app.models.user import User
+from tests.conftest import auth_headers
 
 TENANT_ADMIN = "TENANT_ADMIN"
 APPROVER = "APPROVER"
@@ -43,7 +44,7 @@ def _seed_tenant_and_user(db_session, role: str, tenant_id: uuid.UUID | None = N
 
 
 def _headers(role: str, user_id: uuid.UUID) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
 def _seed_tenant_user_row(
@@ -70,8 +71,8 @@ def _valid_payload(**overrides) -> dict:
     return payload
 
 
-def test_get_requires_role_header(client):
-    response = client.get("/api/v1/settings/users")
+def test_get_requires_role_header(db_client):
+    response = db_client.get("/api/v1/settings/users")
     assert response.status_code == 401
 
 
@@ -194,8 +195,8 @@ def test_get_scopes_users_by_tenant(db_client, db_session):
     assert response.json()["totalCount"] == 0
 
 
-def test_patch_status_requires_role_header(client):
-    response = client.patch(f"/api/v1/settings/users/{uuid.uuid4()}/status", json={"status": "Active"})
+def test_patch_status_requires_role_header(db_client):
+    response = db_client.patch(f"/api/v1/settings/users/{uuid.uuid4()}/status", json={"status": "Active"})
     assert response.status_code == 401
 
 
@@ -298,3 +299,124 @@ def test_patch_status_allows_deactivating_one_of_several_active_tenant_admins(db
     )
     assert response.status_code == 200
     assert response.json()["status"] == "Deactivated"
+
+
+# ---- initial password / reset password --------------------------------------------------
+
+
+def test_create_user_without_initial_password_returns_a_generated_one(db_client, db_session):
+    tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    payload = _valid_payload()
+
+    response = db_client.post(
+        "/api/v1/settings/users", json=payload, headers=_headers(TENANT_ADMIN, user_id)
+    )
+    assert response.status_code == 201
+    temporary = response.json()["temporaryPassword"]
+    assert temporary and len(temporary) >= 8
+
+    # The generated password actually signs that user in, and forces a change first.
+    login = db_client.post(
+        "/api/v1/auth/login", json={"email": payload["email"], "password": temporary}
+    )
+    assert login.status_code == 200
+    assert login.json()["user"]["mustChangePassword"] is True
+    assert login.json()["user"]["role"] == "LEGAL_REVIEWER"
+
+
+def test_create_user_with_an_explicit_initial_password(db_client, db_session):
+    tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    payload = _valid_payload(initialPassword="Ch0sen!pass")
+
+    response = db_client.post(
+        "/api/v1/settings/users", json=payload, headers=_headers(TENANT_ADMIN, user_id)
+    )
+    assert response.status_code == 201
+    assert response.json()["temporaryPassword"] == "Ch0sen!pass"
+    login = db_client.post(
+        "/api/v1/auth/login", json={"email": payload["email"], "password": "Ch0sen!pass"}
+    )
+    assert login.status_code == 200
+
+
+def test_create_user_rejects_a_weak_initial_password(db_client, db_session):
+    tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    response = db_client.post(
+        "/api/v1/settings/users",
+        json=_valid_payload(initialPassword="weakpass"),
+        headers=_headers(TENANT_ADMIN, user_id),
+    )
+    assert response.status_code == 400
+    assert response.json()["details"]
+
+
+def test_the_password_is_never_returned_again_after_creation(db_client, db_session):
+    tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    created = db_client.post(
+        "/api/v1/settings/users", json=_valid_payload(), headers=_headers(TENANT_ADMIN, user_id)
+    ).json()
+
+    listed = db_client.get("/api/v1/settings/users", headers=_headers(TENANT_ADMIN, user_id))
+    row = next(item for item in listed.json()["items"] if item["id"] == created["id"])
+    assert "temporaryPassword" not in row
+
+
+def test_reset_password_issues_a_new_temporary_password(db_client, db_session):
+    tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    payload = _valid_payload(initialPassword="Ch0sen!pass")
+    created = db_client.post(
+        "/api/v1/settings/users", json=payload, headers=_headers(TENANT_ADMIN, user_id)
+    ).json()
+
+    response = db_client.post(
+        f"/api/v1/settings/users/{created['id']}/reset-password",
+        headers=_headers(TENANT_ADMIN, user_id),
+    )
+    assert response.status_code == 200
+    new_password = response.json()["temporaryPassword"]
+    assert new_password != "Ch0sen!pass"
+
+    stale = db_client.post(
+        "/api/v1/auth/login", json={"email": payload["email"], "password": "Ch0sen!pass"}
+    )
+    assert stale.status_code == 401
+    fresh = db_client.post(
+        "/api/v1/auth/login", json={"email": payload["email"], "password": new_password}
+    )
+    assert fresh.status_code == 200
+
+
+def test_reset_password_for_unknown_user_is_404(db_client, db_session):
+    tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    response = db_client.post(
+        f"/api/v1/settings/users/{uuid.uuid4()}/reset-password",
+        headers=_headers(TENANT_ADMIN, user_id),
+    )
+    assert response.status_code == 404
+
+
+def test_reset_password_rejects_a_non_admin_role(db_client, db_session):
+    tenant_id, user_id = _seed_tenant_and_user(db_session, APPROVER)
+    response = db_client.post(
+        f"/api/v1/settings/users/{uuid.uuid4()}/reset-password",
+        headers=_headers(APPROVER, user_id),
+    )
+    assert response.status_code == 403
+
+
+def test_deactivating_a_user_blocks_their_login(db_client, db_session):
+    tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    payload = _valid_payload(initialPassword="Ch0sen!pass")
+    created = db_client.post(
+        "/api/v1/settings/users", json=payload, headers=_headers(TENANT_ADMIN, user_id)
+    ).json()
+
+    db_client.patch(
+        f"/api/v1/settings/users/{created['id']}/status",
+        json={"status": "Deactivated"},
+        headers=_headers(TENANT_ADMIN, user_id),
+    )
+    response = db_client.post(
+        "/api/v1/auth/login", json={"email": payload["email"], "password": "Ch0sen!pass"}
+    )
+    assert response.status_code == 403

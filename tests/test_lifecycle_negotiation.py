@@ -13,6 +13,7 @@ from app.models.counterparty import Counterparty
 from app.models.tenant import Tenant
 from app.models.template import Template
 from app.models.user import User
+from tests.conftest import auth_headers
 
 TENANT_ADMIN = "TENANT_ADMIN"
 CONTRACT_OWNER = "CONTRACT_OWNER"
@@ -22,7 +23,7 @@ EXTERNAL_PARTY = "EXTERNAL_PARTY"
 
 
 def _headers(role: str, user_id) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
 def _seed_tenant(db_session) -> uuid.UUID:

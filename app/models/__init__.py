@@ -59,12 +59,14 @@ from app.models.tracker import (
     TenantUser,
     TurnaroundOverrideLog,
 )
+from app.models.refresh_token import RefreshToken
 from app.models.uploaded_file import UploadedFile
 from app.models.user import User
 
 __all__ = [
     "Tenant",
     "User",
+    "RefreshToken",
     "Counterparty",
     "UploadedFile",
     "Template",

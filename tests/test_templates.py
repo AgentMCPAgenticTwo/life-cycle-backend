@@ -13,6 +13,7 @@ from app.models.contract import Contract
 from app.models.counterparty import Counterparty
 from app.models.tenant import Tenant
 from app.models.user import User
+from tests.conftest import auth_headers
 
 TENANT_ADMIN = "TENANT_ADMIN"
 LEGAL_REVIEWER = "LEGAL_REVIEWER"
@@ -48,7 +49,7 @@ def _seed_tenant_and_user(db_session, role: str) -> tuple[uuid.UUID, uuid.UUID]:
 
 
 def _headers(role: str, user_id: uuid.UUID) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
 def _valid_payload(**overrides) -> dict:

@@ -12,6 +12,7 @@ from app.models.counterparty import Counterparty
 from app.models.tenant import Tenant
 from app.models.tracker import ContractLifecycleStageHistory, ContractOwner, ContractTurnaroundMetrics, TurnaroundOverrideLog
 from app.models.user import User
+from tests.conftest import auth_headers
 
 TENANT_ADMIN = "TENANT_ADMIN"
 CONTRACT_OWNER = "CONTRACT_OWNER"
@@ -44,7 +45,7 @@ def _seed_tenant_and_user(db_session, role: str, tenant_id: uuid.UUID | None = N
 
 
 def _headers(role: str, user_id: uuid.UUID) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
 def _seed_contract(
@@ -158,8 +159,8 @@ def _seed_metrics(
     return row
 
 
-def test_requires_role_header(client):
-    response = client.get("/api/v1/tracker/turnaround?period=Monthly")
+def test_requires_role_header(db_client):
+    response = db_client.get("/api/v1/tracker/turnaround?period=Monthly")
     assert response.status_code == 401
 
 
@@ -344,8 +345,8 @@ def test_pagination_fields_echo_request(db_client, db_session):
 # --- PUT /api/v1/tracker/turnaround/{contractId}/estimated-override ---------------------
 
 
-def test_override_requires_role_header(client):
-    response = client.put(
+def test_override_requires_role_header(db_client):
+    response = db_client.put(
         f"/api/v1/tracker/turnaround/{uuid.uuid4()}/estimated-override",
         json={"newEstimatedTurnaround": 5, "overriddenBy": str(uuid.uuid4()), "overrideTimestamp": "2026-01-01T00:00:00Z"},
     )

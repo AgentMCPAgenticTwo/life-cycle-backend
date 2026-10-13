@@ -17,6 +17,7 @@ from app.models.contract import Contract
 from app.models.counterparty import Counterparty
 from app.models.tenant import Tenant
 from app.models.user import User
+from tests.conftest import auth_headers
 
 APPROVER = "APPROVER"
 TENANT_ADMIN = "TENANT_ADMIN"
@@ -26,7 +27,7 @@ SIGNER = "SIGNER"
 
 
 def _headers(role: str, user_id: uuid.UUID) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
 def _seed_user(db_session, tenant_id: uuid.UUID, role: str, name: str | None = None) -> User:
@@ -149,13 +150,17 @@ def _setup_basic(db_session, *, current_step_number: int = 1, total_steps: int =
 # ---- role / auth matrix ----------------------------------------------------------------
 
 
-def test_list_requires_role_header(client):
-    assert client.get("/api/v1/approvals").status_code == 401
+def test_list_requires_role_header(db_client):
+    assert db_client.get("/api/v1/approvals").status_code == 401
 
 
 def test_list_rejects_signer_role(db_client, db_session):
     tenant, owner, approver, contract, approval = _setup_basic(db_session)
-    response = db_client.get("/api/v1/approvals", headers=_headers(SIGNER, uuid.uuid4()))
+    # Authentication resolves the caller from `users`, so the SIGNER has to be a real row --
+    # a bare random uuid is a 401 before the role check under test is reached.
+    signer = _seed_user(db_session, tenant.id, SIGNER)
+    db_session.commit()
+    response = db_client.get("/api/v1/approvals", headers=_headers(SIGNER, signer.id))
     assert response.status_code == 403
 
 
@@ -498,8 +503,8 @@ def test_delegate_blocked_when_actor_not_current_approver(db_client, db_session)
 # ---- history ------------------------------------------------------------------------------
 
 
-def test_history_requires_role_header(client):
-    assert client.get(f"/api/v1/approvals/{uuid.uuid4()}/history").status_code == 401
+def test_history_requires_role_header(db_client):
+    assert db_client.get(f"/api/v1/approvals/{uuid.uuid4()}/history").status_code == 401
 
 
 def test_history_empty_before_any_action(db_client, db_session):

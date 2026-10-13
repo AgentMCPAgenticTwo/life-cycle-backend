@@ -9,6 +9,7 @@ import uuid
 from app.models.tenant import Tenant
 from app.models.tracker import TenantNotificationSetting
 from app.models.user import User
+from tests.conftest import auth_headers
 
 TENANT_ADMIN = "TENANT_ADMIN"
 APPROVER = "APPROVER"
@@ -44,11 +45,11 @@ def _seed_tenant_and_user(db_session, role: str, tenant_id: uuid.UUID | None = N
 
 
 def _headers(role: str, user_id: uuid.UUID) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
-def test_get_requires_role_header(client):
-    response = client.get("/api/v1/settings/notifications")
+def test_get_requires_role_header(db_client):
+    response = db_client.get("/api/v1/settings/notifications")
     assert response.status_code == 401
 
 
@@ -89,8 +90,8 @@ def test_put_rejects_disallowed_role(db_client, db_session):
     assert response.status_code == 403
 
 
-def test_put_requires_role_header(client):
-    response = client.put("/api/v1/settings/notifications/Contract Signed", json={"emailToggle": False})
+def test_put_requires_role_header(db_client):
+    response = db_client.put("/api/v1/settings/notifications/Contract Signed", json={"emailToggle": False})
     assert response.status_code == 401
 
 

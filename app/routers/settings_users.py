@@ -10,7 +10,14 @@ from sqlalchemy.orm import Session
 from app.auth import CurrentUser, current_tenant_id, require_roles
 from app.db import get_db
 from app.schemas.pagination import PageParams
-from app.schemas.settings_users import CreateUserRequest, UserListItemResponse, UserListResponse, UpdateUserStatusRequest
+from app.schemas.settings_users import (
+    CreateUserRequest,
+    CreateUserResponse,
+    ResetPasswordResponse,
+    UserListItemResponse,
+    UserListResponse,
+    UpdateUserStatusRequest,
+)
 from app.services import settings_users as users_service
 
 router = APIRouter(prefix="/settings/users", tags=["settings-users"])
@@ -26,17 +33,27 @@ def list_users(
     return users_service.list_users(db, tenant_id, page_params)
 
 
-@router.post("", response_model=UserListItemResponse, status_code=201)
+@router.post("", response_model=CreateUserResponse, status_code=201)
 def create_user(
     payload: CreateUserRequest,
     response: Response,
     user: CurrentUser = Depends(require_roles("TENANT_ADMIN")),
     tenant_id: uuid.UUID = Depends(current_tenant_id),
     db: Session = Depends(get_db),
-) -> UserListItemResponse:
+) -> CreateUserResponse:
     result = users_service.create_user(db, tenant_id, user, payload)
     response.headers["Location"] = f"/api/v1/settings/users/{result.id}"
     return result
+
+
+@router.post("/{userId}/reset-password", response_model=ResetPasswordResponse)
+def reset_password(
+    userId: uuid.UUID,
+    user: CurrentUser = Depends(require_roles("TENANT_ADMIN")),
+    tenant_id: uuid.UUID = Depends(current_tenant_id),
+    db: Session = Depends(get_db),
+) -> ResetPasswordResponse:
+    return users_service.reset_password(db, tenant_id, user, userId)
 
 
 @router.patch("/{userId}/status", response_model=UserListItemResponse)

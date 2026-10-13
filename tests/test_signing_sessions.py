@@ -14,6 +14,7 @@ from app.models.counterparty import Counterparty
 from app.models.esignature import Signer
 from app.models.tenant import Tenant
 from app.models.user import User
+from tests.conftest import auth_headers
 
 SIGNER = "SIGNER"
 CONTRACT_OWNER = "CONTRACT_OWNER"
@@ -21,7 +22,7 @@ APPROVER = "APPROVER"
 
 
 def _headers(role: str, user_id) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
 def _seed_tenant(db_session) -> Tenant:
@@ -42,6 +43,21 @@ def _seed_user(db_session, tenant_id, role: str) -> User:
     )
     db_session.add(user)
     return user
+
+
+def _actor(db_session, role: str) -> uuid.UUID:
+    """The id of a real `users` row with `role`, seeding one if the tenant has none.
+
+    Authentication resolves the caller from the database now, so a bare random uuid is a
+    401 before any rule under test is reached.
+    """
+    existing = db_session.query(User).filter(User.role == role).first()
+    if existing is not None:
+        return existing.id
+    tenant = db_session.query(Tenant).first()
+    user = _seed_user(db_session, tenant.id, role)
+    db_session.commit()
+    return user.id
 
 
 def _seed_counterparty(db_session, tenant_id) -> Counterparty:
@@ -147,7 +163,7 @@ def test_get_session_disallowed_role_403(db_session, db_client):
     s1 = _seed_signer(db_session, contract.id, 1)
     db_session.commit()
     resp = db_client.get(
-        f"/api/v1/signing-sessions/{s1.id}", headers=_headers(APPROVER, uuid.uuid4())
+        f"/api/v1/signing-sessions/{s1.id}", headers=_headers(APPROVER, _actor(db_session, APPROVER))
     )
     assert resp.status_code == 403
 
@@ -155,7 +171,7 @@ def test_get_session_disallowed_role_403(db_session, db_client):
 def test_get_session_unknown_session_404(db_session, db_client):
     _setup(db_session)
     resp = db_client.get(
-        f"/api/v1/signing-sessions/{uuid.uuid4()}", headers=_headers(SIGNER, uuid.uuid4())
+        f"/api/v1/signing-sessions/{uuid.uuid4()}", headers=_headers(SIGNER, _actor(db_session, SIGNER))
     )
     assert resp.status_code == 404
 
@@ -166,7 +182,7 @@ def test_get_session_pending_signer_not_found(db_session, db_client):
     s1 = _seed_signer(db_session, contract.id, 1, status="Pending")
     db_session.commit()
     resp = db_client.get(
-        f"/api/v1/signing-sessions/{s1.id}", headers=_headers(SIGNER, uuid.uuid4())
+        f"/api/v1/signing-sessions/{s1.id}", headers=_headers(SIGNER, _actor(db_session, SIGNER))
     )
     assert resp.status_code == 404
 
@@ -177,7 +193,7 @@ def test_get_session_blocked_when_prior_signer_unsigned(db_session, db_client):
     s2 = _seed_signer(db_session, contract.id, 2, status="Sent")
     db_session.commit()
     resp = db_client.get(
-        f"/api/v1/signing-sessions/{s2.id}", headers=_headers(SIGNER, uuid.uuid4())
+        f"/api/v1/signing-sessions/{s2.id}", headers=_headers(SIGNER, _actor(db_session, SIGNER))
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -192,7 +208,7 @@ def test_get_session_current_turn_before_otp_hides_document(db_session, db_clien
     s1 = _seed_signer(db_session, contract.id, 1, status="Sent")
     db_session.commit()
     resp = db_client.get(
-        f"/api/v1/signing-sessions/{s1.id}", headers=_headers(SIGNER, uuid.uuid4())
+        f"/api/v1/signing-sessions/{s1.id}", headers=_headers(SIGNER, _actor(db_session, SIGNER))
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -211,7 +227,7 @@ def test_get_session_expired_link_hides_everything(db_session, db_client):
     )
     db_session.commit()
     resp = db_client.get(
-        f"/api/v1/signing-sessions/{s1.id}", headers=_headers(SIGNER, uuid.uuid4())
+        f"/api/v1/signing-sessions/{s1.id}", headers=_headers(SIGNER, _actor(db_session, SIGNER))
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -231,7 +247,7 @@ def test_verify_otp_invalid_format_400(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/otp/verify",
         json={"otpCode": "12AB"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 400
     db_session.refresh(s1)
@@ -245,7 +261,7 @@ def test_verify_otp_success_reveals_document_and_advances_status(db_session, db_
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/otp/verify",
         json={"otpCode": "654321"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -262,7 +278,7 @@ def test_verify_otp_wrong_code_does_not_advance_status(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/otp/verify",
         json={"otpCode": "111111"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -279,7 +295,7 @@ def test_verify_otp_third_failure_locks_link_for_15_minutes(db_session, db_clien
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/otp/verify",
         json={"otpCode": "111111"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -293,7 +309,7 @@ def test_verify_otp_third_failure_locks_link_for_15_minutes(db_session, db_clien
     resp2 = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/otp/verify",
         json={"otpCode": "654321"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp2.status_code == 403
 
@@ -306,7 +322,7 @@ def test_verify_otp_blocked_when_prior_signer_unsigned(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s2.id}/otp/verify",
         json={"otpCode": "222222"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 403
 
@@ -322,7 +338,7 @@ def test_resend_otp_after_expiry_resets_status_to_sent(db_session, db_client):
     )
     db_session.commit()
     resp = db_client.post(
-        f"/api/v1/signing-sessions/{s1.id}/otp/resend", headers=_headers(SIGNER, uuid.uuid4())
+        f"/api/v1/signing-sessions/{s1.id}/otp/resend", headers=_headers(SIGNER, _actor(db_session, SIGNER))
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -346,7 +362,7 @@ def test_resend_otp_blocked_once_signed(db_session, db_client):
     s1 = _seed_signer(db_session, contract.id, 1, status="Signed")
     db_session.commit()
     resp = db_client.post(
-        f"/api/v1/signing-sessions/{s1.id}/otp/resend", headers=_headers(SIGNER, uuid.uuid4())
+        f"/api/v1/signing-sessions/{s1.id}/otp/resend", headers=_headers(SIGNER, _actor(db_session, SIGNER))
     )
     assert resp.status_code == 409
 
@@ -361,7 +377,7 @@ def test_sign_requires_otp_verified_first(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/sign",
         json={"signatureData": "base64...", "signatureType": "Draw"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 409
 
@@ -374,7 +390,7 @@ def test_sign_blank_signature_pad_400(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/sign",
         json={"signatureData": "   ", "signatureType": "Draw"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 400
 
@@ -388,7 +404,7 @@ def test_sign_not_my_turn_blocked(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s2.id}/sign",
         json={"signatureData": "base64...", "signatureType": "Draw"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 403
 
@@ -402,7 +418,7 @@ def test_sign_advances_to_next_signer_without_executing(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/sign",
         json={"signatureData": "base64...", "signatureType": "Draw"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -423,7 +439,7 @@ def test_sign_last_signer_executes_contract(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s2.id}/sign",
         json={"signatureData": "base64...", "signatureType": "Type"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -444,7 +460,7 @@ def test_decline_requires_viewed_status(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/decline",
         json={"reason": "Terms unacceptable"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 409
 
@@ -457,7 +473,7 @@ def test_decline_missing_reason_400(db_session, db_client):
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/decline",
         json={"reason": ""},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 400
 
@@ -471,7 +487,7 @@ def test_decline_halts_routing_and_sets_contract_declined(db_session, db_client)
     resp = db_client.post(
         f"/api/v1/signing-sessions/{s1.id}/decline",
         json={"reason": "Pricing terms unacceptable"},
-        headers=_headers(SIGNER, uuid.uuid4()),
+        headers=_headers(SIGNER, _actor(db_session, SIGNER)),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -487,6 +503,6 @@ def test_decline_halts_routing_and_sets_contract_declined(db_session, db_client)
     db_session.refresh(s2)
     assert s2.signer_status == "Pending"
     resp2 = db_client.get(
-        f"/api/v1/signing-sessions/{s2.id}", headers=_headers(SIGNER, uuid.uuid4())
+        f"/api/v1/signing-sessions/{s2.id}", headers=_headers(SIGNER, _actor(db_session, SIGNER))
     )
     assert resp2.status_code == 404

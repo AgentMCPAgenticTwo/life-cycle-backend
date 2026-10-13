@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -7,6 +9,19 @@ from sqlalchemy.pool import StaticPool
 import app.models  # noqa: F401  registers every entity on Base.metadata
 from app.db import Base, get_db
 from app.main import app
+from app.security import create_access_token
+
+
+def auth_headers(role: str, user_id: uuid.UUID, tenant_id: uuid.UUID | None = None) -> dict:
+    """Request headers for an authenticated caller.
+
+    Authentication is a real `Authorization: Bearer <JWT>` since login replaced the former
+    X-User-Role/X-User-Id stub. The *role* that an endpoint checks is read from the `users`
+    row the token points at, not from this argument -- so a test must still seed that user
+    with the role it passes here.
+    """
+    token = create_access_token(user_id, role, tenant_id or uuid.uuid4())
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture()

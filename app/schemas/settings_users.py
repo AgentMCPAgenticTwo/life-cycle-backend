@@ -40,6 +40,22 @@ class CreateUserRequest(BaseModel):
     name: str | None = None
     email: str | None = None
     role: str | None = None
+    # Optional: leave it empty and the API generates a strong one. Either way the user is
+    # created with must_change_password set, so it is always a temporary credential.
+    initialPassword: str | None = None
+
+
+class CreateUserResponse(UserListItemResponse):
+    """The create response is the list row plus the one-time temporary password. It is
+    returned exactly once, at creation, so the admin can hand it over -- no later read of
+    the user ever includes it again.
+    """
+
+    temporaryPassword: str | None = None
+
+
+class ResetPasswordResponse(BaseModel):
+    temporaryPassword: str
 
 
 class UpdateUserStatusRequest(BaseModel):
