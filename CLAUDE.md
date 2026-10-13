@@ -206,423 +206,17 @@ DIGEST -->
 <!-- MODULE:uc6-uc7-combined END -->
 
 <!-- MODULE:life-cycle-uc8-uc9 START -->
-## life cycle uc8 uc9 (life-cycle-uc8-uc9)
+## life cycle uc8 uc9 (life-cycle-uc8-uc9) — previously generated
 
-From this module's contract: 16 endpoint(s), 16 DTO(s), 11 table(s), 51 story/stories.
-Base path for this module: `/api/v1/contracts`.
-
-### Endpoints to implement
-
-Implement exactly these paths, methods and role lists — the frontend calls them literally.
-
-| Method | Path | Roles | Request DTO | Response DTO | Purpose |
-|---|---|---|---|---|---|
-| GET | `/api/v1/contracts` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `ContractSearchRequest` | `ContractListItemResponse` *(paged)* | Search, filter, sort and paginate contracts visible to the current user |
-| GET | `/api/v1/contracts/{contractId}` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `—` | `ContractDetailResponse` | Get contract core metadata (Details tab) for an authorized contract, enforcing direct-link access control |
-| GET | `/api/v1/contracts/{contractId}/document` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `—` | `ContractDocumentResponse` | Get document viewer metadata for the Document tab |
-| GET | `/api/v1/contracts/{contractId}/document/download` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `—` | `DocumentDownloadResponse` | Download the current document file; returns error for corrupted/missing/oversized files |
-| GET | `/api/v1/contracts/{contractId}/versions` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `—` | `ContractVersionResponse` *(paged)* | Get version history list (Versions tab) |
-| GET | `/api/v1/contracts/{contractId}/activity-log` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `—` | `ActivityLogEntryResponse` *(paged)* | Get immutable, read-only Activity Log entries for the contract |
-| POST | `/api/v1/contracts/{contractId}/folder-tags` | TENANT_ADMIN, CONTRACT_OWNER | `AssignFolderTagRequest` | `ContractFolderTagResponse` | Assign one or more folders/tags to a contract via the Add Folder/Tag dialog |
-| GET | `/api/v1/folder-tags` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `—` | `FolderTagOptionResponse` | List available folders/tags for the Folder/Tag Filter and Add Folder/Tag dialog |
-| GET | `/api/v1/contracts/{contractId}/obligations` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER | `—` | `ObligationResponse` *(paged)* | List obligations for an Executed contract (Obligations & Renewal screen) |
-| POST | `/api/v1/contracts/{contractId}/obligations` | TENANT_ADMIN, CONTRACT_OWNER | `CreateObligationRequest` | `ObligationResponse` | Manually add an obligation when none were AI-extracted |
-| PATCH | `/api/v1/contracts/{contractId}/obligations/{obligationId}` | TENANT_ADMIN, CONTRACT_OWNER | `UpdateObligationRequest` | `ObligationResponse` | Edit obligation fields (Description, Type, Owner, Due Date, Status), transitioning Source label to Confirmed |
-| POST | `/api/v1/contracts/{contractId}/obligations/{obligationId}/accept` | TENANT_ADMIN, CONTRACT_OWNER | `—` | `ObligationResponse` | Accept an AI-suggested obligation, changing label from AI Suggested to Confirmed |
-| GET | `/api/v1/contracts/{contractId}/renewal` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER | `—` | `RenewalPanelResponse` | Get renewal panel data (alert banner, end date, notice period, action button states) |
-| POST | `/api/v1/contracts/{contractId}/renew` | TENANT_ADMIN, CONTRACT_OWNER | `—` | `LinkedContractActionResponse` | Create a linked renewal contract and transition original to Renewed |
-| POST | `/api/v1/contracts/{contractId}/amend` | TENANT_ADMIN, CONTRACT_OWNER | `—` | `LinkedContractActionResponse` | Create a linked amendment contract and transition original to Amended |
-| POST | `/api/v1/contracts/{contractId}/terminate` | TENANT_ADMIN, CONTRACT_OWNER | `TerminateContractRequest` | `LinkedContractActionResponse` | Terminate the contract with a required Termination Reason and Effective Termination Date on or after today |
-
-Enforce the Roles column at the framework's authorization layer **and** with the owner/assignment check in business logic. Missing header → 401, disallowed role → 403.
-
-### DTOs (your request/response types must match these exactly)
-
-**`ContractSearchRequest`** *(request)*
+Already built in an earlier run. Import and extend what exists; do not
+rebuild it and do not rename its fields or paths.
 
 ```
-  searchText?: string
-  status?: string
-  startDateFrom?: date
-  startDateTo?: date
-  endDateFrom?: date
-  endDateTo?: date
-  valueMin?: number
-  valueMax?: number
-  folderTagIds?: array
-  sortBy?: string
-  sortDirection?: string
-  page?: integer
-  pageSize?: integer
+Title: life cycle uc8 uc9 (life-cycle-uc8-uc9)
+Components: (none)
+Endpoints: GET /api/v1/contracts, GET /api/v1/contracts/{contractId}, GET /api/v1/contracts/{contractId}/document, GET /api/v1/contracts/{contractId}/document/download, GET /api/v1/contracts/{contractId}/versions, GET /api/v1/contracts/{contractId}/activity-log, POST /api/v1/contracts/{contractId}/folder-tags, GET /api/v1/folder-tags, GET /api/v1/contracts/{contractId}/obligations, POST /api/v1/contracts/{contractId}/obligations, PATCH /api/v1/contracts/{contractId}/obligations/{obligationId}, POST /api/v1/contracts/{contractId}/obligations/{obligationId}/accept, GET /api/v1/contracts/{contractId}/renewal, POST /api/v1/contracts/{contractId}/renew, POST /api/v1/contracts/{contractId}/amend, POST /api/v1/contracts/{contractId}/terminate
+DTOs: ContractSearchRequest, ContractListItemResponse, ContractDetailResponse, ContractDocumentResponse, DocumentDownloadResponse, ContractVersionResponse, ActivityLogEntryResponse, AssignFolderTagRequest, ContractFolderTagResponse, FolderTagOptionResponse, ObligationResponse, CreateObligationRequest, UpdateObligationRequest, RenewalPanelResponse, TerminateContractRequest, LinkedContractActionResponse
 ```
-
-**`ContractListItemResponse`** *(response)*
-
-```
-  contractId: uuid
-  contractName: string
-  counterparty: string
-  status: string
-  value?: number
-  startDate?: date
-  endDate?: date
-  owner: string
-  lastModified: datetime
-  folderTags?: array
-  indexingInProgress: boolean
-```
-
-**`ContractDetailResponse`** *(response)*
-
-```
-  contractId: uuid
-  contractName: string
-  counterparty: string
-  status: string
-  value?: number
-  startDate?: date
-  endDate?: date
-  owner: string
-  lastModified: datetime
-  folderTags?: array
-  availableTabs: array
-```
-
-**`ContractDocumentResponse`** *(response)*
-
-```
-  contractId: uuid
-  documentUrl?: string
-  fileName: string
-  fileType: string
-  fileSizeBytes: integer
-  isOversized: boolean
-  isCorruptedOrMissing: boolean
-  downloadEnabled: boolean
-  unavailableComment?: string
-```
-
-**`DocumentDownloadResponse`** *(response)*
-
-```
-  success: boolean
-  fileUrl?: string
-  errorMessage?: string
-```
-
-**`ContractVersionResponse`** *(response)*
-
-```
-  versionId: uuid
-  versionNumber: integer
-  createdAt: datetime
-  createdBy: string
-  changeSummary?: string
-```
-
-**`ActivityLogEntryResponse`** *(response)*
-
-```
-  entryId: uuid
-  contractId: uuid
-  actionType: string
-  performedBy: string
-  performedAt: datetime
-  details?: string
-```
-
-**`AssignFolderTagRequest`** *(request)*
-
-```
-  folderTagIds: array
-```
-
-**`ContractFolderTagResponse`** *(response)*
-
-```
-  contractId: uuid
-  folderTags: array
-```
-
-**`FolderTagOptionResponse`** *(response)*
-
-```
-  id: uuid
-  name: string
-  kind: string
-```
-
-**`ObligationResponse`** *(response)*
-
-```
-  obligationId: uuid
-  contractId: uuid
-  obligationDescription: string
-  obligationType: string
-  owner?: string
-  dueDate?: date
-  status: string
-  source: string
-  confirmationLabel: string
-  evidenceReference?: string
-  readOnly: boolean
-```
-
-**`CreateObligationRequest`** *(request)*
-
-```
-  obligationDescription: string
-  obligationType: string
-  owner: string
-  dueDate: date
-  status: string
-```
-
-**`UpdateObligationRequest`** *(request)*
-
-```
-  obligationDescription?: string
-  obligationType?: string
-  owner?: string
-  dueDate?: date
-  status?: string
-  evidenceReference?: string
-```
-
-**`RenewalPanelResponse`** *(response)*
-
-```
-  contractId: uuid
-  renewalAlertBanner?: string
-  contractEndDate?: date
-  noticePeriod?: string
-  alertThresholdDays?: integer
-  renewEnabled: boolean
-  amendEnabled: boolean
-  terminateEnabled: boolean
-  actionInProgress: boolean
-  linkedContractId?: uuid
-  linkedContractRelation?: string
-  obligations?: array
-  terminationReason?: string
-  effectiveTerminationDate?: date
-```
-
-**`TerminateContractRequest`** *(request)*
-
-```
-  terminationReason: string
-  effectiveTerminationDate: date
-```
-
-**`LinkedContractActionResponse`** *(response)*
-
-```
-  originalContractId: uuid
-  originalContractStatus: string
-  linkedContractId: uuid
-  linkedContractReference: uuid
-  terminationReason?: string
-  effectiveTerminationDate?: date
-  contractEndDate?: date
-  noticePeriod?: string
-  renewalAlertBanner?: string
-  obligations?: array
-```
-
-### Tables (models mirror these)
-
-**`contracts`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_name` | VARCHAR(255) | no | — |
-| `counterparty` | VARCHAR(255) | no | — |
-| `status` | VARCHAR(30) | no | — |
-| `value` | NUMERIC(18,2) | yes | — |
-| `start_date` | DATE | yes | — |
-| `end_date` | DATE | yes | — |
-| `notice_period` | VARCHAR(100) | yes | — |
-| `owner_id` | UUID | no | — |
-| `tenant_id` | UUID | no | — |
-| `document_index_status` | VARCHAR(20) | yes | — |
-| `linked_contract_id` | UUID | yes | — |
-| `linked_relation_type` | VARCHAR(20) | yes | — |
-| `renewal_action_in_progress` | BOOLEAN | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-| `deleted_at` | TIMESTAMPTZ | yes | — |
-| `deleted_by` | UUID | yes | — |
-
-**`contract_assignments`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `user_id` | UUID | no | — |
-| `role` | VARCHAR(30) | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`contract_documents`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `file_name` | VARCHAR(255) | no | — |
-| `file_type` | VARCHAR(10) | no | — |
-| `file_size_bytes` | BIGINT | no | — |
-| `storage_path` | VARCHAR(500) | yes | — |
-| `is_corrupted_or_missing` | BOOLEAN | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`contract_versions`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `version_number` | INTEGER | no | — |
-| `change_summary` | TEXT | yes | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`folder_tags`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `tenant_id` | UUID | no | — |
-| `name` | VARCHAR(100) | no | — |
-| `kind` | VARCHAR(10) | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`contract_folder_tags`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `folder_tag_id` | UUID | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`activity_log_entries`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `action_type` | VARCHAR(20) | no | — |
-| `performed_by` | UUID | no | — |
-| `performed_at` | TIMESTAMPTZ | no | — |
-| `details` | TEXT | yes | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-
-**`obligations`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `obligation_description` | TEXT | no | — |
-| `obligation_type` | VARCHAR(30) | no | — |
-| `owner_id` | UUID | yes | — |
-| `due_date` | DATE | yes | — |
-| `status` | VARCHAR(20) | no | — |
-| `source` | VARCHAR(20) | no | — |
-| `confirmation_label` | VARCHAR(20) | no | — |
-| `evidence_reference` | VARCHAR(500) | yes | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`renewal_alerts`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `threshold_days` | INTEGER | no | — |
-| `alert_basis` | VARCHAR(20) | no | — |
-| `triggered_at` | TIMESTAMPTZ | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`contract_lifecycle_actions`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `original_contract_id` | UUID | no | — |
-| `linked_contract_id` | UUID | yes | — |
-| `action_type` | VARCHAR(20) | no | — |
-| `status` | VARCHAR(20) | no | — |
-| `termination_reason` | TEXT | yes | — |
-| `effective_termination_date` | DATE | yes | — |
-| `contract_end_date_snapshot` | DATE | yes | — |
-| `notice_period_snapshot` | VARCHAR(100) | yes | — |
-| `renewal_alert_banner_snapshot` | VARCHAR(255) | yes | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-| `updated_at` | TIMESTAMPTZ | no | — |
-| `updated_by` | UUID | no | — |
-
-**`obligation_audit_log`**
-
-| Column | Type | Null | Key |
-|---|---|---|---|
-| `id` | UUID | no | — |
-| `contract_id` | UUID | no | — |
-| `obligation_id` | UUID | yes | — |
-| `action_type` | VARCHAR(30) | no | — |
-| `field_name` | VARCHAR(100) | yes | — |
-| `before_value` | TEXT | yes | — |
-| `after_value` | TEXT | yes | — |
-| `performed_by` | UUID | no | — |
-| `performed_at` | TIMESTAMPTZ | no | — |
-| `created_at` | TIMESTAMPTZ | no | — |
-| `created_by` | UUID | no | — |
-
-### Migrations
-
-Create these with exactly these names, in this order:
-
-- `CreateContracts`
-- `CreateContractAssignments`
-- `CreateContractDocuments`
-- `CreateContractVersions`
-- `CreateFolderTags`
-- `CreateContractFolderTags`
-- `CreateActivityLogEntries`
-- `CreateObligations`
-- `CreateRenewalAlerts`
-- `CreateContractLifecycleActions`
-- `CreateObligationAuditLog`
-
-Never edit or re-order a migration that already exists — add a new one.
-
 <!-- DIGEST
 Title: life cycle uc8 uc9 (life-cycle-uc8-uc9)
 Components: (none)
@@ -630,3 +224,462 @@ Endpoints: GET /api/v1/contracts, GET /api/v1/contracts/{contractId}, GET /api/v
 DTOs: ContractSearchRequest, ContractListItemResponse, ContractDetailResponse, ContractDocumentResponse, DocumentDownloadResponse, ContractVersionResponse, ActivityLogEntryResponse, AssignFolderTagRequest, ContractFolderTagResponse, FolderTagOptionResponse, ObligationResponse, CreateObligationRequest, UpdateObligationRequest, RenewalPanelResponse, TerminateContractRequest, LinkedContractActionResponse
 DIGEST -->
 <!-- MODULE:life-cycle-uc8-uc9 END -->
+
+<!-- MODULE:lifecycle-uc10-uc11 START -->
+## lifecycle uc10 uc11 (lifecycle-uc10-uc11)
+
+From this module's contract: 18 endpoint(s), 24 DTO(s), 10 table(s), 57 story/stories.
+Base path for this module: `/api/v1`.
+
+### Endpoints to implement
+
+Implement exactly these paths, methods and role lists — the frontend calls them literally.
+
+| Method | Path | Roles | Request DTO | Response DTO | Purpose |
+|---|---|---|---|---|---|
+| GET | `/api/v1/tracker/ownership` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `TrackerQueryParams` | `OwnershipTabResponse` *(paged)* | Get Ownership tab data (Contracts by Owner) with period/filters |
+| GET | `/api/v1/tracker/cycle-time` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `TrackerQueryParams` | `CycleTimeTabResponse` *(paged)* | Get Cycle Time tab data (avg cycle time per stage grouped by user/contract type) |
+| GET | `/api/v1/tracker/bottleneck` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `TrackerQueryParams` | `BottleneckTabResponse` *(paged)* | Get Bottleneck tab data (current stage, days in stage, stuck flag) |
+| GET | `/api/v1/tracker/turnaround` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `TrackerQueryParams` | `TurnaroundTabResponse` *(paged)* | Get Turnaround tab data (estimated vs actual turnaround, variance) |
+| POST | `/api/v1/tracker/export` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `TrackerExportRequest` | `TrackerExportResponse` | Export currently selected tab data for selected period/filters to Excel or PDF |
+| PUT | `/api/v1/tracker/turnaround/{contractId}/estimated-override` | TENANT_ADMIN, CONTRACT_OWNER, LEGAL_REVIEWER, APPROVER | `EstimatedTurnaroundOverrideRequest` | `TurnaroundRowResponse` | Override AI-suggested Estimated Turnaround value and log audit entry |
+| GET | `/api/v1/tracker/bottleneck-thresholds` | TENANT_ADMIN | `—` | `BottleneckThresholdResponse` | Get tenant-configured stuck-flag thresholds per stage |
+| GET | `/api/v1/settings/users` | TENANT_ADMIN | `—` | `UserListItemResponse` *(paged)* | List tenant users table (Name/Email/Role/Status/Last Login) |
+| POST | `/api/v1/settings/users` | TENANT_ADMIN | `CreateUserRequest` | `UserListItemResponse` | Add a new user with Name/Email/Role, validate uniqueness |
+| PATCH | `/api/v1/settings/users/{userId}/status` | TENANT_ADMIN | `UpdateUserStatusRequest` | `UserListItemResponse` | Deactivate, reactivate, or auto-activate a user; blocks removing last active Tenant Admin |
+| GET | `/api/v1/settings/approval-rules` | TENANT_ADMIN | `—` | `ApprovalRuleResponse` *(paged)* | List approval matrix rules (Contract Type/Value Threshold/Approver Role) |
+| POST | `/api/v1/settings/approval-rules` | TENANT_ADMIN | `CreateApprovalRuleRequest` | `ApprovalRuleResponse` | Add approval rule, validate required fields and duplicate combination |
+| GET | `/api/v1/settings/integrations` | TENANT_ADMIN | `—` | `IntegrationResponse` | List integration cards (Integration Name/Connection Status) |
+| POST | `/api/v1/settings/integrations/{integrationName}/connect` | TENANT_ADMIN | `ConnectIntegrationRequest` | `IntegrationResponse` | Submit credentials and authorize integration connection, masks credentials on success |
+| POST | `/api/v1/settings/integrations/{integrationName}/disconnect` | TENANT_ADMIN | `—` | `IntegrationResponse` | Manually disconnect an integration |
+| GET | `/api/v1/settings/notifications` | TENANT_ADMIN | `—` | `NotificationEventResponse` | List notification events with Email/In-App toggles |
+| PUT | `/api/v1/settings/notifications/{eventName}` | TENANT_ADMIN | `UpdateNotificationEventRequest` | `NotificationEventResponse` | Update Email Toggle and/or In-App Toggle for a notification event |
+| GET | `/api/v1/settings/audit-log` | TENANT_ADMIN | `AuditLogQueryParams` | `AuditLogEntryResponse` *(paged)* | Get read-only audit log entries sorted newest first with Filter Date Range |
+
+Enforce the Roles column at the framework's authorization layer **and** with the owner/assignment check in business logic. Missing header → 401, disallowed role → 403.
+
+### DTOs (your request/response types must match these exactly)
+
+**`TrackerQueryParams`** *(request)*
+
+```
+  period?: string
+  contractTypeFilter?: string
+  ownerFilter?: string
+  dateRangeFrom?: date
+  dateRangeTo?: date
+  page?: integer
+  pageSize?: integer
+```
+
+**`OwnershipRowResponse`** *(response)*
+
+```
+  ownerName: string
+  contractsOwned: integer
+  inDraftCount: integer
+  inNegotiationCount: integer
+  inApprovalCount: integer
+  inSignatureCount: integer
+  completedCount: integer
+  averageCycleTime?: number
+```
+
+**`OwnershipTabResponse`** *(response)*
+
+```
+  rows: array
+  isEmpty: boolean
+  emptyStateMessage?: string
+  totalCount: integer
+  page: integer
+  pageSize: integer
+```
+
+**`CycleTimeRowResponse`** *(response)*
+
+```
+  stage: string
+  ownerName?: string
+  contractType?: string
+  contractsOwned?: integer
+  averageCycleTime?: number
+```
+
+**`CycleTimeTabResponse`** *(response)*
+
+```
+  rows: array
+  isEmpty: boolean
+  emptyStateMessage?: string
+  totalCount: integer
+  page: integer
+  pageSize: integer
+```
+
+**`BottleneckRowResponse`** *(response)*
+
+```
+  contractId: uuid
+  contractName: string
+  ownerName?: string
+  currentStage: string
+  daysInCurrentStage: integer
+  stuckFlag: string
+```
+
+**`BottleneckTabResponse`** *(response)*
+
+```
+  rows: array
+  isEmpty: boolean
+  emptyStateMessage?: string
+  totalCount: integer
+  page: integer
+  pageSize: integer
+```
+
+**`TurnaroundRowResponse`** *(response)*
+
+```
+  contractId: uuid
+  contractName: string
+  contractType: string
+  estimatedTurnaround?: number
+  estimatedTurnaroundNotSet: boolean
+  estimatedTurnaroundSource?: string
+  actualTurnaround?: number
+  variance?: number
+  varianceColor?: string
+  excludedFromAverages: boolean
+```
+
+**`TurnaroundTabResponse`** *(response)*
+
+```
+  rows: array
+  isEmpty: boolean
+  emptyStateMessage?: string
+  totalCount: integer
+  page: integer
+  pageSize: integer
+```
+
+**`TrackerExportRequest`** *(request)*
+
+```
+  tab: string
+  format: string
+  period?: string
+  contractTypeFilter?: string
+  ownerFilter?: string
+  dateRangeFrom?: date
+  dateRangeTo?: date
+```
+
+**`TrackerExportResponse`** *(response)*
+
+```
+  success: boolean
+  fileUrl?: string
+  failureMessage?: string
+```
+
+**`EstimatedTurnaroundOverrideRequest`** *(request)*
+
+```
+  newEstimatedTurnaround: number
+  overrideReason?: string
+  originalAiSuggestedValue?: number
+  overriddenBy: uuid
+  overrideTimestamp: datetime
+```
+
+**`BottleneckThresholdResponse`** *(response)*
+
+```
+  stage: string
+  thresholdDays: integer
+```
+
+**`UserListItemResponse`** *(response)*
+
+```
+  id: uuid
+  name: string
+  email: string
+  role: string
+  status: string
+  lastLogin?: datetime
+```
+
+**`CreateUserRequest`** *(request)*
+
+```
+  name: string
+  email: string
+  role: string
+```
+
+**`UpdateUserStatusRequest`** *(request)*
+
+```
+  status: string
+```
+
+**`ApprovalRuleResponse`** *(response)*
+
+```
+  id: uuid
+  contractType: string
+  valueThreshold: number
+  approverRole: string
+```
+
+**`CreateApprovalRuleRequest`** *(request)*
+
+```
+  contractType: string
+  valueThreshold: number
+  approverRole: string
+```
+
+**`IntegrationResponse`** *(response)*
+
+```
+  integrationName: string
+  connectionStatus: string
+  maskedCredential?: string
+```
+
+**`ConnectIntegrationRequest`** *(request)*
+
+```
+  credentials: object
+```
+
+**`NotificationEventResponse`** *(response)*
+
+```
+  eventName: string
+  emailToggle: boolean
+  inAppToggle: boolean
+```
+
+**`UpdateNotificationEventRequest`** *(request)*
+
+```
+  emailToggle?: boolean
+  inAppToggle?: boolean
+```
+
+**`AuditLogQueryParams`** *(request)*
+
+```
+  filterDateRangeFrom?: date
+  filterDateRangeTo?: date
+  userFilter?: string
+  actionTypeFilter?: string
+  page?: integer
+  pageSize?: integer
+```
+
+**`AuditLogEntryResponse`** *(response)*
+
+```
+  id: uuid
+  logDateTime: datetime
+  logUser: string
+  logAction: string
+  logEntity: string
+  details?: string
+```
+
+### Tables (models mirror these)
+
+**`contract_lifecycle_stage_history`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `stage` | VARCHAR | no | — |
+| `stage_start_date` | TIMESTAMPTZ | no | — |
+| `stage_end_date` | TIMESTAMPTZ | yes | — |
+| `contracts_owned_snapshot` | INTEGER | yes | — |
+| `tenant_id` | UUID | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+| `deleted_at` | TIMESTAMPTZ | yes | — |
+| `deleted_by` | UUID | yes | — |
+
+**`contract_owners`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `user_id` | UUID | no | — |
+| `role` | VARCHAR | no | — |
+| `tenant_id` | UUID | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+| `deleted_at` | TIMESTAMPTZ | yes | — |
+| `deleted_by` | UUID | yes | — |
+
+**`contract_turnaround_metrics`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `estimated_turnaround_days` | NUMERIC | yes | — |
+| `estimated_turnaround_source` | VARCHAR | yes | — |
+| `actual_turnaround_days` | NUMERIC | yes | — |
+| `excluded_from_averages` | BOOLEAN | no | — |
+| `tenant_id` | UUID | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+| `deleted_at` | TIMESTAMPTZ | yes | — |
+| `deleted_by` | UUID | yes | — |
+
+**`turnaround_override_log`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `contract_id` | UUID | no | — |
+| `original_ai_value` | NUMERIC | yes | — |
+| `new_value` | NUMERIC | no | — |
+| `override_user_id` | UUID | no | — |
+| `override_timestamp` | TIMESTAMPTZ | no | — |
+| `decision` | VARCHAR | no | — |
+| `tenant_id` | UUID | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`tenant_bottleneck_thresholds`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `tenant_id` | UUID | no | — |
+| `stage` | VARCHAR | no | — |
+| `threshold_days` | INTEGER | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`tenant_users`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `tenant_id` | UUID | no | — |
+| `name` | VARCHAR | no | — |
+| `email` | VARCHAR | no | — |
+| `role` | VARCHAR | no | — |
+| `status` | VARCHAR | no | — |
+| `last_login` | TIMESTAMPTZ | yes | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+| `deleted_at` | TIMESTAMPTZ | yes | — |
+| `deleted_by` | UUID | yes | — |
+
+**`approval_matrix_rules`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `tenant_id` | UUID | no | — |
+| `contract_type` | VARCHAR | no | — |
+| `value_threshold` | NUMERIC | no | — |
+| `approver_role` | VARCHAR | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+| `deleted_at` | TIMESTAMPTZ | yes | — |
+| `deleted_by` | UUID | yes | — |
+
+**`tenant_integrations`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `tenant_id` | UUID | no | — |
+| `integration_name` | VARCHAR | no | — |
+| `connection_status` | VARCHAR | no | — |
+| `credential_ciphertext` | TEXT | yes | — |
+| `credential_masked_display` | VARCHAR | yes | — |
+| `token_expires_at` | TIMESTAMPTZ | yes | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`tenant_notification_settings`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `tenant_id` | UUID | no | — |
+| `event_name` | VARCHAR | no | — |
+| `email_toggle` | BOOLEAN | no | — |
+| `in_app_toggle` | BOOLEAN | no | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+**`tenant_audit_log`**
+
+| Column | Type | Null | Key |
+|---|---|---|---|
+| `id` | UUID | no | — |
+| `tenant_id` | UUID | no | — |
+| `log_date_time` | TIMESTAMPTZ | no | — |
+| `log_user` | VARCHAR | no | — |
+| `log_action` | VARCHAR | no | — |
+| `log_entity` | VARCHAR | no | — |
+| `details` | TEXT | yes | — |
+| `created_at` | TIMESTAMPTZ | no | — |
+| `created_by` | UUID | no | — |
+| `updated_at` | TIMESTAMPTZ | no | — |
+| `updated_by` | UUID | no | — |
+
+### Migrations
+
+Create these with exactly these names, in this order:
+
+- `CreateContractLifecycleStageHistory`
+- `CreateContractOwners`
+- `CreateContractTurnaroundMetrics`
+- `CreateTurnaroundOverrideLog`
+- `CreateTenantBottleneckThresholds`
+- `CreateTenantUsers`
+- `CreateApprovalMatrixRules`
+- `CreateTenantIntegrations`
+- `CreateTenantNotificationSettings`
+- `CreateTenantAuditLog`
+
+Never edit or re-order a migration that already exists — add a new one.
+
+<!-- DIGEST
+Title: lifecycle uc10 uc11 (lifecycle-uc10-uc11)
+Components: (none)
+Endpoints: GET /api/v1/tracker/ownership, GET /api/v1/tracker/cycle-time, GET /api/v1/tracker/bottleneck, GET /api/v1/tracker/turnaround, POST /api/v1/tracker/export, PUT /api/v1/tracker/turnaround/{contractId}/estimated-override, GET /api/v1/tracker/bottleneck-thresholds, GET /api/v1/settings/users, POST /api/v1/settings/users, PATCH /api/v1/settings/users/{userId}/status, GET /api/v1/settings/approval-rules, POST /api/v1/settings/approval-rules, GET /api/v1/settings/integrations, POST /api/v1/settings/integrations/{integrationName}/connect, POST /api/v1/settings/integrations/{integrationName}/disconnect, GET /api/v1/settings/notifications, PUT /api/v1/settings/notifications/{eventName}, GET /api/v1/settings/audit-log
+DTOs: TrackerQueryParams, OwnershipRowResponse, OwnershipTabResponse, CycleTimeRowResponse, CycleTimeTabResponse, BottleneckRowResponse, BottleneckTabResponse, TurnaroundRowResponse, TurnaroundTabResponse, TrackerExportRequest, TrackerExportResponse, EstimatedTurnaroundOverrideRequest, BottleneckThresholdResponse, UserListItemResponse, CreateUserRequest, UpdateUserStatusRequest, ApprovalRuleResponse, CreateApprovalRuleRequest, IntegrationResponse, ConnectIntegrationRequest, NotificationEventResponse, UpdateNotificationEventRequest, AuditLogQueryParams, AuditLogEntryResponse
+DIGEST -->
+<!-- MODULE:lifecycle-uc10-uc11 END -->
