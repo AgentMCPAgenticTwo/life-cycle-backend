@@ -1,0 +1,292 @@
+{
+  "group_id": "settings-notifications",
+  "task_id": "T-SETTINGS-NOTIFICATIONS-API",
+  "kind": "resource",
+  "resource": "settings-notifications",
+  "base_path": "/api/v1",
+  "primary_story_id": "UC11-BR-001",
+  "story_ids": [
+    "UC11-BR-001",
+    "UC11-BR-007",
+    "UC11-BR-010",
+    "UC11-FV-004",
+    "UC11-MF-001"
+  ],
+  "endpoints": [
+    {
+      "id": "GET_settings_notifications",
+      "path": "/api/v1/settings/notifications",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "GET",
+      "summary": "List notification events with Email/In-App toggles",
+      "is_paged": false,
+      "story_refs": [
+        "UC11-MF-001",
+        "UC11-BR-001",
+        "UC11-BR-007",
+        "UC11-BR-010",
+        "UC11-FV-004"
+      ],
+      "response_dto": "NotificationEventResponse",
+      "auth_required": true
+    },
+    {
+      "id": "PUT_settings_notifications",
+      "path": "/api/v1/settings/notifications/{eventName}",
+      "roles": [
+        "TENANT_ADMIN"
+      ],
+      "method": "PUT",
+      "summary": "Update Email Toggle and/or In-App Toggle for a notification event",
+      "is_paged": false,
+      "story_refs": [
+        "UC11-MF-001",
+        "UC11-BR-007",
+        "UC11-FV-004"
+      ],
+      "request_dto": "UpdateNotificationEventRequest",
+      "response_dto": "NotificationEventResponse",
+      "auth_required": true
+    }
+  ],
+  "dtos": [
+    {
+      "name": "NotificationEventResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "eventName",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "emailToggle",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "name": "inAppToggle",
+          "type": "boolean",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "UpdateNotificationEventRequest",
+      "type": "REQUEST",
+      "fields": [
+        {
+          "name": "emailToggle",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "inAppToggle",
+          "type": "boolean",
+          "nullable": true
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "migrations": [],
+  "stories": [
+    {
+      "epic": "Settings / Admin",
+      "actor": "Tenant Admin",
+      "title": "Restrict Settings / Admin screen access to Tenant Admin role",
+      "story_id": "UC11-BR-001",
+      "references": [
+        "UC11-BR-001",
+        "DP-UC11-003",
+        "DP-UC11-004",
+        "DP-UC11-005",
+        "DP-UC11-008",
+        "DP-UC11-009",
+        "DP-UC11-012",
+        "DP-UC11-013",
+        "DP-UC11-014",
+        "DP-UC11-016",
+        "DP-UC11-017",
+        "DP-UC11-018",
+        "DP-UC11-019",
+        "DP-UC11-020"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to be the only role able to access the Settings / Admin screen, so that sensitive configuration and audit data remain protected from unauthorized roles.",
+      "source_reference": "UC11 / Business Rules / BR-1",
+      "acceptance_criteria": [
+        "Given a user logged in with the Tenant Admin role, When they navigate the application, Then the Settings / Admin menu entry is visible and accessible.",
+        "Given a user logged in with any role other than Tenant Admin (Legal Reviewer, Contract Owner, Approver, External Party, Signer), When they view the application navigation, Then no Settings / Admin menu entry is displayed and direct access attempts are blocked.",
+        "Given a Tenant Admin has accessed the Settings / Admin screen, When they open the Routing & Approval Tab, Then the approval matrix displays Contract Type, Value Threshold, and Approver Role for each rule.",
+        "Given a Tenant Admin has accessed the Settings / Admin screen, When they open the Integrations Tab, Then each integration card displays Integration Name and Connection Status.",
+        "Given a Tenant Admin has accessed the Settings / Admin screen, When they open the Notifications Tab, Then the notification events list displays Event Name alongside its Email Toggle and In-App Toggle.",
+        "Given a Tenant Admin has accessed the Settings / Admin screen, When they open the Audit Log Tab, Then the audit log table displays Log Date/Time, Log User, Log Action, and Log Entity for each entry, and a Filter Date Range control is available to narrow the displayed results.",
+        "Given a non-Tenant Admin user attempts to directly request the Settings / Admin URL, When the request is processed, Then access is denied regardless of knowledge of the screen's existence."
+      ]
+    },
+    {
+      "epic": "Settings / Admin",
+      "actor": "Tenant Admin",
+      "title": "Default notification toggles to On for all status-change events",
+      "story_id": "UC11-BR-007",
+      "references": [
+        "UC11-BR-007",
+        "F-17",
+        "F-18",
+        "F-19",
+        "DP-UC11-003",
+        "DP-UC11-004",
+        "DP-UC11-005",
+        "DP-UC11-008",
+        "DP-UC11-009",
+        "DP-UC11-012",
+        "DP-UC11-013",
+        "DP-UC11-014",
+        "DP-UC11-016",
+        "DP-UC11-017",
+        "DP-UC11-018",
+        "DP-UC11-019",
+        "DP-UC11-020"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to have Email and In-App notification toggles default to On for every status-change event, so that I automatically receive notifications unless I choose to turn them off.",
+      "source_reference": "UC11 / Business Rules / BR-7",
+      "notes_assumptions": "DP-UC11-003/004/005/008/009/016/017/018/019/020 are not functionally part of BR-7's notification-default behavior but are enumerated here per the mandatory coverage requirement to confirm they remain unaffected by this rule and are validated in their own respective tabs.",
+      "acceptance_criteria": [
+        "Given a tenant account is newly created or a new status-change Event Name is introduced into the system, When the Tenant Admin opens the Notifications Tab, Then both the Email Toggle and the In-App Toggle for that Event Name must display as On by default.",
+        "Given the Tenant Admin has not yet modified any notification settings, When the Notifications Tab is loaded, Then every listed Event Name must show Email Toggle = On and In-App Toggle = On.",
+        "Given the Tenant Admin changes an Email Toggle or In-App Toggle to Off for a given Event Name, When the Notifications Tab is reloaded later, Then the previously saved Off value must persist and must not revert to the default On state.",
+        "Given this business rule governs only notification default state, When reviewing data points referenced elsewhere in UC11, Then the system must also correctly display Contract Type, Value Threshold, Approver Role, Integration Name, Connection Status, Log Date/Time, Log User, Log Action, Log Entity, and Filter Date Range in their respective tabs independent of notification toggle defaults."
+      ]
+    },
+    {
+      "epic": "Settings / Admin",
+      "actor": "Tenant Admin",
+      "title": "Edit all tenant settings across users, routing, integrations, and notifications",
+      "story_id": "UC11-BR-010",
+      "references": [
+        "UC11-BR-010",
+        "DP-UC11-003",
+        "DP-UC11-004",
+        "DP-UC11-005",
+        "DP-UC11-008",
+        "DP-UC11-009",
+        "DP-UC11-012",
+        "DP-UC11-013",
+        "DP-UC11-014",
+        "DP-UC11-016",
+        "DP-UC11-017",
+        "DP-UC11-018",
+        "DP-UC11-019",
+        "DP-UC11-020"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to view and edit all settings on the Settings / Admin screen, so that I can fully manage users, approval routing, integrations, and notifications for my tenant.",
+      "source_reference": "UC11 / Business Rules / BR-10",
+      "acceptance_criteria": [
+        "Given I am logged in as Tenant Admin, When I open the Routing & Approval Tab, Then I can view and edit Contract Type, Value Threshold, and Approver Role for each approval rule.",
+        "Given I am logged in as Tenant Admin, When I open the Integrations Tab, Then I can view and edit the Integration Name and Connection Status for each integration, including connecting or disconnecting it.",
+        "Given I am logged in as Tenant Admin, When I open the Notifications Tab, Then I can view and edit the Event Name along with its Email Toggle and In-App Toggle settings.",
+        "Given I am logged in as Tenant Admin, When I open the Audit Log Tab, Then I can view the Log Date/Time, Log User, Log Action, and Log Entity for each entry, and I can use the Filter Date Range to refresh the displayed entries.",
+        "Given I am logged in as Tenant Admin, When I attempt to edit the Audit Log, Then the system prevents any edit or deletion of Log Date/Time, Log User, Log Action, or Log Entity values."
+      ]
+    },
+    {
+      "epic": "Settings / Admin",
+      "actor": "Tenant Admin",
+      "title": "Configure notification event toggles in Notifications tab",
+      "story_id": "UC11-FV-004",
+      "references": [
+        "UC11",
+        "BR-7",
+        "F-16",
+        "F-17",
+        "F-18",
+        "F-19",
+        "DP-UC11-003",
+        "DP-UC11-004",
+        "DP-UC11-005",
+        "DP-UC11-008",
+        "DP-UC11-009",
+        "DP-UC11-012",
+        "DP-UC11-013",
+        "DP-UC11-014",
+        "DP-UC11-016",
+        "DP-UC11-017",
+        "DP-UC11-018",
+        "DP-UC11-019",
+        "DP-UC11-020"
+      ],
+      "story_type": "field-validation",
+      "story_statement": "As a Tenant Admin, I want to view and configure Email and In-App notification toggles for each notification event, so that I can control how tenant users are notified of status-change events.",
+      "source_reference": "UC11 / Fields and Attributes",
+      "notes_assumptions": "The coverage unit's description focuses on the Notifications Tab fields (Event Name, Email Toggle, In-App Toggle); the REQUIRED DATA POINTS list spans multiple tabs (Routing & Approval, Integrations, Audit Log) and is reproduced in full per the authoritative instruction, though those non-Notifications fields are primarily validated in their own respective field-validation units.",
+      "acceptance_criteria": [
+        "Given I am a logged-in Tenant Admin, When I open the Settings / Admin screen and select the Notifications Tab, Then the system displays the list of notification events with their Event Name labels (e.g. Contract Sent for Approval, Contract Signed), along with an Email Toggle checkbox and an In-App Toggle checkbox for each event.",
+        "Given a notification event has never been configured, When I view its Email Toggle and In-App Toggle, Then both toggles default to On.",
+        "Given I am viewing the Notifications Tab, When I click the Email Toggle for an Event Name, Then the toggle switches between On and Off and the change is saved without affecting the In-App Toggle for that event.",
+        "Given I am viewing the Notifications Tab, When I click the In-App Toggle for an Event Name, Then the toggle switches between On and Off and the change is saved without affecting the Email Toggle for that event.",
+        "Given this field-validation unit covers the Notifications Tab, Then the following required data points must be present and correctly labeled on the UI: Event Name, Email Toggle, In-App Toggle (along with Contract Type, Value Threshold, Approver Role, Integration Name, Connection Status, Log Date/Time, Log User, Log Action, Log Entity, and Filter Date Range as defined elsewhere in UC11's Fields and Attributes)."
+      ]
+    },
+    {
+      "epic": "Settings / Admin",
+      "actor": "Tenant Admin",
+      "title": "Manage tenant settings across all admin tabs",
+      "story_id": "UC11-MF-001",
+      "references": [
+        "UC11",
+        "BR-1",
+        "BR-2",
+        "BR-4",
+        "BR-5",
+        "BR-7",
+        "BR-9",
+        "BR-16",
+        "F-2",
+        "F-3",
+        "F-4",
+        "F-8",
+        "F-9",
+        "F-10",
+        "F-13",
+        "F-14",
+        "F-17",
+        "F-18",
+        "F-19",
+        "F-21",
+        "F-22",
+        "F-23",
+        "F-24",
+        "F-25",
+        "DP-UC11-003",
+        "DP-UC11-004",
+        "DP-UC11-005",
+        "DP-UC11-008",
+        "DP-UC11-009",
+        "DP-UC11-012",
+        "DP-UC11-013",
+        "DP-UC11-014",
+        "DP-UC11-016",
+        "DP-UC11-017",
+        "DP-UC11-018",
+        "DP-UC11-019",
+        "DP-UC11-020"
+      ],
+      "story_type": "main-flow",
+      "story_statement": "As a Tenant Admin, I want to navigate between the User Management, Routing & Approval, Integrations, Notifications, and Audit Log tabs on the Settings screen and perform the key action in each, so that I can fully administer my tenant's users, approval rules, integrations, notification preferences, and review its audit history.",
+      "source_reference": "UC11 / Main Flow",
+      "acceptance_criteria": [
+        "Given I am logged in as Tenant Admin, When I click 'Settings' from the Home Page, Then the Settings / Admin screen opens showing five tabs (User Management, Routing & Approval, Integrations, Notifications, Audit Log) with User Management open by default.",
+        "Given I am on the User Management tab, When I click 'Add User', fill in Name, Email, Role and click 'Save', Then the system validates the fields, creates the user with Status 'Invited', and sends an invitation email.",
+        "Given I am on the Routing & Approval tab, When I click 'Add Rule', set Contract Type, Value Threshold and Approver Role, and click 'Save', Then the system validates there is no existing rule with the same Contract Type and Value Threshold combination and adds the new rule, with Approver Role recorded, to the matrix.",
+        "Given I am on the Integrations tab showing each Integration Name with its Connection Status, When I click 'Connect' next to an integration, enter credentials, and click 'Authorize', Then the system tests the connection and updates Connection Status to 'Connected' shown with a green label on success.",
+        "Given I am on the Notifications tab showing each Event Name with its Email Toggle and In-App Toggle, When I toggle a Email Toggle or In-App Toggle for an Event Name and click 'Save', Then the system updates the tenant's notification preferences and displays the message 'Notification settings updated'.",
+        "Given I am on the Audit Log tab displaying a read-only table with columns Log Date/Time, Log User, Log Action and Log Entity sorted newest first, When I enter a Filter Date Range along with user and action type criteria and click 'Apply Filter', Then the table refreshes to show only matching entries."
+      ]
+    }
+  ]
+}

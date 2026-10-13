@@ -8,31 +8,29 @@ breakage. Keep it building at every step.
 
 **The persistence layer**, from the `tables` in `context.json` (full column definitions
 there):
-- `contracts`
-- `contract_assignments`
-- `contract_documents`
-- `contract_versions`
-- `folder_tags`
-- `contract_folder_tags`
-- `activity_log_entries`
-- `obligations`
-- `renewal_alerts`
-- `contract_lifecycle_actions`
-- `obligation_audit_log`
+- `contract_lifecycle_stage_history`
+- `contract_owners`
+- `contract_turnaround_metrics`
+- `turnaround_override_log`
+- `tenant_bottleneck_thresholds`
+- `tenant_users`
+- `approval_matrix_rules`
+- `tenant_integrations`
+- `tenant_notification_settings`
+- `tenant_audit_log`
 
 Create the ORM entities, the database context/connection wiring, and one migration per
 entry in `migrations` (use these exact names):
-- `CreateContracts`
-- `CreateContractAssignments`
-- `CreateContractDocuments`
-- `CreateContractVersions`
-- `CreateFolderTags`
-- `CreateContractFolderTags`
-- `CreateActivityLogEntries`
-- `CreateObligations`
-- `CreateRenewalAlerts`
-- `CreateContractLifecycleActions`
-- `CreateObligationAuditLog`
+- `CreateContractLifecycleStageHistory`
+- `CreateContractOwners`
+- `CreateContractTurnaroundMetrics`
+- `CreateTurnaroundOverrideLog`
+- `CreateTenantBottleneckThresholds`
+- `CreateTenantUsers`
+- `CreateApprovalMatrixRules`
+- `CreateTenantIntegrations`
+- `CreateTenantNotificationSettings`
+- `CreateTenantAuditLog`
 
 **The shared infrastructure** the resource tasks will lean on:
 - centralized error handling that maps validation failures to 400, missing resources to

@@ -1,0 +1,449 @@
+{
+  "group_id": "tracker-export",
+  "task_id": "T-TRACKER-EXPORT-API",
+  "kind": "resource",
+  "resource": "tracker-export",
+  "base_path": "/api/v1",
+  "primary_story_id": "UC10-AF-001",
+  "story_ids": [
+    "UC10-AF-001",
+    "UC10-AF-003",
+    "UC10-AF-004",
+    "UC10-BR-003",
+    "UC10-BR-008",
+    "UC10-BR-009",
+    "UC10-GC-001",
+    "UC10-MF-001"
+  ],
+  "endpoints": [
+    {
+      "id": "POST_tracker_export",
+      "path": "/api/v1/tracker/export",
+      "roles": [
+        "TENANT_ADMIN",
+        "CONTRACT_OWNER",
+        "LEGAL_REVIEWER",
+        "APPROVER"
+      ],
+      "method": "POST",
+      "summary": "Export currently selected tab data for selected period/filters to Excel or PDF",
+      "is_paged": false,
+      "story_refs": [
+        "UC10-MF-001",
+        "UC10-AF-001",
+        "UC10-AF-003",
+        "UC10-AF-004",
+        "UC10-BR-003",
+        "UC10-BR-008",
+        "UC10-BR-009",
+        "UC10-GC-001"
+      ],
+      "request_dto": "TrackerExportRequest",
+      "response_dto": "TrackerExportResponse",
+      "auth_required": true
+    }
+  ],
+  "dtos": [
+    {
+      "name": "TrackerExportRequest",
+      "type": "REQUEST",
+      "fields": [
+        {
+          "enum": [
+            "Ownership",
+            "CycleTime",
+            "Bottleneck",
+            "Turnaround"
+          ],
+          "name": "tab",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "Excel",
+            "PDF"
+          ],
+          "name": "format",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "enum": [
+            "Daily",
+            "Weekly",
+            "Monthly"
+          ],
+          "name": "period",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "contractTypeFilter",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "ownerFilter",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "dateRangeFrom",
+          "type": "date",
+          "nullable": true
+        },
+        {
+          "name": "dateRangeTo",
+          "type": "date",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "TrackerExportResponse",
+      "type": "RESPONSE",
+      "fields": [
+        {
+          "name": "success",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
+          "name": "fileUrl",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "failureMessage",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "migrations": [],
+  "stories": [
+    {
+      "epic": "Tracker",
+      "actor": "Tenant Admin",
+      "title": "Display empty-state message when no contracts exist in tenant",
+      "story_id": "UC10-AF-001",
+      "references": [
+        "UC10",
+        "AF-1",
+        "BR-4"
+      ],
+      "story_type": "alternate-flow",
+      "story_statement": "As a Tenant Admin, I want to see a clear empty-state message when no contracts exist in the tenant, so that I understand why the Tracker has no data to display rather than assuming it is broken.",
+      "source_reference": "UC10 / Alternate Flow / AF-1",
+      "notes_assumptions": "DP-UC10-020 ('Change UC10 BR4 to') refers to a reviewer-requested amendment to BR-4 whose full replacement text was not supplied in this unit; its presence is acknowledged here as it pertains to Estimated Turnaround handling, but the exact revised rule text should be confirmed from the BR-4 change record.",
+      "acceptance_criteria": [
+        "Given a tenant with no contracts in the system, when any permitted user (Tenant Admin, Contract Owner, Legal Reviewer, or Approver) opens the Tracker, then the system displays the message \"No contract data available to display.\" instead of any tab content.",
+        "Given the empty-state message is displayed, when the screen renders, then the Period [DP-UC10-001] dropdown, Contract Type Filter [DP-UC10-002], Owner Filter [DP-UC10-003], Date Range From [DP-UC10-004], and Date Range To [DP-UC10-005] controls are still shown but yield no results when applied, since no contracts exist.",
+        "Given the empty-state message is displayed, when the user inspects the Ownership tab, then no rows are shown for Owner Name [DP-UC10-010], Contracts Owned [DP-UC10-011], or Average Cycle Time [DP-UC10-012], and the empty-state message is shown in place of the table.",
+        "Given the empty-state message is displayed, when the user inspects the Bottleneck tab, then no rows are shown for Current Stage [DP-UC10-013], Days in Current Stage [DP-UC10-014], or Stuck Flag [DP-UC10-015], and the empty-state message is shown in place of the table.",
+        "Given the empty-state message is displayed, when the user inspects the Turnaround tab, then no rows are shown for Estimated Turnaround [DP-UC10-016], Actual Turnaround [DP-UC10-017], or Variance [DP-UC10-018], and the empty-state message is shown in place of the table.",
+        "Given BR-4 is updated per the reviewer-supplied change [DP-UC10-020], when Estimated Turnaround would otherwise be calculated, then the empty-state message takes precedence over any turnaround calculation display since no contracts exist to evaluate.",
+        "Given the empty-state message is displayed, when the user attempts to use the Export Button, then no export is available since there is no contract data to export."
+      ]
+    },
+    {
+      "epic": "Tracker",
+      "actor": "Tenant Admin",
+      "title": "Display no-records message for empty date range selection",
+      "story_id": "UC10-AF-003",
+      "references": [
+        "UC10-AF-003",
+        "BR-6",
+        "BR-4",
+        "DP-UC10-001",
+        "DP-UC10-002",
+        "DP-UC10-003",
+        "DP-UC10-004",
+        "DP-UC10-005",
+        "DP-UC10-010",
+        "DP-UC10-011",
+        "DP-UC10-012",
+        "DP-UC10-013",
+        "DP-UC10-014",
+        "DP-UC10-015",
+        "DP-UC10-016",
+        "DP-UC10-017",
+        "DP-UC10-018",
+        "DP-UC10-020"
+      ],
+      "story_type": "alternate-flow",
+      "story_statement": "As a Tenant Admin, I want to see a clear message when my selected date range contains no contracts, so that I understand there is no data to display rather than assuming the Tracker has failed.",
+      "source_reference": "UC10 / Alternate Flow / AF-3",
+      "notes_assumptions": "DP-UC10-020 'Change UC10 BR4 to' is treated as a reference marker to a BR-4 amendment affecting Estimated Turnaround exclusion logic; exact amended wording not provided in source.",
+      "acceptance_criteria": [
+        "Given I am on the Tracker screen with Period, Contract Type Filter, Owner Filter, Date Range From, and Date Range To all available as filter inputs, When I select a Date Range From and Date Range To spanning a period in which no contracts exist, Then the system displays the message \"No records found for the selected period.\" instead of any tab data.",
+        "Given the no-records message is displayed, When I view the Ownership Tab, Cycle Time Tab, Bottleneck Tab, or Turnaround Tab, Then none of the following data points are populated with values: Owner Name, Contracts Owned, Average Cycle Time, Current Stage, Days in Current Stage, Stuck Flag, Estimated Turnaround, Actual Turnaround, Variance.",
+        "Given the selected Date Range From is earlier than the selected Date Range To and overrides the Period dropdown per BR-6, When no contracts fall within that range, Then the Period, Contract Type Filter, and Owner Filter selections remain visible on screen but yield no matching records and the no-records message is shown.",
+        "Given Estimated Turnaround is not set for a contract, When BR-4 is applied so that Estimated Turnaround displays 'Not Set' and the contract is excluded from turnaround averages, Then the Change UC10 BR4 to data point reflects this exclusion rule consistently with the no-records scenario when such exclusions result in zero remaining contracts for the selected period.",
+        "Given the no-records message is displayed, When I attempt to trigger an export via the Export Button, Then the export produces a file indicating no records for the selected period rather than an empty or malformed report."
+      ]
+    },
+    {
+      "epic": "Tracker",
+      "actor": "Tenant Admin",
+      "title": "Display export failure message and retain current view",
+      "story_id": "UC10-AF-004",
+      "references": [
+        "UC10",
+        "AF-4",
+        "DP-UC10-001",
+        "DP-UC10-002",
+        "DP-UC10-003",
+        "DP-UC10-004",
+        "DP-UC10-005",
+        "DP-UC10-010",
+        "DP-UC10-011",
+        "DP-UC10-012",
+        "DP-UC10-013",
+        "DP-UC10-014",
+        "DP-UC10-015",
+        "DP-UC10-016",
+        "DP-UC10-017",
+        "DP-UC10-018",
+        "DP-UC10-020"
+      ],
+      "story_type": "alternate-flow",
+      "story_statement": "As a Tenant Admin, I want to see a clear failure message when a Tracker export fails, so that I understand the export did not succeed and can retry without losing my current view.",
+      "source_reference": "UC10 / Alternate Flow / AF-4",
+      "acceptance_criteria": [
+        "Given a user on the Tracker screen with the on-screen view configured using Period, Contract Type Filter, Owner Filter, Date Range From, and Date Range To, When the user clicks the Export Button and report generation fails, Then the system displays the message \"Export failed. Please try again.\"",
+        "Given the export has failed, When the failure message is displayed, Then the on-screen view remains unchanged, including the current selections for Period, Contract Type Filter, Owner Filter, Date Range From, and Date Range To, and the currently active tab is not switched or reset",
+        "Given the export failure occurs while viewing the Ownership tab, When the failure message is shown, Then the Owner Name and Contracts Owned values displayed in the table rows remain unchanged",
+        "Given the export failure occurs while viewing the Cycle Time tab, When the failure message is shown, Then the Average Cycle Time values remain unchanged",
+        "Given the export failure occurs while viewing the Bottleneck tab, When the failure message is shown, Then the Current Stage, Days in Current Stage, and Stuck Flag values remain unchanged",
+        "Given the export failure occurs while viewing the Turnaround tab, When the failure message is shown, Then the Estimated Turnaround, Actual Turnaround, and Variance values remain unchanged",
+        "Given Estimated Turnaround for a contract was not set at Contract Creation, When Change UC10 BR4 to is applied as the updated business rule governing turnaround averages, Then the export failure handling behaves consistently with that updated rule without altering displayed field values after the failed export"
+      ]
+    },
+    {
+      "epic": "Tracker",
+      "actor": "Tenant Admin",
+      "title": "Display Turnaround Variance with Delay or On-Time Color Coding",
+      "story_id": "UC10-BR-003",
+      "references": [
+        "UC10-BR-003",
+        "F-16",
+        "F-17",
+        "F-18",
+        "DP-UC10-001",
+        "DP-UC10-002",
+        "DP-UC10-003",
+        "DP-UC10-004",
+        "DP-UC10-005",
+        "DP-UC10-010",
+        "DP-UC10-011",
+        "DP-UC10-012",
+        "DP-UC10-013",
+        "DP-UC10-014",
+        "DP-UC10-015",
+        "DP-UC10-016",
+        "DP-UC10-017",
+        "DP-UC10-018",
+        "DP-UC10-020"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to view the Turnaround Variance calculated as Actual Turnaround Days minus Estimated Turnaround Days and color-coded accordingly, so that I can quickly identify which contracts are delayed versus on time.",
+      "source_reference": "UC10 / Business Rules / BR-3",
+      "notes_assumptions": "DP-UC10-020 ('Change UC10 BR4 to') appears to reference an edit/change instruction to BR-4 rather than a Tracker field; it is listed here to satisfy full data point coverage but has no direct bearing on the Variance calculation itself and may require clarification with the BRD author.",
+      "acceptance_criteria": [
+        "Given a contract has both an Estimated Turnaround and an Actual Turnaround value, when the Turnaround Tab is displayed, then the Variance is calculated as Actual Turnaround minus Estimated Turnaround and shown numerically in the Variance column.",
+        "Given the calculated Variance is a positive value, when the Turnaround Tab renders the row, then the Variance is displayed in red to indicate a delay.",
+        "Given the calculated Variance is negative or equal to zero, when the Turnaround Tab renders the row, then the Variance is displayed in green to indicate on-time or early completion.",
+        "Given the viewing role is Tenant Admin, when the Tracker screen is opened, then the following data points are available for review and configuration as applicable: Period, Contract Type Filter, Owner Filter, Date Range From, Date Range To, Owner Name, Contracts Owned, Average Cycle Time, Current Stage, Days in Current Stage, Stuck Flag, Estimated Turnaround, Actual Turnaround, Variance, and Change UC10 BR4 to.",
+        "Given a Period, Contract Type Filter, Owner Filter, Date Range From, or Date Range To is applied, when the Turnaround Tab data is refreshed, then the Variance values recalculate for all contracts within the filtered scope.",
+        "Given the Tenant Admin exports the Turnaround Tab, when the export is generated, then the Variance column retains its red or green color coding in the exported Excel or PDF file."
+      ]
+    },
+    {
+      "epic": "Tracker",
+      "actor": "Tenant Admin",
+      "title": "View and export full-tenant Tracker data as Tenant Admin",
+      "story_id": "UC10-BR-008",
+      "references": [
+        "UC10-BR-8",
+        "DP-UC10-001",
+        "DP-UC10-002",
+        "DP-UC10-003",
+        "DP-UC10-004",
+        "DP-UC10-005",
+        "DP-UC10-010",
+        "DP-UC10-011",
+        "DP-UC10-012",
+        "DP-UC10-013",
+        "DP-UC10-014",
+        "DP-UC10-015",
+        "DP-UC10-016",
+        "DP-UC10-017",
+        "DP-UC10-018",
+        "DP-UC10-020"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Tenant Admin, I want to view Tracker data for all contracts, owners and users in the tenant, apply all filters, and export any tab to Excel or PDF, so that I can oversee and report on tenant-wide contract performance without ownership restrictions.",
+      "source_reference": "UC10 / Business Rules / BR-8",
+      "notes_assumptions": "DP-UC10-020 ('Change UC10 BR4 to') is a document amendment note regarding BR-4 rather than a Tracker field; included here to satisfy coverage requirement, with no direct UI field of its own.",
+      "acceptance_criteria": [
+        "Given I am logged in as Tenant Admin, When I open the Tracker screen, Then I can view Tracker data for all contracts, owners and users in the tenant, with no restriction based on contract ownership or role involvement.",
+        "Given I am viewing the Tracker, When I apply filters, Then I can set Period, Contract Type Filter, Owner Filter, Date Range From, and Date Range To across all tenant data without restriction.",
+        "Given the Ownership tab is open, When tenant-wide data is displayed, Then the Owner Name, Contracts Owned, and Average Cycle Time fields are shown for every owner in the tenant.",
+        "Given the Bottleneck tab is open, When tenant-wide data is displayed, Then the Current Stage, Days in Current Stage, and Stuck Flag fields are shown for every contract in the tenant.",
+        "Given the Turnaround tab is open, When tenant-wide data is displayed, Then the Estimated Turnaround, Actual Turnaround, and Variance fields are shown for every contract in the tenant.",
+        "Given I am on any tab (Ownership, Cycle Time, Bottleneck, or Turnaround), When I select the Export Button, Then I can export that tab's full tenant data to Excel or PDF format.",
+        "Given UC10 BR4 is changed per DP-UC10-020, When Estimated Turnaround is affected by that change, Then the Tenant Admin's tenant-wide view and export reflect the updated BR4 behavior accordingly."
+      ]
+    },
+    {
+      "epic": "Tracker",
+      "actor": "Contract Owner (Sales/Procurement)",
+      "title": "Restrict Contract Owner Tracker view to owned contracts",
+      "story_id": "UC10-BR-009",
+      "references": [
+        "UC10-BR-009",
+        "BR-5",
+        "BR-4",
+        "F-2",
+        "F-3",
+        "F-4",
+        "F-5"
+      ],
+      "story_type": "business-rule",
+      "story_statement": "As a Contract Owner (Sales/Procurement), I want to view, filter and export Tracker data limited to the contracts I own, so that I can monitor my own contracts' progress without accessing other users' ownership or cycle time data.",
+      "source_reference": "UC10 / Business Rules / BR-9",
+      "notes_assumptions": "DP-UC10-020 'Change UC10 BR4 to' is interpreted as a reference to an amendment of BR-4 (Estimated Turnaround exclusion logic) applied within the Contract Owner's restricted data scope; exact wording of the BR-4 change was not detailed in source and should be confirmed with stakeholders.",
+      "acceptance_criteria": [
+        "Given I am logged in as a Contract Owner, When I open the Tracker screen, Then I see Tracker data only for contracts I own, filtered by Period, Contract Type Filter, Owner Filter, Date Range From, and Date Range To restricted to my own contracts.",
+        "Given I am viewing the Ownership Tab, When the tab loads my data, Then I see only Owner Name, Contracts Owned, Average Cycle Time, Current Stage, Days in Current Stage, Stuck Flag, Estimated Turnaround, Actual Turnaround, and Variance values corresponding to contracts I own.",
+        "Given I attempt to apply the Owner Filter, When I select a value, Then only Owner Name and associated data for owners other than myself are excluded, confirming I cannot view other users' ownership or cycle time data.",
+        "Given I click the Export Button, When the export is generated in Excel or PDF format, Then the exported file contains only my own Tracker view data including Period, Contract Type Filter, Owner Filter, Date Range From, Date Range To, Owner Name, Contracts Owned, Average Cycle Time, Current Stage, Days in Current Stage, Stuck Flag, Estimated Turnaround, Actual Turnaround, and Variance.",
+        "Given BR-4 is updated per Change UC10 BR4 to reflect that Estimated Turnaround is excluded from averages when not set, When I view my Tracker data, Then contracts without an Estimated Turnaround display 'Not Set' and are excluded from turnaround averages within my own data scope.",
+        "Given I attempt to bypass filters via direct navigation or API manipulation, When I request Tracker data for another owner, Then the system denies access and displays no data outside contracts I own."
+      ]
+    },
+    {
+      "epic": "Tracker",
+      "actor": "Tenant Admin",
+      "title": "View Contracts by Owner table in Ownership tab",
+      "story_id": "UC10-GC-001",
+      "references": [
+        "UC10",
+        "BR-1",
+        "BR-2",
+        "BR-3",
+        "BR-4",
+        "BR-5",
+        "BR-6",
+        "F-1",
+        "F-2",
+        "F-3",
+        "F-4",
+        "F-5",
+        "F-10",
+        "F-11",
+        "F-12",
+        "F-13",
+        "F-14",
+        "F-15",
+        "F-16",
+        "F-17",
+        "F-18",
+        "DP-UC10-001",
+        "DP-UC10-002",
+        "DP-UC10-003",
+        "DP-UC10-004",
+        "DP-UC10-005",
+        "DP-UC10-010",
+        "DP-UC10-011",
+        "DP-UC10-012",
+        "DP-UC10-013",
+        "DP-UC10-014",
+        "DP-UC10-015",
+        "DP-UC10-016",
+        "DP-UC10-017",
+        "DP-UC10-018",
+        "DP-UC10-020"
+      ],
+      "story_type": "grid-columns",
+      "story_statement": "As a Tenant Admin, I want to view the Contracts by Owner table on the Ownership tab with all its columns and filters populated correctly, so that I can monitor contract distribution and stage progress across owners.",
+      "source_reference": "UC10 / Grid Columns / Ownership Tab",
+      "notes_assumptions": "The data point labeled 'Change UC10 BR4 to' [DP-UC10-020] is interpreted as a reference/annotation to BR-4's Estimated Turnaround 'Not Set' exclusion rule rather than a distinct visible column; it is acknowledged in acceptance criterion 4 pending clarification from the source document on its intended content.",
+      "acceptance_criteria": [
+        "Given I am logged in with a role permitted to view the Tracker, When I select the Ownership Tab, Then the Contracts by Owner table displays columns Owner Name, Contracts Owned, In Draft, In Negotiation, In Approval, In Signature, and Completed for each owner within my role's data entitlement.",
+        "Given the Ownership tab is displayed, When I set the Period, Contract Type Filter, Owner Filter, Date Range From, and Date Range To, Then the table data refreshes to reflect those filter selections and the Period/Date Range precedence rule.",
+        "Given I review the Ownership tab table row for an owner, When the row is rendered, Then it shows Owner Name, Contracts Owned (count), Average Cycle Time where applicable, Current Stage, Days in Current Stage, Stuck Flag, Estimated Turnaround, Actual Turnaround, and Variance for related drill-down data available from other tabs.",
+        "Given an owner's Estimated Turnaround was not set at Contract Creation, When the table computes turnaround figures, Then the field displays 'Not Set' and that contract is excluded from turnaround averages, per the data point labeled 'Change UC10 BR4 to' which clarifies this exclusion behavior for Estimated Turnaround.",
+        "Given the Ownership tab table is populated, When I inspect the Variance values, Then positive Variance values (Actual Turnaround minus Estimated Turnaround) are shown in red and negative or zero values are shown in green.",
+        "Given I have appropriate access, When I trigger the Export Button, Then the Ownership tab table data, including Owner Name, Contracts Owned, Average Cycle Time, Current Stage, Days in Current Stage, Stuck Flag, Estimated Turnaround, Actual Turnaround, and Variance, is exported per my role's entitlement scope."
+      ]
+    },
+    {
+      "epic": "Tracker",
+      "actor": "Tenant Admin",
+      "title": "View contract tracking data across Ownership, Cycle Time, Bottleneck and Turnaround tabs",
+      "story_id": "UC10-MF-001",
+      "references": [
+        "UC10",
+        "BR-1",
+        "BR-2",
+        "BR-3",
+        "BR-4",
+        "BR-5",
+        "BR-6",
+        "F-1",
+        "F-2",
+        "F-3",
+        "F-4",
+        "F-5",
+        "F-6",
+        "F-7",
+        "F-8",
+        "F-9",
+        "F-10",
+        "F-11",
+        "F-12",
+        "F-13",
+        "F-14",
+        "F-15",
+        "F-16",
+        "F-17",
+        "F-18",
+        "F-19",
+        "DP-UC10-001",
+        "DP-UC10-002",
+        "DP-UC10-003",
+        "DP-UC10-004",
+        "DP-UC10-005",
+        "DP-UC10-010",
+        "DP-UC10-011",
+        "DP-UC10-012",
+        "DP-UC10-013",
+        "DP-UC10-014",
+        "DP-UC10-015",
+        "DP-UC10-016",
+        "DP-UC10-017",
+        "DP-UC10-018",
+        "DP-UC10-020"
+      ],
+      "story_type": "main-flow",
+      "story_statement": "As a Tenant Admin, I want to navigate to the Tracker and view Ownership, Cycle Time, Bottleneck and Turnaround tabs with period selection, filters and export, so that I can monitor contract progress and identify delays across the tenant.",
+      "source_reference": "UC10 / Main Flow",
+      "notes_assumptions": "DP-UC10-020 ('Change UC10 BR4 to') appears to reference an amendment to BR-4 regarding Estimated Turnaround Days source handling; exact amended wording was not supplied in the source excerpt, so the Estimated Turnaround field's underlying rule should be confirmed against the latest BR-4 revision.",
+      "acceptance_criteria": [
+        "Given the user navigates Home Page -> CLM Hub -> Tracker, When the Tracker loads, Then the system displays the Ownership tab showing Owner Name and Contracts Owned columns alongside In Draft, In Negotiation, In Approval, In Signature and Completed counts.",
+        "Given the user clicks the Cycle Time tab, When the tab loads, Then the system displays Average Cycle Time per stage grouped by user and contract type in a table and bar chart.",
+        "Given the user clicks the Bottleneck tab, When the tab loads, Then the system displays Current Stage, Days in Current Stage and Stuck Flag (Yes/No) for each contract.",
+        "Given the user clicks the Turnaround tab, When the tab loads, Then the system displays Contract Name, Contract Type, Estimated Turnaround, Actual Turnaround and Variance for each contract.",
+        "Given the user selects a value in the Period dropdown (Daily, Weekly, Monthly), When the selection is made, Then all tabs refresh to show data for the selected period.",
+        "Given the user applies the Contract Type Filter, Owner Filter, Date Range From and Date Range To filters, When the filters are applied, Then the visible tab refreshes with filtered results and Date Range From must be earlier than Date Range To.",
+        "Given the user clicks Export and selects Excel or PDF, When export completes, Then the system downloads the report file for the currently selected tab and period.",
+        "Given this story's required data points, When the Tracker tabs and controls are evaluated, Then the following named data points are all present and correctly labeled: Period, Contract Type Filter, Owner Filter, Date Range From, Date Range To, Owner Name, Contracts Owned, Average Cycle Time, Current Stage, Days in Current Stage, Stuck Flag, Estimated Turnaround, Actual Turnaround, Variance, and the field previously governed by BR-4 (Estimated Turnaround Days source) reflecting the Change UC10 BR4 update."
+      ]
+    }
+  ]
+}
