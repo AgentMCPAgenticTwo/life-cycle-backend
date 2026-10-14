@@ -59,14 +59,16 @@ def test_model_indexes_match_contract_indexes():
 
 def test_migration_chain_matches_contract_order_exactly():
     """Each foundation task appends its own module's migrations to a chain that already
-    carries earlier modules' tables, so this checks the module's migrations form an
-    exact-order suffix of the full chain rather than the whole chain."""
+    carries earlier modules' tables -- and later migrations may follow it -- so this checks
+    the module's migrations form an exact-order contiguous run within the full chain."""
     cfg = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
     script = ScriptDirectory.from_config(cfg)
     revisions = list(script.walk_revisions(base="base", head="head"))
     chain_oldest_first = [r.revision for r in reversed(revisions)]
     expected = CONTEXT["migrations"]
-    assert chain_oldest_first[-len(expected):] == expected
+    assert expected[0] in chain_oldest_first
+    start = chain_oldest_first.index(expected[0])
+    assert chain_oldest_first[start:start + len(expected)] == expected
 
 
 def test_migration_upgrade_sql_generates_offline_without_a_database(monkeypatch):
