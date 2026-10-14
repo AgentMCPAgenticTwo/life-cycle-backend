@@ -48,6 +48,14 @@ unit, distinct from the tracker tabs (cluster 1) even though both come from the 
 * `POST /settings/users/{userId}/reset-password` (`reset_password`) issues a fresh temporary
   password (`ResetPasswordResponse`) and revokes every refresh token the user holds, so the old
   password cannot keep a session alive. See [Auth](/modules/auth.md).
+* `POST /settings/users` also sends the `New User Invited` notification via
+  `app.services.notifications.dispatch`, after its own commit. See
+  [Notifications](/modules/notifications.md).
+* `GET /settings/notifications` calls `app.repositories.settings_notifications.ensure_seeded`,
+  the repo's only idempotent seeder: it inserts any of the eleven `EVENT_NAMES` rows the tenant
+  is missing with both toggles On (UC11-BR-007), skipping names already present, so it is safe
+  on every request. `list_by_tenant` then returns them in `EVENT_NAMES` order rather than
+  insertion order.
 * `POST /settings/integrations/{integrationName}/connect` masks credentials in the response
   (`maskedCredential`) and persists `credential_ciphertext` separately from the masked display
   value (`tenant_integrations.credential_masked_display`).
@@ -63,4 +71,7 @@ unit, distinct from the tracker tabs (cluster 1) even though both come from the 
 [Approval Matrix](/modules/approval-matrix.md)'s `approval_matrix_configs`/`steps` — see that
 module's note on why both exist. `tenant_audit_log` is a generic log distinct from the
 per-resource audit logs used by [Approvals](/modules/approvals.md) (`approval_audit_log`) and
-[Signing](/modules/signing.md) (`signature_audit_log`).
+[Signing](/modules/signing.md) (`signature_audit_log`). It is also where
+[Notifications](/modules/notifications.md) records in-app alerts
+(`log_action = "Notification"`) and delivery failures (`"NotificationFailed"`), so
+`GET /settings/audit-log` surfaces rows this module did not write.

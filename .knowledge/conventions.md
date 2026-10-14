@@ -84,27 +84,25 @@ handlers registered on the `FastAPI` app:
   existing migration" rule — confirmed no migration file redefines or drops a table from an
   earlier batch.
 
-# Deviation found: auth schema has no migration
+# Resolved: auth schema now has a migration
 
 `app/models/user.py` gained `password_hash`, `is_active`, `must_change_password`,
-`last_login_at` and `app/models/refresh_token.py` added the whole `refresh_tokens` table, but
-no revision after `0051_create_tenant_audit_log.py` exists for either. The test suite passes
-because `tests/conftest.py` builds the schema from `Base.metadata`; a Postgres database migrated
-with `alembic upgrade head` will not have these columns or that table. See
+`last_login_at` and `app/models/refresh_token.py` added the whole `refresh_tokens` table with no
+revision behind them. `alembic/versions/0052_add_user_credentials_and_refresh_tokens.py` now
+supplies one, so a Postgres database migrated with `alembic upgrade head` matches
+`Base.metadata` (which is what `tests/conftest.py` builds the test schema from, and what
+`tests/test_persistence.py` compares the models against). See
 [Migrations](/modules/migrations.md) and [Auth](/modules/auth.md).
 
-# Deviation found: no idempotent reference-data seeding in code
+# Reference-data seeding: one idempotent seeder exists
 
-CLAUDE.md requires: "Seed only reference/lookup data, and make seeding idempotent... guard every
-insert with an existence check." **No seeding logic exists in `app/` or `alembic/` at all** —
-searches for `seed`, `INSERT INTO`, and `op.bulk_insert` across `alembic/versions/` and `app/`
-found no reference-data seed step (the hits for "seed" in `app/services/lifecycle_clauses.py`,
-`settings_integrations.py`, `settings_notifications.py` are unrelated identifiers, not seeding
-code). This isn't necessarily a bug — none of the five modules' contracts appear to define
-fixed reference/lookup data that needs seeding (lookups like folder tags, approval roles, etc.
-are created via normal CRUD endpoints, not pre-seeded) — but it means the idempotent-seeding
-convention has no code to check against, and a future module that *does* need seed data should
-not assume a pattern already exists to copy.
+The only seeding in the repo is `app.repositories.settings_notifications.ensure_seeded`, which
+inserts the `EVENT_NAMES` rows into `tenant_notification_settings` with both toggles On. It is
+idempotent in the way CLAUDE.md asks for: it reads the tenant's existing `event_name` values
+first and skips any name already present, so running it on every GET never duplicates a row.
+Copy that shape for any future seed step. No migration uses `op.bulk_insert`; the remaining
+lookups (folder tags, approval roles) are created through normal CRUD endpoints, not pre-seeded.
+See [Notifications](/modules/notifications.md) and [Settings](/modules/settings.md).
 
 # Ids (verified)
 

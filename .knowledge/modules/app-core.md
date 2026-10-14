@@ -19,10 +19,15 @@ status: stable
 | `app/main.py` | FastAPI app, CORS middleware, 3 exception handlers, `/health`, all `app.include_router(...)` calls, startup migrations |
 | `app/auth.py` | `bearer_scheme`, `CurrentUser`, `current_user`, `require_roles`, `current_tenant_id` |
 | `app/security.py` | password rules/hashing and JWT + refresh-token primitives — see [Auth](/modules/auth.md) |
-| `app/config.py` | `Settings` (PORT, DATABASE_URL, CORS_ORIGINS, JWT_SECRET, access/refresh TTLs, refresh-cookie name/secure flag from env), `settings` singleton |
+| `app/config.py` | `Settings` (PORT, DATABASE_URL, CORS_ORIGINS, JWT_SECRET, access/refresh TTLs, refresh-cookie name/secure flag, and the `SMTP_*` block read by [Notifications](/modules/notifications.md)), `settings` singleton |
 | `app/db.py` | `Base`, `engine`, `SessionLocal`, `get_db` dependency |
 | `app/errors.py` | `NotFoundError` (404), `ForbiddenError` (403), `ConflictError` (409), `ValidationFailedError` (400) |
 | `app/models/mixins.py` | `TimestampMixin`, `SoftDeleteMixin` used by (almost) every model |
+
+`Settings.smtp_host` defaults to empty, and the notification service treats that as
+"log the message, do not send" — so the app and the test suite run with no mail relay
+configured. `smtp_username`/`smtp_password`/`smtp_from`/`smtp_use_tls`/`smtp_timeout_seconds`
+are read from the environment alongside it; none are hard-coded.
 
 # Key symbols
 

@@ -1,5 +1,11 @@
 # Knowledge Update Log
 
+## 2026-10-14
+
+* **Creation**: Added [Notifications](/modules/notifications.md) for the outbound-notification service introduced by correction trace `f08ed65124ec`, commit `c43909447f3264a2fbec9ac9a11152e7d971a612`: `app/services/notifications.py` (`dispatch`, the eight `EVENT_*` constants, `_toggles`/`_send_email`/`_append`), its `SMTP_*` settings in `app/config.py`, the `ensure_seeded` toggle seeder in `app/repositories/settings_notifications.py`, and `tests/test_notifications.py`.
+* **Update**: Recorded the new callers of `notifications.dispatch` in [Approvals](/modules/approvals.md) (`_ACTION_EVENTS`/`_notify_action`), [Signing](/modules/signing.md) (`send_for_signature`, `apply_signature`, `decline_signature`) and [Settings](/modules/settings.md) (`create_user` invite plus the `ensure_seeded` behaviour of `GET /settings/notifications`). Added the SMTP block to [App Core](/modules/app-core.md) and [Overview](/overview.md). Same trace `f08ed65124ec`.
+* **Update**: Closed two recorded deviations — `alembic/versions/0052_add_user_credentials_and_refresh_tokens.py` now backs the auth columns and `refresh_tokens`, and `settings_notifications.ensure_seeded` is the idempotent reference-data seeder the convention asked for. Rewrote both sections in [Conventions](/conventions.md), updated [Migrations](/modules/migrations.md) (now 52 revisions) and [Tests](/modules/tests.md) (now 33 files, `test_persistence.py` chain/offline-SQL checks), and pointed [Common tasks](/playbooks/common-tasks.md) at the new highest revision, the seeder to copy, and a "send a notification" section. Both index files kept in sync. Same trace `f08ed65124ec`.
+
 ## 2026-10-13
 
 * **Creation**: Added [Auth](/modules/auth.md) for the real login surface introduced by correction trace `7d6ad1406e1b`, commit `700de34973c81dd98062f0bef469b620e6fc976b`: `app/routers/auth.py`, `app/services/auth.py`, `app/repositories/auth.py`, `app/schemas/auth.py`, `app/security.py`, `app/models/user.py`, `app/models/refresh_token.py`, `app/scripts/create_admin.py`.

@@ -33,12 +33,19 @@ status: stable
    `TimestampMixin` and (if soft-deletable) `SoftDeleteMixin` from `app/models/mixins.py` — see
    [App Core](/modules/app-core.md).
 2. Add a new Alembic revision under `alembic/versions/`, numbered after the highest existing
-   revision (currently `0051_create_tenant_audit_log.py`). **Never edit or reorder an existing
-   migration** — see [Migrations](/modules/migrations.md).
+   revision (currently `0052_add_user_credentials_and_refresh_tokens.py`). **Never edit or
+   reorder an existing migration** — see [Migrations](/modules/migrations.md).
 3. If the table needs reference/lookup seed data, write an idempotent insert (existence check
-   first) — note that no such seeding code exists anywhere yet in this repo (see
-   [Conventions > Deviation](/conventions.md#deviation-found-no-idempotent-reference-data-seeding-in-code)),
-   so there is no existing pattern to copy; write it from CLAUDE.md's rule directly.
+   first). Copy `app.repositories.settings_notifications.ensure_seeded`, the repo's only
+   seeder — it reads the existing names once and skips the ones already present, so it is safe
+   to call on every request.
+
+# Send a notification from a new action
+
+Call `app.services.notifications.dispatch` **after** your own `db.commit()`, passing one of the
+`EVENT_*` constants. A new event also needs its name added to
+`app.repositories.settings_notifications.EVENT_NAMES`, or the toggle lookup misses the row. See
+[Notifications](/modules/notifications.md).
 
 # Add a role check
 
