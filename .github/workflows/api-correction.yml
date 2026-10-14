@@ -1,6 +1,6 @@
 name: api-correction
 
-# sage-maintenance-workflow-fingerprint: 07fadc3734507f85
+# sage-maintenance-workflow-fingerprint: a182ffd3437baa8d
 # The second lap. The generation workflow builds a branch from task packages; this
 # applies a one-sentence correction to a branch that already exists ("make the primary
 # button green"), fired by the sage-maintenance service via repository_dispatch.
@@ -100,6 +100,11 @@ jobs:
       # there, picking up the new value with no manual edit per repo.
       DIFF_LINE_WARN: "600"
       DIFF_LINE_BUDGET: "16000"
+      # The hard limit instead of DIFF_LINE_BUDGET when the service found no code on
+      # the fork point and this run BUILDS the repository (mode new_project): a
+      # whole service is thousands of lines. NEW_PROJECT_DIFF_LINE_BUDGET in the
+      # service's env. TRADEOFFS.md #16.
+      NEW_PROJECT_LINE_BUDGET: "50000"
       # Pinned, and --strictPort below makes a busy port fail loudly. Matches CLAUDE.md's
       # visual-verification convention in the app repo.
       PREVIEW_PORT: "5199"
@@ -140,13 +145,13 @@ jobs:
       LITELLM_DIRECT_URL: ${{ secrets.LITELLM_DIRECT_URL }}
       LITELLM_DIRECT_API_KEY: ${{ secrets.LITELLM_DIRECT_API_KEY }}
       # runtime-env marker -- the two lines under this are re-stamped IN PLACE
-      CLAUDE_CODE_EFFORT_LEVEL: "low"
       # by provision._restamp_runtime_env, exactly like --model further down and
       # for the same reason: effort and thinking budget are admin-changeable
       # RUNTIME values, not structural changes to this workflow, so changing one
       # must reach an already-committed file without a full re-provision.
       # Nothing between this marker and `steps:` may be edited by hand -- the
       # restamp owns those lines and rewrites them.
+      CLAUDE_CODE_EFFORT_LEVEL: "low"
     steps:
       # `branch` IS the correction branch here -- always a brand-new one the
       # service created (git refs API, forked from base_branch/whatever ref it
@@ -217,6 +222,11 @@ jobs:
 
       - name: Install project dependencies
         run: if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo 'no requirements.txt - skipping'; fi
+        # A repository with no code has no manifest yet, and most stacks' install
+        # (dotnet restore, go mod download, mvn, bundle, composer) fails without one.
+        # In that mode only, the build starts anyway; it installs its own later.
+        # Read from the payload: "Resolve correction policy" has not run yet.
+        continue-on-error: ${{ github.event.client_payload.mode == 'new_project' }}
       # Node is set up regardless of the stack being corrected: Claude Code installs
       # through npm.
       - uses: actions/setup-node@v4
@@ -278,6 +288,111 @@ jobs:
           for key, source in (d.get("sources") or {}).items():
               print(f"  {key}: {source}")
           SAGE_PROMPT_INFO
+          # Documents the caller attached, committed next to the prompts file by the
+          # service (documents.py): read-only for the run, so the correction reads
+          # them and an edit fails at once instead of at the containment gate.
+          python3 - <<'SAGE_DOCS_INFO'
+          import json, os, stat
+          try:
+              docs = json.load(open(os.environ["SAGE_PROMPTS_FILE"], encoding="utf-8")).get("documents") or []
+          except (OSError, ValueError):
+              docs = []
+          for doc in docs:
+              for key in ("read_path", "original_path"):
+                  path = str(doc.get(key) or "")
+                  if path.startswith(".sage-maintenance/") and ".." not in path and os.path.isfile(path):
+                      os.chmod(path, os.stat(path).st_mode & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
+              print("attached document:", doc.get("name"), "->", doc.get("read_path") or "(not readable)")
+          SAGE_DOCS_INFO
+
+      # Separate-repos projects: the project's other repositories, cloned
+      # read-only under /tmp/sage-refs -- outside this checkout, so nothing in
+      # them can be committed -- for the correction to READ when the request
+      # depends on them (prompts.REFS_PY). SAGE_REFERENCE_TOKEN is set on this
+      # repo by the service for the run (provision.sync_reference_secret) and
+      # removed afterwards; without it, or for a repository that fails to clone,
+      # the correction runs exactly as before.
+      - name: References - clone read-only
+        continue-on-error: true
+        env:
+          SAGE_REFERENCE_TOKEN: ${{ secrets.SAGE_REFERENCE_TOKEN }}
+        run: |
+          python3 - <<'SAGE_REFS_PY'
+          import base64, json, os, re, shutil, subprocess, sys
+          from pathlib import Path
+
+          DEST = Path(os.environ.get("SAGE_REFS_DIR") or "/tmp/sage-refs")
+          NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+          ORG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$")
+          BRANCH = re.compile(r"^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,200}$")
+
+          try:
+              with open(os.environ.get("SAGE_PROMPTS_FILE", ""), encoding="utf-8") as fh:
+                  refs = json.load(fh).get("references") or []
+          except (OSError, ValueError):
+              refs = []
+          if not refs:
+              print("no reference repositories for this correction")
+              sys.exit(0)
+          token = os.environ.get("SAGE_REFERENCE_TOKEN", "").strip()
+          if not token:
+              print("::warning title=Reference repositories not cloned::SAGE_REFERENCE_TOKEN was "
+                    "not set on this repository for this run (the service sets it from the "
+                    "project's GitHub token, or the deployment's SAGE_REFERENCE_TOKEN, and needs "
+                    "permission to write Actions secrets here); continuing without")
+              sys.exit(0)
+          auth = "AUTHORIZATION: basic " + base64.b64encode(f"x-access-token:{token}".encode()).decode()
+
+
+          def remove(path):
+              # git's object files are read-only; clear the bit and retry rather than leave them.
+              def retry(func, p, _exc):
+                  os.chmod(p, 0o700)
+                  func(p)
+              if path.exists():
+                  shutil.rmtree(path, onerror=retry)
+
+
+          DEST.mkdir(parents=True, exist_ok=True)
+          cloned = []
+          for ref in refs[:10]:
+              name, repo, org, branch = (str(ref.get(k) or "").strip()
+                                         for k in ("name", "repository", "org", "branch"))
+              if not (NAME.match(name) and NAME.match(repo) and ORG.match(org)):
+                  print(f"skipping reference {name!r}: not a GitHub org/repository")
+                  continue
+              target = DEST / name
+
+              def clone(extra):
+                  remove(target)
+                  try:
+                      return subprocess.run(
+                          ["git", "-c", f"http.extraHeader={auth}", "clone", "--quiet", "--depth", "1",
+                           "--single-branch", *extra, f"https://github.com/{org}/{repo}.git", str(target)],
+                          capture_output=True, text=True, timeout=180,
+                      ).returncode
+                  except subprocess.TimeoutExpired:
+                      return 124
+
+              code = clone(["--branch", branch]) if branch and BRANCH.match(branch) else clone([])
+              if code != 0 and branch:
+                  code = clone([])  # that branch may not exist there: take the default branch
+              if code != 0:
+                  remove(target)
+                  print(f"::warning title=Reference {name} not cloned::{org}/{repo} could not be "
+                        "cloned with SAGE_REFERENCE_TOKEN; continuing without it")
+                  continue
+              for extra in (".git", ".claude"):
+                  remove(target / extra)
+              for md in list(target.rglob("CLAUDE.md")) + list(target.rglob("CLAUDE.local.md")):
+                  md.rename(md.with_name(md.stem + ".reference.md"))
+              try:
+                  subprocess.run(["chmod", "-R", "a-w", str(target)], check=False)
+              except OSError:
+                  pass  # no chmod (not the Linux runner): still outside the checkout, never committed
+              cloned.append(name)
+          print(f"reference repositories (read-only) in {DEST}: {', '.join(cloned) or 'none'}")
+          SAGE_REFS_PY
 
       # ── One place that decides the rules, before anything reads them ──────
       # Both the PROMPT (what the agent is told it may touch) and the GATE (what
@@ -315,24 +430,41 @@ jobs:
           # creation.
           case "${MODE_IN:-}" in
             feature) MODE=feature ;;
+            new_project) MODE=new_project ;;
             *)       MODE=correction ;;
           esac
 
-          if [ "$MODE" = "feature" ]; then
+          if [ "$MODE" = "feature" ] || [ "$MODE" = "new_project" ]; then
             TOOLS='Read,Edit,Write,Glob,Grep,Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(ruff:*)'
           else
             TOOLS='Read,Edit,Glob,Grep,Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(ruff:*)'
+          fi
+
+          # new_project: the service found no code on the fork point (it decides this
+          # from the repository, never from the request), so this run BUILDS the
+          # repository: any path outside what this workflow and the service own, under
+          # the new-project line budget (TRADEOFFS.md #16). The other modes keep
+          # DIFF_LINE_BUDGET / DIFF_LINE_WARN exactly as before.
+          LINE_BUDGET="$DIFF_LINE_BUDGET"
+          LINE_WARN="$DIFF_LINE_WARN"
+          if [ "$MODE" = "new_project" ]; then
+            ALLOWED='^[^.]|^\.(gitignore|gitattributes|dockerignore|editorconfig|nvmrc|npmrc|node-version|python-version|ruby-version|tool-versions|prettierrc|prettierignore|eslintrc|eslintignore|stylelintrc|babelrc|swcrc|env\.example|env\.sample)'
+            LINE_BUDGET="$NEW_PROJECT_LINE_BUDGET"
+            LINE_WARN="$NEW_PROJECT_LINE_BUDGET"
           fi
 
           {
             echo "ALLOWED_PATHS=$ALLOWED"
             echo "CORRECTION_MODE=$MODE"
             echo "ALLOWED_TOOLS=$TOOLS"
+            echo "LINE_BUDGET=$LINE_BUDGET"
+            echo "LINE_WARN=$LINE_WARN"
           } >> "$GITHUB_ENV"
 
           echo "mode:          $MODE"
           echo "allowed tools: $TOOLS"
           echo "allowed paths: $ALLOWED"
+          echo "line budget:   $LINE_BUDGET"
 
       - name: Run Claude Code
         env:
@@ -454,7 +586,7 @@ jobs:
           export DEPENDENCY_RULE
           if ! { python3 /tmp/sage_prompt.py "${CORRECTION_MODE:-correction}" \
                    allowed_paths=ALLOWED_PATHS dependency_rule=DEPENDENCY_RULE \
-                   diff_line_budget=DIFF_LINE_BUDGET diff_line_warn=DIFF_LINE_WARN \
+                   diff_line_budget=LINE_BUDGET diff_line_warn=LINE_WARN \
                  && printf '\n'; } > /tmp/correction.system.txt; then
             echo "::endgroup::"
             echo "::error::$SAGE_PROMPTS_FILE has no '${CORRECTION_MODE:-correction}' prompt"
@@ -556,8 +688,15 @@ jobs:
           # and the system prompt is the file assembled above. Neither contains
           # caller-controlled text -- the instruction is still on stdin, and
           # still the only thing there.
+          # Reference repositories, when the clone step produced any: readable
+          # (never writable -- they are read-only and outside this checkout).
+          REF_ARGS=()
+          if [ -n "$(ls -A /tmp/sage-refs 2>/dev/null)" ]; then
+            REF_ARGS=(--add-dir /tmp/sage-refs)
+          fi
           claude \
             --print \
+            ${REF_ARGS[@]+"${REF_ARGS[@]}"} \
             --allowedTools "$ALLOWED_TOOLS" \
             --append-system-prompt "$(cat /tmp/correction.system.txt)" \
             --permission-mode acceptEdits \
@@ -617,6 +756,20 @@ jobs:
         id: containment
         run: |
           set -euo pipefail
+          # new_project only: a dependency or cache folder the agent created without ignoring
+          # it goes into .gitignore, so it is neither counted, gated nor committed as
+          # thousands of vendored files. Runs in the gate and again before the commit, after
+          # validation's own install. Does nothing in the other modes.
+          if [ "${CORRECTION_MODE:-}" = "new_project" ]; then
+            for d in node_modules .venv venv __pycache__ .pytest_cache .mypy_cache .ruff_cache .gradle .next .nuxt .turbo coverage; do
+              if git ls-files --others --exclude-standard \
+                   | awk -v d="$d/" 'index($0, d) == 1 || index($0, "/" d) > 0 { found = 1 } END { exit !found }'; then
+                if [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore)" ]; then echo >> .gitignore; fi
+                printf '%s/\n' "$d" >> .gitignore
+                echo "::warning title=Ignored $d/::the new project had no .gitignore entry for $d/ -- added, so it is not committed"
+              fi
+            done
+          fi
 
           # --permission-mode acceptEdits leaves the agent's work UNCOMMITTED, so the diff
           # to inspect is the working tree, not BASE..HEAD. (Comparing commits here would
@@ -624,6 +777,23 @@ jobs:
           # ls-files --others catches anything the agent created rather than edited.
           CHANGED=$( { git diff --name-only; git ls-files --others --exclude-standard; } \
             | sort -u )
+
+          # new_project only: a whole new project is not failed over a file it may not
+          # commit -- a CI workflow above all, which this token cannot push. Those files
+          # are dropped with a warning and the rest of the build goes on; the check
+          # below then passes on what is left. Corrections and features are unchanged:
+          # one file outside the set still fails them.
+          if [ "${CORRECTION_MODE:-}" = "new_project" ] && [ -n "$CHANGED" ]; then
+            DROPPED=$(echo "$CHANGED" | grep -Ev "$ALLOWED_PATHS" || true)
+            if [ -n "$DROPPED" ]; then
+              echo "::warning title=Files dropped from the new project::$(echo "$DROPPED" | tr '\n' ' ')"
+              echo "$DROPPED" | while IFS= read -r f; do
+                git checkout -q -- "$f" 2>/dev/null || rm -f -- "$f"
+              done
+              CHANGED=$( { git diff --name-only; git ls-files --others --exclude-standard; } \
+                | sort -u )
+            fi
+          fi
 
           if [ -z "$CHANGED" ]; then
             # A ::warning:: and not a bare echo: without an annotation this run
@@ -689,6 +859,11 @@ jobs:
               | bc || echo 0)
           fi
 
+          # This mode's limits, as "Resolve correction policy" resolved them: the same
+          # DIFF_LINE_BUDGET / DIFF_LINE_WARN for a correction or a feature, the
+          # new-project budget for a repository being built (TRADEOFFS.md #16).
+          DIFF_LINE_BUDGET="${LINE_BUDGET:-$DIFF_LINE_BUDGET}"
+          DIFF_LINE_WARN="${LINE_WARN:-$DIFF_LINE_WARN}"
           echo "Diff size: ${LINES:-0} line(s) (warn ${DIFF_LINE_WARN}, hard limit ${DIFF_LINE_BUDGET})."
           if [ "${LINES:-0}" -gt "$DIFF_LINE_BUDGET" ]; then
             echo "::error::Correction modified ${LINES} lines, over the ${DIFF_LINE_BUDGET}-line hard limit."
@@ -723,11 +898,19 @@ jobs:
       # run AFTER Claude had already committed a correct correction. Every non-Node
       # toolchain hit this: dotnet restore, pip, go mod download, mvn, bundle, composer.
       - name: Install newly added dependency (if any)
+        id: deps
         if: steps.containment.outputs.empty == 'false' && env.ALLOW_DEPENDENCY_CHANGES == 'true'
         run: if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo 'no requirements.txt - skipping'; fi
+        # new_project only: a failure here or in the validation below is recorded on
+        # the result (a blocker, PARTIAL_SUCCESS) and the build is still committed --
+        # a whole new project is not thrown away over one failing check. Every other
+        # mode fails the job exactly as before. TRADEOFFS.md #16.
+        continue-on-error: ${{ env.CORRECTION_MODE == 'new_project' }}
 
       - name: Run validation
+        id: validation
         if: steps.containment.outputs.empty == 'false'
+        continue-on-error: ${{ env.CORRECTION_MODE == 'new_project' }}
         # CHANGED_FILES is what the containment gate above measured -- the files
         # this correction actually touched, newline-separated. Gates that can be
         # scoped to the diff (see _NODE_LINT_GATE in targets.py) read it so the
@@ -852,6 +1035,10 @@ jobs:
           CHANGED_FILES: ${{ steps.containment.outputs.files }}
           LINES: ${{ steps.containment.outputs.lines }}
           TARGET: backend
+          # new_project only: these two may fail without failing the job (see
+          # "Install newly added dependency"), so the result has to say when they did.
+          DEPS_OUTCOME: ${{ steps.deps.outcome }}
+          VALIDATION_OUTCOME: ${{ steps.validation.outcome }}
         run: |
           set -euo pipefail
           mkdir -p .api-gen/corrections
@@ -1070,12 +1257,27 @@ jobs:
               blockers.append(f'Not applied -- {item}')
           if visual['verdict'] == 'fail':
               blockers.append(f"Visual verification failed: {visual['evidence']}")
+          # A new project whose install or validation failed after the build: the
+          # code is committed all the same, and the result says what did not pass,
+          # which makes the run partial rather than a success.
+          unvalidated = []
+          if os.environ.get('CORRECTION_MODE') == 'new_project':
+              if os.environ.get('DEPS_OUTCOME') == 'failure':
+                  unvalidated.append('the dependency install')
+              if os.environ.get('VALIDATION_OUTCOME') == 'failure':
+                  unvalidated.append('validation (typecheck / build / tests)')
+          if unvalidated:
+              blockers.append(
+                  'New project built, but ' + ' and '.join(unvalidated) + ' failed in CI. '
+                  'The code is committed so it can be reviewed and fixed; see those steps '
+                  'in the run log.'
+              )
 
           out = {
               'trace_id': os.environ['TRACE_ID'],
               'branch': os.environ['BRANCH'],
               'maintenance_branch': os.environ['MAINTENANCE_BRANCH'],
-              'status': 'BLOCKED' if empty else 'SUCCESS',
+              'status': 'BLOCKED' if (empty or unvalidated) else 'SUCCESS',
               'summary': summary_text[:4000] or 'no summary reported',
               'files_changed': files,
               'lines_changed': int(os.environ.get('LINES') or 0),
@@ -1122,6 +1324,20 @@ jobs:
           TRACE_ID: ${{ github.event.client_payload.trace_id }}
         run: |
           set -euo pipefail
+          # new_project only: a dependency or cache folder the agent created without ignoring
+          # it goes into .gitignore, so it is neither counted, gated nor committed as
+          # thousands of vendored files. Runs in the gate and again before the commit, after
+          # validation's own install. Does nothing in the other modes.
+          if [ "${CORRECTION_MODE:-}" = "new_project" ]; then
+            for d in node_modules .venv venv __pycache__ .pytest_cache .mypy_cache .ruff_cache .gradle .next .nuxt .turbo coverage; do
+              if git ls-files --others --exclude-standard \
+                   | awk -v d="$d/" 'index($0, d) == 1 || index($0, "/" d) > 0 { found = 1 } END { exit !found }'; then
+                if [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore)" ]; then echo >> .gitignore; fi
+                printf '%s/\n' "$d" >> .gitignore
+                echo "::warning title=Ignored $d/::the new project had no .gitignore entry for $d/ -- added, so it is not committed"
+              fi
+            done
+          fi
 
           git config user.name  "api-correction[bot]"
           git config user.email "api-correction@users.noreply.github.com"
@@ -1143,20 +1359,24 @@ jobs:
           # First line of the instruction only: a commit subject is not a paragraph. Passed
           # via env and stdin, never spliced into the command line.
           #
-          # The service prepends a <memory_context>...</memory_context> block to the
+          # The service prepends <service_context> and <memory_context> blocks to the
           # instruction for Claude's benefit; skipped here, or every fix commit is titled
-          # "<memory_context>". Same rule as envelope.instruction_label: only a block
-          # that opens the text, and an unclosed one falls back to the plain first line.
+          # "<service_context>". Same rule as envelope.instruction_label: only blocks
+          # that open the text (in either order), and an unclosed one falls back to the
+          # plain first line.
           SUBJECT=$(printf '%s\n' "$INSTRUCTION" \
-            | awk 'NR == 1 && $0 == "<memory_context>" { skip = 1; next }
-                   skip && $0 == "</memory_context>" { skip = 0; next }
-                   !skip && NF { print; exit }' \
+            | awk 'skip == "" && ($0 == "<memory_context>" || $0 == "<service_context>") { skip = $0; next }
+                   skip == "<memory_context>" && $0 == "</memory_context>" { skip = ""; next }
+                   skip == "<service_context>" && $0 == "</service_context>" { skip = ""; next }
+                   skip == "" && NF { print; exit }' \
             | cut -c1-72)
           if [ -z "$SUBJECT" ]; then
             SUBJECT=$(printf '%s' "$INSTRUCTION" | head -n 1 | cut -c1-72)
           fi
-          printf 'fix(api): %s\n\ntrace_id: %s\nsource: %s\n' \
-            "$SUBJECT" "$TRACE_ID" "$SOURCE_BRANCH" \
+          COMMIT_TYPE=fix
+          if [ "${CORRECTION_MODE:-}" = "new_project" ]; then COMMIT_TYPE=feat; fi
+          printf '%s(api): %s\n\ntrace_id: %s\nsource: %s\n' \
+            "$COMMIT_TYPE" "$SUBJECT" "$TRACE_ID" "$SOURCE_BRANCH" \
             | git commit -F -
 
           git push origin "HEAD:refs/heads/$MAINTENANCE_BRANCH"
@@ -1169,9 +1389,12 @@ jobs:
       # first correction on a repo builds the graph and the bundle from
       # scratch; every later one re-indexes incrementally (from the committed
       # snapshot) and updates only the concepts whose files changed.
+      # Not on a new-project build (TRADEOFFS.md #16): that run's time belongs to the
+      # build, and the first correction after its PR merges builds the bundle anyway.
+      # Every step below is gated on this one, so skipping it skips them all.
       - name: Knowledge - install codebase-memory-mcp
         id: kg_install
-        if: success()
+        if: success() && env.CORRECTION_MODE != 'new_project'
         continue-on-error: true
         run: |
           set -euo pipefail
