@@ -6,6 +6,7 @@ route exists for this resource at all).
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from app.errors import ImmutableResourceError
 from app.models.tenant import Tenant
 from app.models.tracker import TenantAuditLog
 from app.models.user import User
@@ -166,18 +167,34 @@ def test_get_scopes_entries_by_tenant(db_client, db_session):
 
 
 def test_no_write_routes_exist_for_audit_log(db_client, db_session):
-    """UC11-BR-005/BR-011: the audit log is read-only -- there is no PUT/PATCH/DELETE route
-    to even attempt an edit or delete against, so FastAPI's own routing (405/404) is the
-    enforcement for this rule."""
+    """UC11-BR-005/BR-011: the audit log is read-only. An edit or delete attempt is refused
+    with the rule's own message, and the same rule is enforced again at the persistence
+    layer so a caller holding the row cannot mutate it either."""
     tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
     entry = _add_entry(db_session, tenant_id, user_id, log_date_time=datetime.now(timezone.utc))
     headers = _headers(TENANT_ADMIN, user_id)
+    base = f"/api/v1/settings/audit-log/{entry.id}"
 
-    assert db_client.put(f"/api/v1/settings/audit-log/{entry.id}", json={}, headers=headers).status_code in (
-        404,
-        405,
-    )
-    assert db_client.delete(f"/api/v1/settings/audit-log/{entry.id}", headers=headers).status_code in (
-        404,
-        405,
-    )
+    for resp in (
+        db_client.put(base, json={}, headers=headers),
+        db_client.patch(base, json={}, headers=headers),
+        db_client.delete(base, headers=headers),
+    ):
+        assert resp.status_code == 403
+        assert resp.json()["error"] == "Audit log entries cannot be modified or deleted."
+
+    entry.details = "tampered"
+    try:
+        db_session.flush()
+        raise AssertionError("expected the flush to be blocked")
+    except ImmutableResourceError as exc:
+        assert exc.detail == "Audit log entries cannot be modified or deleted."
+    db_session.rollback()
+
+    db_session.delete(db_session.query(TenantAuditLog).first())
+    try:
+        db_session.flush()
+        raise AssertionError("expected the delete to be blocked")
+    except ImmutableResourceError:
+        pass
+    db_session.rollback()

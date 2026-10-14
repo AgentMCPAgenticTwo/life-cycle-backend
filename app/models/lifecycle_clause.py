@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.models.immutable import enforce_append_only
 from app.models.mixins import SoftDeleteMixin, TimestampMixin
 
 
@@ -79,6 +80,10 @@ class ClauseAuditLog(Base, TimestampMixin):
     before_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     after_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+# UC11-BR-005: the clause audit trail is immutable -- inserts only.
+enforce_append_only(ClauseAuditLog)
 
 
 class AskAiInteraction(Base, TimestampMixin):

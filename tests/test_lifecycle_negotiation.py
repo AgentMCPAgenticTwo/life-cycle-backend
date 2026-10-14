@@ -222,6 +222,70 @@ def test_submit_review_transitions_to_with_counterparty_and_increments_version(d
     assert len(tracker["comments"]) == 1
 
 
+def test_submit_review_on_stale_version_conflicts_but_keeps_both_versions(db_client, db_session):
+    """UC5: two reviewers redlining at once. The second submission is based on version 1,
+    which is no longer the latest -- it is still saved as its own version (nothing is
+    overwritten), but the reviewer is told to refresh and reapply."""
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    second_reviewer = _seed_user(db_session, tenant_id, LEGAL_REVIEWER)
+    _route(db_client, contract_id, owner_id, [legal_id, second_reviewer], routingType="Parallel")
+
+    first = db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/reviews",
+        json={"redlineText": "Reviewer one's wording.", "expectedVersion": 1},
+        headers=_headers(LEGAL_REVIEWER, legal_id),
+    )
+    assert first.status_code == 200
+    assert first.json()["versionNumber"] == 2
+
+    stale = db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/reviews",
+        json={"redlineText": "Reviewer two's wording.", "expectedVersion": 1},
+        headers=_headers(LEGAL_REVIEWER, second_reviewer),
+    )
+    assert stale.status_code == 409
+    assert stale.json()["error"] == (
+        "A newer version was submitted while you were editing. "
+        "Please refresh and reapply your changes."
+    )
+
+    tracker = db_client.get(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation", headers=_headers(CONTRACT_OWNER, owner_id)
+    ).json()
+    # Both redlines are on record, and the conflicted reviewer may still resubmit.
+    assert tracker["versionNumber"] == 3
+    assert {c["commentText"] for c in tracker["comments"]} == {
+        "Reviewer one's wording.",
+        "Reviewer two's wording.",
+    }
+    assert tracker["negotiationStatus"] == "With Internal"
+    statuses = {r["reviewerId"]: r["reviewStatus"] for r in tracker["internalReviewers"]}
+    assert statuses[str(legal_id)] == "Submitted"
+    assert statuses[str(second_reviewer)] == "Pending"
+
+    retry = db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/reviews",
+        json={"redlineText": "Reviewer two, reapplied.", "expectedVersion": 3},
+        headers=_headers(LEGAL_REVIEWER, second_reviewer),
+    )
+    assert retry.status_code == 200
+    assert retry.json()["negotiationStatus"] == "With Counterparty"
+
+
+def test_submit_review_without_expected_version_is_accepted(db_client, db_session):
+    """`expectedVersion` is optional -- a caller that does not send it is treated as being
+    on the latest version, so the existing flow is unchanged."""
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    _route(db_client, contract_id, owner_id, [legal_id])
+
+    resp = db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/reviews",
+        json={"commentText": "Fine by me."},
+        headers=_headers(LEGAL_REVIEWER, legal_id),
+    )
+    assert resp.status_code == 200
+
+
 def test_submit_review_rejects_non_assigned_reviewer(db_client, db_session):
     tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
     _route(db_client, contract_id, owner_id, [legal_id])

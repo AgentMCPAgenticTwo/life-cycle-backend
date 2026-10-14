@@ -55,6 +55,10 @@ _ROUTING_TYPES = {"Sequential", "Parallel"}
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _FINANCE_HEAD_THRESHOLD = Decimal("1000000")
 _LINK_TTL = timedelta(hours=72)
+_STALE_REDLINE_MESSAGE = (
+    "A newer version was submitted while you were editing. "
+    "Please refresh and reapply your changes."
+)
 
 
 def _now() -> datetime:
@@ -332,11 +336,21 @@ def submit_review(
         if reviewer.sequence_order != next_order:
             raise ForbiddenError("It is not your turn to review yet.")
 
+    # UC5: concurrent redlines. If someone else submitted while this reviewer was editing,
+    # the submission is still saved -- as its own version, so neither reviewer's work is
+    # lost -- but the reviewer is told to refresh and reapply rather than having their
+    # redline silently layered on top of a base they never saw.
+    stale = (
+        payload.expectedVersion is not None
+        and payload.expectedVersion != routing.current_version_number
+    )
+
     now = _now()
-    reviewer.review_status = "Submitted"
-    reviewer.submitted_at = now
-    reviewer.updated_at = now
-    reviewer.updated_by = user_uuid
+    if not stale:
+        reviewer.review_status = "Submitted"
+        reviewer.submitted_at = now
+        reviewer.updated_at = now
+        reviewer.updated_by = user_uuid
 
     # UC5-BR-011: every redline/comment auto-increments the version number.
     routing.current_version_number += 1
@@ -370,13 +384,17 @@ def submit_review(
     # UC5-BR-019: once every reviewer (including auto-added mandatory ones) has submitted,
     # the negotiation moves to With Counterparty.
     all_reviewers = repo.list_reviewers(db, routing.id)
-    if all(r.review_status == "Submitted" for r in all_reviewers):
+    if not stale and all(r.review_status == "Submitted" for r in all_reviewers):
         routing.negotiation_status = "With Counterparty"
     routing.updated_at = now
     routing.updated_by = user_uuid
 
+    # Commit first, then signal the conflict: both versions are on record, and the 409 is
+    # about what the reviewer has to do next, not about the write having been thrown away.
     db.commit()
     db.refresh(routing)
+    if stale:
+        raise ConflictError(_STALE_REDLINE_MESSAGE, details=[_STALE_REDLINE_MESSAGE])
     return SubmitReviewResponse(versionNumber=routing.current_version_number, negotiationStatus=routing.negotiation_status)
 
 

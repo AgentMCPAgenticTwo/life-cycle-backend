@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.auth import CurrentUser, current_tenant_id, require_roles
 from app.db import get_db
+from app.errors import ImmutableResourceError
+from app.models.immutable import AUDIT_LOG_IMMUTABLE_MESSAGE
 from app.schemas.lifecycle_clause import (
     AskAIRequest,
     AskAIResponse,
@@ -127,3 +129,31 @@ def get_audit_log(
     db: Session = Depends(get_db),
 ) -> PagedAuditLogResponse:
     return service.get_audit_log(db, tenant_id, contractId, page_params)
+
+
+# UC11-BR-005: the clause audit trail is immutable. These routes exist only to answer an
+# edit/delete attempt with the rule's own message instead of a bare 405; the persistence
+# layer blocks the same thing again (`app.models.immutable.enforce_append_only`).
+def _reject_audit_log_mutation() -> None:
+    raise ImmutableResourceError(
+        AUDIT_LOG_IMMUTABLE_MESSAGE, details=[AUDIT_LOG_IMMUTABLE_MESSAGE]
+    )
+
+
+@router.put("/audit-log/{entryId}")
+@router.patch("/audit-log/{entryId}")
+def update_audit_log_entry(
+    contractId: uuid.UUID,
+    entryId: uuid.UUID,
+    user: CurrentUser = Depends(require_roles("LEGAL_REVIEWER", "CONTRACT_OWNER", "TENANT_ADMIN")),
+) -> None:
+    _reject_audit_log_mutation()
+
+
+@router.delete("/audit-log/{entryId}")
+def delete_audit_log_entry(
+    contractId: uuid.UUID,
+    entryId: uuid.UUID,
+    user: CurrentUser = Depends(require_roles("LEGAL_REVIEWER", "CONTRACT_OWNER", "TENANT_ADMIN")),
+) -> None:
+    _reject_audit_log_mutation()

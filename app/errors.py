@@ -32,6 +32,16 @@ class ConflictError(HTTPException):
         super().__init__(status_code=409, detail=detail)
 
 
+class ImmutableResourceError(HTTPException):
+    """Maps to 403 -- the resource is append-only and can never be modified or deleted,
+    whoever the caller is (UC11: the audit log). Distinct from `ForbiddenError`, which is
+    about *who* is asking; this one is about *what* is being asked."""
+
+    def __init__(self, detail: str = "resource is immutable", details: list[str] | None = None):
+        self.details = details or []
+        super().__init__(status_code=403, detail=detail)
+
+
 class ValidationFailedError(HTTPException):
     """Maps to 400 -- a business-rule validation failure distinct from request-shape errors.
 
