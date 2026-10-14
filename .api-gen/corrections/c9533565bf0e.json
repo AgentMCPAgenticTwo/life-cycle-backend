@@ -1,0 +1,397 @@
+{
+  "trace_id": "c9533565bf0e",
+  "branch": "api-correction/c9533565bf0e",
+  "maintenance_branch": "api-correction/c9533565bf0e",
+  "status": "SUCCESS",
+  "summary": "Both failures had the same root cause on this side: the `fileUrl` we returned was not something a browser could actually fetch.\n\n**Tracker export (empty screen)** — `POST /api/v1/tracker/export` returned a *relative* path (`/api/v1/tracker/exports/{id}`). Opened in a new tab it resolves against the SPA origin, which serves the app shell — a blank screen. It now returns an absolute URL on this API (`settings.api_base_url`, from `API_BASE_URL`).\n\n**Contract download** — `GET /api/v1/contracts/{contractId}/document/download` returned `doc.storage_path` (`/documents/<id>/v1.pdf`), a bookkeeping string with no route and no bytes behind it. Now:\n- Uploaded third-party-paper bytes are actually persisted (`app/services/files.py` → `settings.document_storage_dir`), and generated Version 1 documents are written as real files (PDF through the same hand-rolled writer the exports use; merged body as text otherwise) in `app/services/contract_documents.py`.\n- New `GET /api/v1/contracts/{contractId}/document/file` serves those raw bytes with `Content-Disposition: attachment; filename=\"…\"`.\n- `download` now returns an absolute URL to that route, or the existing AF-005 retrieval error when no bytes exist.\n\n**Auth for the second fetch** — the browser follows a `fileUrl` directly and cannot attach `Authorization`, so both byte endpoints accept either the bearer token or a short-lived, path-bound signed `token` carried in the URL (`create_file_token`/`decode_file_token`, `file_access_user`/`file_access_tenant_id`). Never a public link: a token for one file is rejected on another, and role checks still apply. `POST /auth/refresh` already exists and is unchanged.\n\nChecks: `python -m compileall app` clean, `pytest -q` → 528 passed (added round-trip and token-replay tests; updated the two export tests that asserted the old relative URL). Reading taken: fix the two broken flows only — no changes to tab DTOs or other endpoints. The frontend side (fetching `fileUrl` with credentials rather than a bare `window.open`, if it wants the bearer path) belongs to the other repository.",
+  "files_changed": [
+    "app/auth.py",
+    "app/config.py",
+    "app/routers/contract_lifecycle.py",
+    "app/routers/tracker_export.py",
+    "app/security.py",
+    "app/services/contract_documents.py",
+    "app/services/contract_lifecycle.py",
+    "app/services/files.py",
+    "app/services/tracker_export.py",
+    "tests/conftest.py",
+    "tests/test_contract_documents.py",
+    "tests/test_tracker_export.py"
+  ],
+  "lines_changed": 342,
+  "blockers": [
+    "Not applied -- POST /auth/refresh: already implemented and mounted at both /auth/refresh and /api/v1/auth/refresh",
+    "Not applied -- frontend fetching fileUrl with credentials/Authorization: belongs to the counterpart frontend repository"
+  ],
+  "visual_check": {
+    "verdict": "skipped",
+    "evidence": "",
+    "screenshot_path": ""
+  },
+  "context_sharing": {
+    "target": "backend",
+    "branch": "api-correction/c9533565bf0e",
+    "base_path": "/api/v1",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/tracker/export",
+        "request_fields": [
+          {
+            "name": "tab",
+            "type": "enum"
+          },
+          {
+            "name": "format",
+            "type": "enum"
+          },
+          {
+            "name": "period",
+            "type": "string"
+          },
+          {
+            "name": "contractTypeFilter",
+            "type": "string"
+          },
+          {
+            "name": "ownerFilter",
+            "type": "string"
+          },
+          {
+            "name": "dateRangeFrom",
+            "type": "string"
+          },
+          {
+            "name": "dateRangeTo",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "success",
+            "type": "boolean"
+          },
+          {
+            "name": "fileUrl",
+            "type": "string"
+          },
+          {
+            "name": "failureMessage",
+            "type": "string"
+          }
+        ],
+        "purpose": "Export the selected Tracker tab; fileUrl is an absolute API URL serving bytes"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tracker/exports/{fileId}",
+        "request_fields": [
+          {
+            "name": "fileId",
+            "type": "string"
+          },
+          {
+            "name": "token",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "body",
+            "type": "unknown"
+          },
+          {
+            "name": "Content-Disposition",
+            "type": "string"
+          }
+        ],
+        "purpose": "Raw bytes behind TrackerExportResponse.fileUrl"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/contracts/{contractId}/document/download",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "success",
+            "type": "boolean"
+          },
+          {
+            "name": "fileUrl",
+            "type": "string"
+          },
+          {
+            "name": "errorMessage",
+            "type": "string"
+          }
+        ],
+        "purpose": "Authenticated absolute URL for a contract document download"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/contracts/{contractId}/document/file",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "token",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "body",
+            "type": "unknown"
+          },
+          {
+            "name": "Content-Disposition",
+            "type": "string"
+          }
+        ],
+        "purpose": "Raw bytes behind DocumentDownloadResponse.fileUrl"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/refresh",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "accessToken",
+            "type": "string"
+          }
+        ],
+        "purpose": "Exchange the httpOnly refresh cookie for a new access token"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/login",
+        "request_fields": [
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "password",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "accessToken",
+            "type": "string"
+          },
+          {
+            "name": "user",
+            "type": "object"
+          }
+        ],
+        "purpose": "Issue access token + httpOnly refresh cookie"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/logout",
+        "request_fields": [],
+        "response_fields": [],
+        "purpose": "Revoke refresh cookie, 204"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "string"
+          },
+          {
+            "name": "tenantId",
+            "type": "string"
+          },
+          {
+            "name": "mustChangePassword",
+            "type": "boolean"
+          }
+        ],
+        "purpose": "Current authenticated user"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/change-password",
+        "request_fields": [
+          {
+            "name": "currentPassword",
+            "type": "string"
+          },
+          {
+            "name": "newPassword",
+            "type": "string"
+          }
+        ],
+        "response_fields": [],
+        "purpose": "Change password, 204"
+      }
+    ],
+    "types": {
+      "ApiError": [
+        {
+          "name": "error",
+          "type": "string"
+        },
+        {
+          "name": "details",
+          "type": "array"
+        }
+      ],
+      "TrackerExportRequest": [
+        {
+          "name": "tab",
+          "type": "enum"
+        },
+        {
+          "name": "format",
+          "type": "enum"
+        },
+        {
+          "name": "period",
+          "type": "string"
+        },
+        {
+          "name": "contractTypeFilter",
+          "type": "string"
+        },
+        {
+          "name": "ownerFilter",
+          "type": "string"
+        },
+        {
+          "name": "dateRangeFrom",
+          "type": "string"
+        },
+        {
+          "name": "dateRangeTo",
+          "type": "string"
+        }
+      ],
+      "TrackerExportResponse": [
+        {
+          "name": "success",
+          "type": "boolean"
+        },
+        {
+          "name": "fileUrl",
+          "type": "string"
+        },
+        {
+          "name": "failureMessage",
+          "type": "string"
+        }
+      ],
+      "DocumentDownloadResponse": [
+        {
+          "name": "success",
+          "type": "boolean"
+        },
+        {
+          "name": "fileUrl",
+          "type": "string"
+        },
+        {
+          "name": "errorMessage",
+          "type": "string"
+        }
+      ],
+      "LoginRequest": [
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "password",
+          "type": "string"
+        }
+      ],
+      "LoginResponse": [
+        {
+          "name": "accessToken",
+          "type": "string"
+        },
+        {
+          "name": "user",
+          "type": "object"
+        }
+      ],
+      "AuthUserResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "string"
+        },
+        {
+          "name": "tenantId",
+          "type": "string"
+        },
+        {
+          "name": "mustChangePassword",
+          "type": "boolean"
+        }
+      ],
+      "RefreshResponse": [
+        {
+          "name": "accessToken",
+          "type": "string"
+        }
+      ],
+      "ChangePasswordRequest": [
+        {
+          "name": "currentPassword",
+          "type": "string"
+        },
+        {
+          "name": "newPassword",
+          "type": "string"
+        }
+      ]
+    },
+    "notes": "Auth is now Authorization: Bearer (JWT) plus the refresh cookie; the X-User-Role/X-User-Id stub is gone. The refresh route is mounted at BOTH /api/v1/auth/refresh and /auth/refresh (app.main includes the auth router twice, with and without the /api/v1 prefix), so the counterpart's POST /auth/refresh works. fileUrl from both download endpoints is an absolute URL (settings.api_base_url + path) pointing at GET /api/v1/contracts/{contractId}/document/file or GET /api/v1/tracker/exports/{fileId}; each carries a signed short-lived ?token= query param pinned to that exact path, so it works with or without an Authorization header, and both return raw bytes with Content-Disposition. tab accepts exactly Ownership, CycleTime, Bottleneck, Turnaround and format exactly Excel, PDF. dateRangeFrom/dateRangeTo are validated date strings (typed as string on the wire, not a date type)."
+  },
+  "usage": {
+    "num_turns": 75,
+    "duration_ms": 453367,
+    "total_cost_usd": 2.9065878,
+    "input_tokens": 7874,
+    "output_tokens": 29535,
+    "cache_creation_input_tokens": 99079,
+    "cache_read_input_tokens": 6142216,
+    "is_error": false
+  }
+}

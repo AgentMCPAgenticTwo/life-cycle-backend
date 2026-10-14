@@ -5,6 +5,7 @@ file as Version 1 with no merge. Both answer with UC2's confirmation message.
 """
 import uuid
 
+from app.config import settings
 from app.models.contract_lifecycle import ContractDocument, ContractVersion
 from app.models.uploaded_file import UploadedFile
 from app.services.contract_documents import CREATED_MESSAGE, merge_template_body
@@ -100,3 +101,50 @@ def test_create_from_third_party_paper_uses_the_upload_as_version_one(db_client,
     versions = _versions(db_session, body["id"])
     assert [v.version_number for v in versions] == [1]
     assert "no merge" in versions[0].change_summary
+
+
+def test_document_download_url_serves_the_generated_bytes(db_client, db_session):
+    """The `fileUrl` of `GET /document/download` is an absolute API URL that the browser can
+    open on its own -- fetching it a second time must return the file bytes, not JSON."""
+    _tenant_id, admin_id, owner_id, counterparty_id, template_id = _setup_basic(db_session)
+    resp = db_client.post(
+        "/api/v1/contracts",
+        json=_valid_payload(template_id, counterparty_id, owner_id),
+        headers=_headers(TENANT_ADMIN, admin_id),
+    )
+    contract_id = resp.json()["id"]
+
+    download = db_client.get(
+        f"/api/v1/contracts/{contract_id}/document/download", headers=_headers(TENANT_ADMIN, admin_id)
+    )
+    assert download.status_code == 200
+    body = download.json()
+    assert body["success"] is True
+    assert body["errorMessage"] is None
+    assert body["fileUrl"].startswith(f"{settings.api_base_url}/api/v1/contracts/{contract_id}/document/file")
+    assert "token=" in body["fileUrl"]
+
+    # No Authorization header: a window.open / <a download> cannot send one, so the signed
+    # token in the URL is what authenticates this second fetch.
+    path = body["fileUrl"][len(settings.api_base_url) :]
+    file_response = db_client.get(path)
+    assert file_response.status_code == 200
+    assert "attachment; filename=" in file_response.headers["content-disposition"]
+    assert file_response.content == b"Merge fields go here."  # the merged template body
+
+
+def test_document_file_rejects_a_token_minted_for_another_contract(db_client, db_session):
+    _tenant_id, admin_id, owner_id, counterparty_id, template_id = _setup_basic(db_session)
+    resp = db_client.post(
+        "/api/v1/contracts",
+        json=_valid_payload(template_id, counterparty_id, owner_id),
+        headers=_headers(TENANT_ADMIN, admin_id),
+    )
+    contract_id = resp.json()["id"]
+    body = db_client.get(
+        f"/api/v1/contracts/{contract_id}/document/download", headers=_headers(TENANT_ADMIN, admin_id)
+    ).json()
+    token = body["fileUrl"].split("token=")[1]
+
+    replayed = db_client.get(f"/api/v1/contracts/{uuid.uuid4()}/document/file?token={token}")
+    assert replayed.status_code == 401

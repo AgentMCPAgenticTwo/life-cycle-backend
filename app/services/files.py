@@ -4,11 +4,13 @@ UC2-AF-005, UC2-AF-006, UC2-BR-008, UC2-MF-001 (T-CONTRACTS-THIRD-PARTY-PAPER-AP
 """
 import base64
 import binascii
+import os
 import uuid
 
 from sqlalchemy.orm import Session
 
 from app.auth import CurrentUser
+from app.config import settings
 from app.errors import ValidationFailedError
 from app.models.uploaded_file import UploadedFile
 from app.repositories import files as files_repo
@@ -40,6 +42,14 @@ def _validate_content(payload: UploadThirdPartyPaperRequest) -> None:
         raise ValidationFailedError(message, details=[message]) from exc
 
 
+def upload_file_path(file_id: uuid.UUID, file_format: str) -> str:
+    """Where the uploaded bytes live on disk. They are kept so the document the contract is
+    generated from can actually be downloaded later -- see `app.services.contract_documents`."""
+    return os.path.join(
+        settings.document_storage_dir, "uploads", f"{file_id}.{file_format.lower()}"
+    )
+
+
 def upload_third_party_paper(
     db: Session, tenant_id: uuid.UUID, user: CurrentUser, payload: UploadThirdPartyPaperRequest
 ) -> FileUploadResponse:
@@ -50,6 +60,11 @@ def upload_third_party_paper(
     user_uuid = uuid.UUID(user.user_id)
     file_id = uuid.uuid4()
     file_format = payload.fileFormat.upper()
+    # Keep the bytes: without them the contract's document download has nothing to serve.
+    path = upload_file_path(file_id, file_format)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as handle:
+        handle.write(base64.b64decode(payload.fileContentBase64, validate=True))
     uploaded_file = UploadedFile(
         id=file_id,
         tenant_id=tenant_id,
@@ -57,9 +72,8 @@ def upload_third_party_paper(
         file_size=payload.fileSize,
         file_format=file_format,
         # No object-storage dependency is configured in this repo (see CLAUDE.md's
-        # "Dependencies" -- only already-declared packages may be used), so there is nowhere
-        # to actually persist the uploaded bytes. storageUrl is a deterministic reference by
-        # id the file could later be fetched through; this is a judgement call -- see blockers.
+        # "Dependencies"), so the bytes go to `settings.document_storage_dir` above.
+        # storageUrl stays the deterministic by-id reference the frontend already knows.
         storage_url=f"/files/{file_id}",
         created_by=user_uuid,
         updated_by=user_uuid,

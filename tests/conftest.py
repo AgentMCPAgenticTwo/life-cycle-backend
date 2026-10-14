@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  registers every entity on Base.metadata
+from app.config import settings
 from app.db import Base, get_db
 from app.main import app
 from app.security import create_access_token
@@ -22,6 +23,15 @@ def auth_headers(role: str, user_id: uuid.UUID, tenant_id: uuid.UUID | None = No
     """
     token = create_access_token(user_id, role, tenant_id or uuid.uuid4())
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def _document_storage(tmp_path):
+    """Document and upload bytes go to a per-test temp directory, not the repo's var/."""
+    original = settings.document_storage_dir
+    settings.document_storage_dir = str(tmp_path / "documents")
+    yield
+    settings.document_storage_dir = original
 
 
 @pytest.fixture()

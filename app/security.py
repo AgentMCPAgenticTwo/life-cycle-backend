@@ -92,6 +92,34 @@ def decode_access_token(token: str) -> dict | None:
         return None
 
 
+def create_file_token(user_id: uuid.UUID, tenant_id: uuid.UUID, resource: str) -> str:
+    """A short-lived token for ONE downloadable resource, carried in the `fileUrl` query
+    string because the browser cannot attach an Authorization header to a window.open or an
+    `<a download>` click. `resource` pins the token to a single file so it cannot be replayed
+    against another one."""
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(user_id),
+        "tenantId": str(tenant_id),
+        "resource": resource,
+        "purpose": "file",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=settings.file_token_ttl_minutes)).timestamp()),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def decode_file_token(token: str, resource: str) -> dict | None:
+    """Returns the claims when `token` is a valid, unexpired file token for `resource`."""
+    try:
+        claims = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except jwt.PyJWTError:
+        return None
+    if claims.get("purpose") != "file" or claims.get("resource") != resource:
+        return None
+    return claims
+
+
 def generate_refresh_token() -> str:
     return secrets.token_urlsafe(48)
 

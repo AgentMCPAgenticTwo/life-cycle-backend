@@ -23,6 +23,19 @@ class Settings:
     # They are served back through GET /api/v1/tracker/exports/{fileId}; a plain directory,
     # because no object-storage client is declared in this repo's manifest.
     export_storage_dir: str = os.environ.get("EXPORT_STORAGE_DIR", "var/exports")
+    # Where contract document bytes live: the uploaded third party paper and the generated
+    # Version 1 document. Served back through GET /api/v1/contracts/{contractId}/document/file.
+    document_storage_dir: str = os.environ.get("DOCUMENT_STORAGE_DIR", "var/documents")
+    # Absolute, browser-reachable base URL of THIS API. Every `fileUrl` handed to the frontend
+    # is built from it: a relative path resolves against the SPA's own origin, which serves the
+    # app shell -- a blank screen -- instead of the file.
+    api_base_url: str = os.environ.get(
+        "API_BASE_URL", f"http://localhost:{os.environ.get('PORT', '5199')}"
+    ).rstrip("/")
+    # A `fileUrl` is opened directly by the browser (window.open / <a download>), which cannot
+    # carry the Authorization header, so the URL carries a short-lived signed file token
+    # instead. The byte endpoints still accept a bearer token when one is sent.
+    file_token_ttl_minutes: int = int(os.environ.get("FILE_TOKEN_TTL_MINUTES", "15"))
     # Outbound mail for app.services.notifications. With no SMTP_HOST the service logs the
     # message instead of sending it, so the app runs without a mail relay. Credentials come
     # from the environment -- never hard-code them.
