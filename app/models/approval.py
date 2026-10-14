@@ -23,6 +23,9 @@ class ApprovalMatrixConfig(Base, TimestampMixin):
     value_max: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     risk_band_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_band_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Set when a matrix save replaces a config that approvals still reference: it drops out of
+    # the matrix and of rule matching but stays readable for those approvals' steps.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ApprovalMatrixStep(Base, TimestampMixin):

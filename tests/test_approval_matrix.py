@@ -244,3 +244,31 @@ def test_put_rejects_disallowed_role(db_client, db_session):
         "/api/v1/approval-matrix-config", json={"items": []}, headers=_headers(APPROVER, user_id)
     )
     assert response.status_code == 403
+
+
+def test_put_keeps_configs_that_approvals_still_reference(db_client, db_session):
+    from app.models.approval import Approval, ApprovalMatrixConfig
+
+    tenant_id, admin_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    _, approver_id = _seed_tenant_and_user(db_session, APPROVER, tenant_id=tenant_id)
+    headers = _headers(TENANT_ADMIN, admin_id)
+    assert db_client.put("/api/v1/approval-matrix-config", json=_valid_payload(approver_id), headers=headers).status_code == 200
+    in_use = db_session.query(ApprovalMatrixConfig).filter(ApprovalMatrixConfig.tenant_id == tenant_id).one()
+    approval = Approval(
+        contract_id=uuid.uuid4(), contract_owner_id=admin_id, config_id=in_use.id, current_step_number=1,
+        total_steps=2, status="PendingApproval", created_by=admin_id, updated_by=admin_id,
+    )
+    db_session.add(approval)
+    db_session.commit()
+
+    replacement = _valid_payload(approver_id)
+    replacement["items"][0]["contractType"] = "MSA"
+    response = db_client.put("/api/v1/approval-matrix-config", json=replacement, headers=headers)
+    assert response.status_code == 200
+
+    listed = db_client.get("/api/v1/approval-matrix-config", headers=headers).json()["items"]
+    assert [item["contractType"] for item in listed] == ["MSA"]
+    db_session.expire_all()
+    kept = db_session.get(ApprovalMatrixConfig, in_use.id)
+    assert kept is not None and kept.archived_at is not None
+    assert db_session.get(Approval, approval.id).config_id == in_use.id

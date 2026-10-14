@@ -185,7 +185,11 @@ def _matching_matrix_config(db: Session, tenant_id: uuid.UUID, contract: Contrac
     risk = contract.risk_score
     candidates = (
         db.query(ApprovalMatrixConfig)
-        .filter(ApprovalMatrixConfig.tenant_id == tenant_id, ApprovalMatrixConfig.contract_type == contract.contract_type)
+        .filter(
+            ApprovalMatrixConfig.tenant_id == tenant_id,
+            ApprovalMatrixConfig.contract_type == contract.contract_type,
+            ApprovalMatrixConfig.archived_at.is_(None),
+        )
         .all()
     )
 
