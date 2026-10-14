@@ -61,6 +61,18 @@ _STALE_REDLINE_MESSAGE = (
 )
 
 
+# VersionSummaryResponse.source is 'Internal'/'External' on the wire -- the frontend compares
+# it literally when deciding which versions to diff -- and the same strings are what gets
+# persisted, per CLAUDE.md's "store enum-like values as their string names".
+# `_normalize_source` keeps rows written before this casing was corrected readable.
+_SOURCE_INTERNAL = "Internal"
+_SOURCE_EXTERNAL = "External"
+
+
+def _normalize_source(source: str) -> str:
+    return _SOURCE_EXTERNAL if (source or "").lower() == "external" else _SOURCE_INTERNAL
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -225,7 +237,7 @@ def create_routing(
             contract_id=contract.id,
             negotiation_routing_id=routing.id,
             version_number=1,
-            source="internal",
+            source=_SOURCE_INTERNAL,
             document_snapshot=clause_service.snapshot_clauses(db, contract.id),
             created_by=user_uuid,
             updated_by=user_uuid,
@@ -267,14 +279,14 @@ def get_tracker(
 
     version_summaries = []
     for v in versions:
-        if v.source == "external":
+        if _normalize_source(v.source) == _SOURCE_EXTERNAL:
             created_by_name = routing.external_party_name
         else:
             creator = contracts_repo.get_user(db, tenant_id, v.created_by)
             created_by_name = creator.name if creator is not None else "System"
         version_summaries.append(
             VersionSummaryResponse(
-                versionNumber=v.version_number, createdAt=v.created_at, createdBy=created_by_name, source=v.source
+                versionNumber=v.version_number, createdAt=v.created_at, createdBy=created_by_name, source=_normalize_source(v.source)
             )
         )
 
@@ -360,7 +372,7 @@ def submit_review(
             contract_id=contract.id,
             negotiation_routing_id=routing.id,
             version_number=routing.current_version_number,
-            source="internal",
+            source=_SOURCE_INTERNAL,
             document_snapshot=clause_service.snapshot_clauses(db, contract.id),
             created_by=user_uuid,
             updated_by=user_uuid,
@@ -533,6 +545,16 @@ def external_submit(
 
     author_id = uuid.uuid5(uuid.NAMESPACE_DNS, routing.external_party_email)
     now = _now()
+    # UC5 risk re-check: apply the counterparty's changes to the clause set *before* the new
+    # version is snapshotted, so Compare Versions shows the real diff and the re-check knows
+    # exactly which clauses to re-score.
+    changed_clause_ids = clause_service.apply_external_redlines(
+        db,
+        routing.contract_id,
+        author_id,
+        [(r.clauseId, r.clauseText) for r in (payload.clauseRedlines or [])],
+        payload.redlineText,
+    )
     routing.current_version_number += 1
     version = repo.insert_version(
         db,
@@ -540,7 +562,7 @@ def external_submit(
             contract_id=routing.contract_id,
             negotiation_routing_id=routing.id,
             version_number=routing.current_version_number,
-            source="external",
+            source=_SOURCE_EXTERNAL,
             document_snapshot=clause_service.snapshot_clauses(db, routing.contract_id),
             created_by=author_id,
             updated_by=author_id,
@@ -562,8 +584,12 @@ def external_submit(
     routing.negotiation_status = "With Internal"
     routing.updated_at = now
     routing.updated_by = author_id
+    # The version is committed before the re-check runs: UC5 requires the submitted version
+    # to survive even when the AI re-analysis fails (the contract then reports
+    # `analysisStatus: 'Failed'` and the owner can retry).
     db.commit()
     db.refresh(routing)
+    clause_service.reanalyze_clauses(db, routing.contract_id, author_id, changed_clause_ids)
     return ExternalSubmitResponse(versionNumber=routing.current_version_number, negotiationStatus=routing.negotiation_status)
 
 
@@ -622,13 +648,13 @@ def compare_versions(
     ]
 
     def _summary(v: NegotiationVersion) -> VersionSummaryResponse:
-        if v.source == "external":
+        if _normalize_source(v.source) == _SOURCE_EXTERNAL:
             created_by_name = routing.external_party_name
         else:
             creator = contracts_repo.get_user(db, tenant_id, v.created_by)
             created_by_name = creator.name if creator is not None else "System"
         return VersionSummaryResponse(
-            versionNumber=v.version_number, createdAt=v.created_at, createdBy=created_by_name, source=v.source
+            versionNumber=v.version_number, createdAt=v.created_at, createdBy=created_by_name, source=_normalize_source(v.source)
         )
 
     return CompareVersionsResponse(

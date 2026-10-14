@@ -63,6 +63,18 @@ def get_current_document(db: Session, contract_id: uuid.UUID) -> ContractDocumen
     )
 
 
+def insert_document(db: Session, document: ContractDocument) -> ContractDocument:
+    db.add(document)
+    db.flush()
+    return document
+
+
+def insert_contract_version(db: Session, version: ContractVersion) -> ContractVersion:
+    db.add(version)
+    db.flush()
+    return version
+
+
 def list_versions(
     db: Session, contract_id: uuid.UUID, *, offset: int, limit: int
 ) -> tuple[list[ContractVersion], int]:
