@@ -3,9 +3,14 @@ tab/format/Period/Date-Range validation (UC10-FV-001), the empty-tenant export-u
 tier (UC10-AF-001), the no-records-still-exports tier (UC10-AF-003), and role-scoped
 visibility (UC10-BR-005/009).
 """
+import io
 import uuid
+import zipfile
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
+from app.config import settings
 from app.models.contract import Contract
 from app.models.counterparty import Counterparty
 from app.models.tenant import Tenant
@@ -16,6 +21,15 @@ from tests.conftest import auth_headers
 TENANT_ADMIN = "TENANT_ADMIN"
 CONTRACT_OWNER = "CONTRACT_OWNER"
 EXTERNAL_PARTY = "EXTERNAL_PARTY"
+
+
+@pytest.fixture(autouse=True)
+def _export_dir(tmp_path):
+    """Generated export files go to a per-test temp directory, not the repo's var/exports."""
+    original = settings.export_storage_dir
+    settings.export_storage_dir = str(tmp_path / "exports")
+    yield
+    settings.export_storage_dir = original
 
 
 def _seed_tenant_and_user(db_session, role: str, tenant_id: uuid.UUID | None = None) -> tuple[uuid.UUID, uuid.UUID]:
@@ -213,7 +227,18 @@ def test_happy_path_bottleneck_export_excel(db_client, db_session):
     body = response.json()
     assert body["success"] is True
     assert body["failureMessage"] is None
-    assert body["fileUrl"].endswith(".xlsx")
+    assert body["fileUrl"].startswith("/api/v1/tracker/exports/")
+
+    # The URL serves a real .xlsx (a zip of SpreadsheetML parts), not a placeholder.
+    download = db_client.get(body["fileUrl"], headers=_headers(TENANT_ADMIN, user_id))
+    assert download.status_code == 200
+    assert download.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert download.content[:2] == b"PK"
+    sheet = zipfile.ZipFile(io.BytesIO(download.content)).read("xl/worksheets/sheet1.xml").decode()
+    assert "Current Stage" in sheet  # the Bottleneck tab's columns
+    assert "Drafting" in sheet  # the seeded contract's current stage
 
 
 def test_happy_path_turnaround_export_pdf(db_client, db_session):
@@ -226,7 +251,22 @@ def test_happy_path_turnaround_export_pdf(db_client, db_session):
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True
-    assert body["fileUrl"].endswith(".pdf")
+    assert body["fileUrl"].startswith("/api/v1/tracker/exports/")
+
+    # The URL serves a real PDF whose text stream carries the Turnaround tab's columns.
+    download = db_client.get(body["fileUrl"], headers=_headers(TENANT_ADMIN, user_id))
+    assert download.status_code == 200
+    assert download.headers["content-type"].startswith("application/pdf")
+    assert download.content.startswith(b"%PDF-")
+    assert download.content.rstrip().endswith(b"%%EOF")
+    assert b"Estimated Turnaround" in download.content
+
+
+def test_download_unknown_export_file_is_404(db_client, db_session):
+    _, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+
+    response = db_client.get(f"/api/v1/tracker/exports/{uuid.uuid4()}", headers=_headers(TENANT_ADMIN, user_id))
+    assert response.status_code == 404
 
 
 def test_contract_owner_export_scoped_to_owned_contracts(db_client, db_session):
