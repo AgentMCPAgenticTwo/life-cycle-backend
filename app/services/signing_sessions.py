@@ -22,7 +22,9 @@ from app.auth import CurrentUser
 from app.errors import ConflictError, ForbiddenError, NotFoundError, ValidationFailedError
 from app.models.contract import Contract
 from app.models.esignature import Signer
+from app.models.user import User
 from app.repositories import signing_sessions as repo
+from app.services import notifications
 from app.schemas.signing_session import (
     ApplySignatureRequest,
     ApplySignatureResponse,
@@ -47,6 +49,11 @@ _WAIT_MESSAGE = "You must wait for prior signers to complete signing before you 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _owner_email(db: Session, contract: Contract) -> str | None:
+    owner = db.query(User).filter(User.id == contract.contract_owner_id).first()
+    return owner.email if owner is not None else None
 
 
 def _is_past(deadline: datetime, now: datetime) -> bool:
@@ -329,6 +336,34 @@ def apply_signature(
     db.refresh(signer)
     db.refresh(contract)
 
+    if contract.status == "Executed":
+        # UC7-BR-007/019: everyone involved hears that the contract is executed.
+        notifications.dispatch(
+            db,
+            contract.tenant_id,
+            notifications.EVENT_EXECUTED,
+            recipients=[s.signer_email for s in rows] + [_owner_email(db, contract)],
+            subject=f"Contract {contract.contract_name} is executed",
+            body=f"All signatures are complete. Contract {contract.contract_name} is executed.",
+            entity="Contract",
+            actor_id=actor_id,
+        )
+    elif next_signer_id is not None:
+        nxt = next(s for s in rows if s.id == next_signer_id)
+        notifications.dispatch(
+            db,
+            contract.tenant_id,
+            notifications.EVENT_SENT_FOR_SIGNATURE,
+            recipients=[nxt.signer_email],
+            subject=f"Please sign {contract.contract_name}",
+            body=(
+                f"It is now your turn to sign {contract.contract_name}. Open your signing "
+                "link and enter the one-time password sent to you to continue."
+            ),
+            entity="Signer",
+            actor_id=actor_id,
+        )
+
     return ApplySignatureResponse(
         signerId=signer.id,
         signerStatus="Signed",
@@ -368,6 +403,21 @@ def decline_signature(
 
     db.commit()
     db.refresh(signer)
+
+    # UC7-BR-008/018: the Contract Owner must learn immediately that signing has halted.
+    notifications.dispatch(
+        db,
+        contract.tenant_id,
+        notifications.EVENT_SIGNATURE_DECLINED,
+        recipients=[_owner_email(db, contract)],
+        subject=f"{signer.signer_name} declined to sign {contract.contract_name}",
+        body=(
+            f"{signer.signer_name} declined to sign {contract.contract_name}. "
+            f"Reason: {signer.decline_reason}"
+        ),
+        entity="Contract",
+        actor_id=actor_id,
+    )
 
     return DeclineSignatureResponse(
         signerId=signer.id,

@@ -30,6 +30,7 @@ from app.models.contract import Contract
 from app.models.counterparty import Counterparty
 from app.models.user import User
 from app.repositories import approvals as approvals_repo
+from app.services import notifications
 from app.schemas.approval import (
     ApprovalActionRequest,
     ApprovalActionResponse,
@@ -358,6 +359,54 @@ def get_approval_detail(
 
 _ACTION_TYPES = {"Approve", "Reject", "SendBack"}
 
+_ACTION_EVENTS = {
+    "Approve": notifications.EVENT_APPROVED,
+    "Reject": notifications.EVENT_REJECTED,
+    "SendBack": notifications.EVENT_SENT_BACK,
+}
+
+
+def _notify_action(
+    db: Session,
+    tenant_id: uuid.UUID,
+    contract: Contract,
+    actor_id: uuid.UUID,
+    action_type: str,
+    approval_status: str,
+) -> None:
+    """The Contract Owner hears about every decision on their contract, and about the
+    chain completing (UC6). Delivery goes through the one notification service, which
+    honours Settings > Notifications and never lets a failed send undo the action.
+    """
+    owner = _resolve_user(db, contract.contract_owner_id)
+    recipients = [owner.email if owner is not None else None]
+    event = _ACTION_EVENTS[action_type]
+    verb = {"Approve": "approved", "Reject": "rejected", "SendBack": "sent back"}[action_type]
+    notifications.dispatch(
+        db,
+        tenant_id,
+        event,
+        recipients=recipients,
+        subject=f"Contract {contract.contract_name} was {verb}",
+        body=f"Contract {contract.contract_name} was {verb}.",
+        entity="Contract",
+        actor_id=actor_id,
+    )
+    if approval_status == "ReadyForSignature":
+        notifications.dispatch(
+            db,
+            tenant_id,
+            notifications.EVENT_READY_FOR_SIGNATURE,
+            recipients=recipients,
+            subject=f"Contract {contract.contract_name} is ready for signature",
+            body=(
+                f"All approvals are complete. Contract {contract.contract_name} is ready "
+                "for signature."
+            ),
+            entity="Contract",
+            actor_id=actor_id,
+        )
+
 
 def submit_action(
     db: Session,
@@ -471,6 +520,8 @@ def submit_action(
     )
 
     db.commit()
+
+    _notify_action(db, tenant_id, contract, actor_id, payload.actionType, approval.status)
 
     return ApprovalActionResponse(
         approvalId=approval.id,

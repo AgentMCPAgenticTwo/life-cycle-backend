@@ -22,6 +22,7 @@ from app.errors import ConflictError, ForbiddenError, NotFoundError, ValidationF
 from app.models.contract import Contract
 from app.models.esignature import AuditCertificate, EsignatureSettings, Signer
 from app.repositories import signers as signers_repo
+from app.services import notifications
 from app.schemas.signer import (
     AddSignerRequest,
     AuditCertificateResponse,
@@ -336,6 +337,22 @@ def send_for_signature(
     db.commit()
     for s in rows:
         db.refresh(s)
+
+    # UC7: the first signer in the order is the one holding a live link right now -- the
+    # shared notification service mails it to them, gated on Settings > Notifications.
+    notifications.dispatch(
+        db,
+        tenant_id,
+        notifications.EVENT_SENT_FOR_SIGNATURE,
+        recipients=[s.signer_email for s in rows if s.signing_order == first_order],
+        subject=f"Please sign {contract.contract_name}",
+        body=(
+            f"You have been asked to sign {contract.contract_name}. Open your signing link "
+            "and enter the one-time password sent to you to continue."
+        ),
+        entity="Signer",
+        actor_id=actor_id,
+    )
 
     return SendForSignatureResponse(
         contractId=contract.id,

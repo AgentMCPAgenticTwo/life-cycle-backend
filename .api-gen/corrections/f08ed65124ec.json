@@ -1,0 +1,708 @@
+{
+  "trace_id": "f08ed65124ec",
+  "branch": "api-correction/f08ed65124ec",
+  "maintenance_branch": "api-correction/f08ed65124ec",
+  "status": "SUCCESS",
+  "summary": "All 479 tests pass and `python -m compileall app` is clean.\n\n**What I found first:** every endpoint and field in the shared contract already exists here with exactly those names and shapes — `/settings/users` (including `initialPassword`/`temporaryPassword` and `POST /{userId}/reset-password`), the `Invited|Active|Deactivated` status enum, the bare-array `/settings/notifications` and `/settings/integrations`, the `{items,totalCount,page,pageSize}` envelopes on users/approval-rules/audit-log, and the partial-body PUT toggle. So no renaming was needed; I left those files alone.\n\n**What I built** — the notification capability described in the instruction (UC6/UC7/UC11):\n\n- `app/services/notifications.py` (new): the single service all emails and in-app alerts go through. `dispatch(...)` reads the event's Email/In-App toggles from `tenant_notification_settings` (defaulting to On for an event the tenant has never saved), sends mail via stdlib `smtplib` when `SMTP_HOST` is configured and logs it otherwise, and records the in-app alert as a `tenant_audit_log` entry with `log_action = \"Notification\"`. It never raises: a send failure is logged and written as a `NotificationFailed` audit entry, so the triggering action still completes. Callers invoke it after their own commit.\n- `app/config.py`: SMTP settings read from the environment (no hard-coded credentials, no new dependency).\n- `app/repositories/settings_notifications.py`: added the four event rows the new events need — `Contract Sent Back`, `Contract Ready for Signature`, `Contract Signature Declined`, `New User Invited` — alongside the existing seven. Seeding stays idempotent.\n- Wired the eight events: approve/reject/send back and ready-for-signature in `app/services/approvals.py` (`submit_action`); signing link in `app/services/signers.py` (`send_for_signature`) and again for the next signer in turn; executed and decline in `app/services/signing_sessions.py`; new user invite in `app/services/settings_users.py` (`create_user` — the temporary password is deliberately not mailed).\n- `tests/test_notifications.py` (new): default-on, both-toggles-off, and email-failure-is-logged-but-never-raises.\n\nTwo constraints worth stating: there is no `in_app_notifications` table in any module contract and `alembic/` is outside the paths I may modify, so in-app alerts land in the existing tenant-scoped `tenant_audit_log` rather than a new table. Rendering those alerts in a bell/inbox UI is the frontend's side.",
+  "files_changed": [
+    "app/config.py",
+    "app/repositories/settings_notifications.py",
+    "app/services/approvals.py",
+    "app/services/notifications.py",
+    "app/services/settings_users.py",
+    "app/services/signers.py",
+    "app/services/signing_sessions.py",
+    "tests/test_notifications.py"
+  ],
+  "lines_changed": 382,
+  "blockers": [
+    "Not applied -- The 12 settings endpoints and their DTO field names from the shared contract: Already true of this repository -- every path, field name and response shape (bare arrays for notifications/integrations, paged envelopes elsewhere, initialPassword/temporaryPassword, reset-password, the status enum) already matches the contract exactly",
+    "Not applied -- A dedicated in-app notification table: No module contract defines one and alembic/ is outside the paths I may modify, so in-app alerts are recorded in the existing tenant_audit_log",
+    "Not applied -- Displaying in-app alerts to the user: Belongs to the frontend repository"
+  ],
+  "visual_check": {
+    "verdict": "skipped",
+    "evidence": "",
+    "screenshot_path": ""
+  },
+  "context_sharing": {
+    "target": "backend",
+    "branch": "api-correction/f08ed65124ec",
+    "base_path": "/api/v1/settings",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/settings/notifications",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "eventName",
+            "type": "string"
+          },
+          {
+            "name": "emailToggle",
+            "type": "boolean"
+          },
+          {
+            "name": "inAppToggle",
+            "type": "boolean"
+          }
+        ],
+        "purpose": "List notification events with Email/In-App toggles (bare array, seeded On by default)"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/settings/notifications/{eventName}",
+        "request_fields": [
+          {
+            "name": "emailToggle",
+            "type": "boolean"
+          },
+          {
+            "name": "inAppToggle",
+            "type": "boolean"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "eventName",
+            "type": "string"
+          },
+          {
+            "name": "emailToggle",
+            "type": "boolean"
+          },
+          {
+            "name": "inAppToggle",
+            "type": "boolean"
+          }
+        ],
+        "purpose": "Update one event's Email and/or In-App toggle (partial body allowed)"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/settings/users",
+        "request_fields": [
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          },
+          {
+            "name": "search",
+            "type": "string"
+          },
+          {
+            "name": "sortBy",
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "type": "enum"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "items",
+            "type": "array"
+          },
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          },
+          {
+            "name": "totalCount",
+            "type": "number"
+          }
+        ],
+        "purpose": "List tenant users (paged envelope)"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settings/users",
+        "request_fields": [
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "string"
+          },
+          {
+            "name": "initialPassword",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "enum"
+          },
+          {
+            "name": "status",
+            "type": "enum"
+          },
+          {
+            "name": "lastLogin",
+            "type": "date"
+          },
+          {
+            "name": "temporaryPassword",
+            "type": "string"
+          }
+        ],
+        "purpose": "Create a user (201 + Location); returns one-time temporaryPassword and sends the invite notification"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settings/users/{userId}/reset-password",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "temporaryPassword",
+            "type": "string"
+          }
+        ],
+        "purpose": "Reset a user's password, revoke sessions, return the new temporary password"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/settings/users/{userId}/status",
+        "request_fields": [
+          {
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "enum"
+          },
+          {
+            "name": "status",
+            "type": "enum"
+          },
+          {
+            "name": "lastLogin",
+            "type": "date"
+          }
+        ],
+        "purpose": "Deactivate/reactivate/activate a user; blocks removing the last active Tenant Admin"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/settings/approval-rules",
+        "request_fields": [
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          },
+          {
+            "name": "search",
+            "type": "string"
+          },
+          {
+            "name": "sortBy",
+            "type": "string"
+          },
+          {
+            "name": "sortOrder",
+            "type": "enum"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "items",
+            "type": "array"
+          },
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          },
+          {
+            "name": "totalCount",
+            "type": "number"
+          }
+        ],
+        "purpose": "List approval matrix rules (paged envelope)"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settings/approval-rules",
+        "request_fields": [
+          {
+            "name": "contractType",
+            "type": "string"
+          },
+          {
+            "name": "valueThreshold",
+            "type": "number"
+          },
+          {
+            "name": "approverRole",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "contractType",
+            "type": "enum"
+          },
+          {
+            "name": "valueThreshold",
+            "type": "number"
+          },
+          {
+            "name": "approverRole",
+            "type": "enum"
+          }
+        ],
+        "purpose": "Create an approval rule (201 + Location)"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/settings/integrations",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "integrationName",
+            "type": "enum"
+          },
+          {
+            "name": "connectionStatus",
+            "type": "enum"
+          },
+          {
+            "name": "maskedCredential",
+            "type": "string"
+          }
+        ],
+        "purpose": "List integration cards (bare array)"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settings/integrations/{integrationName}/connect",
+        "request_fields": [
+          {
+            "name": "credentials",
+            "type": "object"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "integrationName",
+            "type": "enum"
+          },
+          {
+            "name": "connectionStatus",
+            "type": "enum"
+          },
+          {
+            "name": "maskedCredential",
+            "type": "string"
+          }
+        ],
+        "purpose": "Connect an integration with credentials; response shows masked credential"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settings/integrations/{integrationName}/disconnect",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "integrationName",
+            "type": "enum"
+          },
+          {
+            "name": "connectionStatus",
+            "type": "enum"
+          },
+          {
+            "name": "maskedCredential",
+            "type": "string"
+          }
+        ],
+        "purpose": "Disconnect an integration"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/settings/audit-log",
+        "request_fields": [
+          {
+            "name": "filterDateRangeFrom",
+            "type": "date"
+          },
+          {
+            "name": "filterDateRangeTo",
+            "type": "date"
+          },
+          {
+            "name": "userFilter",
+            "type": "string"
+          },
+          {
+            "name": "actionTypeFilter",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "items",
+            "type": "array"
+          },
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          },
+          {
+            "name": "totalCount",
+            "type": "number"
+          }
+        ],
+        "purpose": "Read-only audit log entries, newest first, filtered by date range/user/action"
+      }
+    ],
+    "types": {
+      "UserListItemResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "enum"
+        },
+        {
+          "name": "status",
+          "type": "enum"
+        },
+        {
+          "name": "lastLogin",
+          "type": "date"
+        }
+      ],
+      "UserListResponse": [
+        {
+          "name": "items",
+          "type": "array"
+        },
+        {
+          "name": "page",
+          "type": "number"
+        },
+        {
+          "name": "pageSize",
+          "type": "number"
+        },
+        {
+          "name": "totalCount",
+          "type": "number"
+        }
+      ],
+      "CreateUserRequest": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "string"
+        },
+        {
+          "name": "initialPassword",
+          "type": "string"
+        }
+      ],
+      "CreateUserResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "enum"
+        },
+        {
+          "name": "status",
+          "type": "enum"
+        },
+        {
+          "name": "lastLogin",
+          "type": "date"
+        },
+        {
+          "name": "temporaryPassword",
+          "type": "string"
+        }
+      ],
+      "ResetPasswordResponse": [
+        {
+          "name": "temporaryPassword",
+          "type": "string"
+        }
+      ],
+      "UpdateUserStatusRequest": [
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "ApprovalRuleResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "contractType",
+          "type": "enum"
+        },
+        {
+          "name": "valueThreshold",
+          "type": "number"
+        },
+        {
+          "name": "approverRole",
+          "type": "enum"
+        }
+      ],
+      "ApprovalRuleListResponse": [
+        {
+          "name": "items",
+          "type": "array"
+        },
+        {
+          "name": "page",
+          "type": "number"
+        },
+        {
+          "name": "pageSize",
+          "type": "number"
+        },
+        {
+          "name": "totalCount",
+          "type": "number"
+        }
+      ],
+      "CreateApprovalRuleRequest": [
+        {
+          "name": "contractType",
+          "type": "string"
+        },
+        {
+          "name": "valueThreshold",
+          "type": "number"
+        },
+        {
+          "name": "approverRole",
+          "type": "string"
+        }
+      ],
+      "IntegrationResponse": [
+        {
+          "name": "integrationName",
+          "type": "enum"
+        },
+        {
+          "name": "connectionStatus",
+          "type": "enum"
+        },
+        {
+          "name": "maskedCredential",
+          "type": "string"
+        }
+      ],
+      "ConnectIntegrationRequest": [
+        {
+          "name": "credentials",
+          "type": "object"
+        }
+      ],
+      "NotificationEventResponse": [
+        {
+          "name": "eventName",
+          "type": "string"
+        },
+        {
+          "name": "emailToggle",
+          "type": "boolean"
+        },
+        {
+          "name": "inAppToggle",
+          "type": "boolean"
+        }
+      ],
+      "UpdateNotificationEventRequest": [
+        {
+          "name": "emailToggle",
+          "type": "boolean"
+        },
+        {
+          "name": "inAppToggle",
+          "type": "boolean"
+        }
+      ],
+      "AuditLogQueryParams": [
+        {
+          "name": "filterDateRangeFrom",
+          "type": "date"
+        },
+        {
+          "name": "filterDateRangeTo",
+          "type": "date"
+        },
+        {
+          "name": "userFilter",
+          "type": "string"
+        },
+        {
+          "name": "actionTypeFilter",
+          "type": "string"
+        },
+        {
+          "name": "page",
+          "type": "number"
+        },
+        {
+          "name": "pageSize",
+          "type": "number"
+        }
+      ],
+      "AuditLogEntryResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "logDateTime",
+          "type": "date"
+        },
+        {
+          "name": "logUser",
+          "type": "string"
+        },
+        {
+          "name": "logAction",
+          "type": "enum"
+        },
+        {
+          "name": "logEntity",
+          "type": "string"
+        },
+        {
+          "name": "details",
+          "type": "string"
+        }
+      ],
+      "AuditLogListResponse": [
+        {
+          "name": "items",
+          "type": "array"
+        },
+        {
+          "name": "page",
+          "type": "number"
+        },
+        {
+          "name": "pageSize",
+          "type": "number"
+        },
+        {
+          "name": "totalCount",
+          "type": "number"
+        }
+      ]
+    },
+    "notes": "Every endpoint the frontend listed exists here with the same paths/fields; nothing is missing. All /settings routes require X-User-Role TENANT_ADMIN (missing header 401, other role 403). Enum values the UI must match exactly: user role is one of 'Tenant Admin'|'Legal Reviewer'|'Contract Owner'|'Approver'|'External Party'|'Signer' (note: broader than the four X-User-Role codes); user status 'Invited'|'Active'|'Deactivated'; logAction 'Created'|'Updated'|'Deleted'; connectionStatus 'Connected'|'Disconnected'|'Disconnected - reconnect required'; integrationName 'Salesforce'|'HubSpot'|'ERP'|'Google Drive'|'SharePoint'|'DocuSign'|'Adobe Sign'; approval-rule contractType 'Product'|'Service' and approverRole 'Approver'|'Legal Reviewer'|'Tenant Admin'. GET /settings/notifications and /settings/integrations return bare arrays; the three paged lists return {items,page,pageSize,totalCount} and also accept search/sortBy/sortOrder. PUT /settings/notifications/{eventName} only accepts the 11 seeded event names ('Contract Sent for Approval','Contract Approved','Contract Rejected','Contract Sent Back','Contract Ready for Signature','Contract Sent for Signature','Contract Signature Declined','Contract Signed','New User Invited','Contract Expiring Soon','Contract Renewed'); an unknown name is a 404. POST /settings/users returns 201 with a Location header, and temporaryPassword is returned only at creation/reset — never on any later read."
+  },
+  "usage": {
+    "num_turns": 48,
+    "duration_ms": 305224,
+    "total_cost_usd": 1.5625286999999999,
+    "input_tokens": 3728,
+    "output_tokens": 17463,
+    "cache_creation_input_tokens": 75254,
+    "cache_read_input_tokens": 2775209,
+    "is_error": false
+  }
+}
