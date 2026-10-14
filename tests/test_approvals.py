@@ -14,6 +14,7 @@ from app.models.approval import (
     ApprovalStepInstance,
 )
 from app.models.contract import Contract
+from app.models.contract_lifecycle import ActivityLogEntry
 from app.models.counterparty import Counterparty
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -323,7 +324,7 @@ def test_action_approve_without_comments_is_accepted(db_client, db_session):
     assert body["contractStatus"] == "PendingApproval"
 
 
-def test_action_approve_final_step_transitions_to_ready_for_signature(db_client, db_session):
+def test_action_approve_final_step_transitions_to_pending_signature(db_client, db_session):
     tenant, owner, approver, contract, approval = _setup_basic(db_session, current_step_number=2, total_steps=2)
     response = db_client.post(
         f"/api/v1/approvals/{approval.id}/actions",
@@ -332,8 +333,14 @@ def test_action_approve_final_step_transitions_to_ready_for_signature(db_client,
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "ReadyForSignature"
-    assert body["contractStatus"] == "ReadyForSignature"
+    assert body["status"] == "Approved"
+    assert body["contractStatus"] == "PendingSignature"
+    db_session.expire_all()
+    assert db_session.get(Contract, contract.id).status == "Pending Signature"
+    log = db_session.query(ActivityLogEntry).filter(ActivityLogEntry.contract_id == contract.id).all()
+    assert [e.details for e in log] == [
+        "Status changed from Pending Approval to Pending Signature: all approval steps approved"
+    ]
 
 
 def test_action_reject_terminates_workflow(db_client, db_session):
@@ -356,7 +363,7 @@ def test_action_reject_terminates_workflow(db_client, db_session):
     assert second.status_code == 409
 
 
-def test_action_send_back_resets_sequence(db_client, db_session):
+def test_action_send_back_closes_approval_and_returns_contract_to_negotiation(db_client, db_session):
     tenant, owner, approver, contract, approval = _setup_basic(db_session, current_step_number=2, total_steps=2)
     response = db_client.post(
         f"/api/v1/approvals/{approval.id}/actions",
@@ -365,8 +372,30 @@ def test_action_send_back_resets_sequence(db_client, db_session):
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["approvalMatrixStepNumber"] == 1
+    # The request is closed, not reset: it stays in history and the next Mark as Agreed
+    # opens a new one from Step 1.
+    assert body["status"] == "SentBack"
     assert body["contractStatus"] == "InNegotiation"
+
+    again = db_client.post(
+        f"/api/v1/approvals/{approval.id}/actions",
+        json={"actionType": "Approve"},
+        headers=_headers(APPROVER, approver.id),
+    )
+    assert again.status_code == 409
+
+
+def test_action_intermediate_approve_keeps_contract_pending_approval(db_client, db_session):
+    tenant, owner, approver, contract, approval = _setup_basic(db_session, current_step_number=1, total_steps=2)
+    response = db_client.post(
+        f"/api/v1/approvals/{approval.id}/actions",
+        json={"actionType": "Approve"},
+        headers=_headers(APPROVER, approver.id),
+    )
+    assert response.status_code == 200
+    assert response.json()["contractStatus"] == "PendingApproval"
+    db_session.expire_all()
+    assert db_session.get(Contract, contract.id).status == "Pending Approval"
 
 
 def test_action_blocks_out_of_sequence_approver(db_client, db_session):

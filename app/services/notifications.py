@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # Event names are the Settings > Notifications rows the toggles belong to -- they must match
 # `app.repositories.settings_notifications.EVENT_NAMES` exactly or the toggle lookup silently
 # falls through to the default.
+EVENT_SENT_FOR_APPROVAL = "Contract Sent for Approval"
 EVENT_APPROVED = "Contract Approved"
 EVENT_REJECTED = "Contract Rejected"
 EVENT_SENT_BACK = "Contract Sent Back"

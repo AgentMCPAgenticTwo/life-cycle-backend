@@ -59,7 +59,7 @@ def _seed_counterparty(db_session, tenant_id: uuid.UUID) -> Counterparty:
 
 
 def _seed_contract(
-    db_session, tenant_id: uuid.UUID, owner_id: uuid.UUID, counterparty_id: uuid.UUID, status: str = "Ready For Signature"
+    db_session, tenant_id: uuid.UUID, owner_id: uuid.UUID, counterparty_id: uuid.UUID, status: str = "Pending Signature"
 ) -> Contract:
     from datetime import date
 
@@ -108,7 +108,7 @@ def _seed_signer(
     return signer
 
 
-def _setup(db_session, *, contract_status: str = "Ready For Signature"):
+def _setup(db_session, *, contract_status: str = "Pending Signature"):
     tenant = _seed_tenant(db_session)
     owner = _seed_user(db_session, tenant.id, CONTRACT_OWNER)
     other_owner = _seed_user(db_session, tenant.id, CONTRACT_OWNER)
@@ -434,7 +434,7 @@ def test_send_for_signature_blocked_when_precondition_not_met(db_session, db_cli
     assert resp.status_code == 409
 
 
-def test_send_for_signature_happy_path_transitions_contract_and_first_signer(db_session, db_client):
+def test_send_for_signature_happy_path_keeps_contract_pending_signature(db_session, db_client):
     tenant, owner, _, _, _, contract = _setup(db_session)
     _seed_signer(db_session, contract.id, order=1)
     _seed_signer(db_session, contract.id, order=2)
@@ -444,12 +444,42 @@ def test_send_for_signature_happy_path_transitions_contract_and_first_signer(db_
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["contractStatus"] == "Sent"
+    # REQ-3: "Sent" is a per-signer status only; the contract stays Pending Signature.
+    assert body["contractStatus"] == "Pending Signature"
     assert body["errorMessage"] is None
     by_order = {s["signingOrder"]: s for s in body["signers"]}
     assert by_order[1]["signerStatus"] == "Sent"
     assert by_order[1]["linkExpiresAt"] is not None
     assert by_order[2]["signerStatus"] == "Pending"
+    db_session.refresh(contract)
+    assert contract.status == "Pending Signature"
+
+
+def test_send_for_signature_cannot_be_sent_twice(db_session, db_client):
+    tenant, owner, _, _, _, contract = _setup(db_session)
+    _seed_signer(db_session, contract.id, order=1)
+    db_session.commit()
+    first = db_client.post(
+        f"/api/v1/contracts/{contract.id}/signers/send", json={}, headers=_headers(CONTRACT_OWNER, owner.id)
+    )
+    assert first.status_code == 200
+    listed = db_client.get(f"/api/v1/contracts/{contract.id}/signers", headers=_headers(CONTRACT_OWNER, owner.id))
+    assert listed.json()["sendForSignatureEnabled"] is False
+    second = db_client.post(
+        f"/api/v1/contracts/{contract.id}/signers/send", json={}, headers=_headers(CONTRACT_OWNER, owner.id)
+    )
+    assert second.status_code == 409
+
+
+def test_send_for_signature_blocked_while_pending_approval(db_session, db_client):
+    tenant, owner, _, _, _, contract = _setup(db_session, contract_status="Pending Approval")
+    _seed_signer(db_session, contract.id, order=1)
+    db_session.commit()
+    resp = db_client.post(
+        f"/api/v1/contracts/{contract.id}/signers/send", json={}, headers=_headers(CONTRACT_OWNER, owner.id)
+    )
+    assert resp.status_code == 409
+    assert "Pending Signature" in resp.json()["error"]
 
 
 def test_send_for_signature_integrated_provider_connection_failure(db_session, db_client):
@@ -467,7 +497,7 @@ def test_send_for_signature_integrated_provider_connection_failure(db_session, d
 
     # contract status is unchanged and the Contract Owner can retry.
     db_session.refresh(contract)
-    assert contract.status == "Ready For Signature"
+    assert contract.status == "Pending Signature"
 
 
 def test_send_for_signature_retry_with_inbuilt_option_succeeds(db_session, db_client):
@@ -484,7 +514,7 @@ def test_send_for_signature_retry_with_inbuilt_option_succeeds(db_session, db_cl
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["contractStatus"] == "Sent"
+    assert body["contractStatus"] == "Pending Signature"
     assert body["signers"][0]["signatureMethod"] == "In-built E-signature"
 
 
@@ -514,7 +544,7 @@ def test_send_for_signature_blocked_when_executed(db_session, db_client):
 
 
 def test_audit_certificate_not_available_before_executed(db_session, db_client):
-    tenant, owner, _, _, _, contract = _setup(db_session, contract_status="Sent")
+    tenant, owner, _, _, _, contract = _setup(db_session, contract_status="Pending Signature")
     _seed_signer(db_session, contract.id, order=1)
     db_session.commit()
     resp = db_client.get(

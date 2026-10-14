@@ -4,16 +4,14 @@ delegation, and the immutable Approval History tab -- see CLAUDE.md's UC6-UC7-co
 section and this task's stories (T-APPROVALS-API/TASK.md).
 
 This task owns `approvals`, `approval_step_instances`, `approval_delegations` and
-`approval_audit_log`. It has no endpoint to *create* an `Approval` (none is listed in this
-task's `context.json`); that is the responsibility of whatever upstream workflow routes a
-contract out of Negotiation (UC5) into the approval matrix. This service therefore assumes an
-`Approval` row (and, ideally, its current-step `ApprovalStepInstance`) already exists, and
-lazily resolves/creates the current step's instance from `approval_matrix_steps` the first
-time it is needed if upstream has not already done so -- see `_get_or_create_step_instance`.
-Recorded in this task's `blockers`.
+`approval_audit_log`. There is no endpoint to create an `Approval`: Mark as Agreed (UC5) calls
+`start_approval`, which matches the tenant's approval rules to the contract's type and value
+and opens Step 1. A Send Back closes that approval (status `SentBack`, kept for history) and
+the next Mark as Agreed opens a new one.
 """
 import uuid
 from datetime import date, datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -23,13 +21,17 @@ from app.models.approval import (
     Approval,
     ApprovalAuditLog,
     ApprovalDelegation,
+    ApprovalMatrixConfig,
     ApprovalMatrixStep,
     ApprovalStepInstance,
 )
 from app.models.contract import Contract
 from app.models.counterparty import Counterparty
+from app.models.tracker import ApprovalMatrixRule
 from app.models.user import User
 from app.repositories import approvals as approvals_repo
+from app.repositories import lifecycle_negotiation as negotiation_repo
+from app.services import contract_status
 from app.services import notifications
 from app.schemas.approval import (
     ApprovalActionRequest,
@@ -50,11 +52,9 @@ _EMPTY_MESSAGE = "No contracts are currently awaiting your approval."
 # `PendingApproval`, `Approved`, `Rejected`, `ReadyForSignature`) does not match the uc123
 # module's shared `contracts.status` values (`In Negotiation`, `Pending Approval`, ...,
 # space-separated -- see `app/schemas/contract.py`'s `ContractStatus` Literal, which the
-# `/api/v1/contracts/{id}` response validates against). Rather than writing a value into the
-# shared column that would break that other module's response serialization, this module
-# persists the existing space-separated convention (extended additively with "Rejected" and
-# "Ready For Signature") and maps to this module's own wire format only in its own responses.
-# Recorded in this task's `blockers`.
+# `/api/v1/contracts/{id}` response validates against). This module persists the shared
+# space-separated values (see `app.services.contract_status`) and maps to its own wire format
+# only in its own responses.
 _CONTRACT_STATUS_TO_WIRE = {
     "Draft": "Draft",
     "In Negotiation": "InNegotiation",
@@ -62,7 +62,23 @@ _CONTRACT_STATUS_TO_WIRE = {
     "Pending Signature": "PendingSignature",
     "Executed": "Executed",
     "Rejected": "Rejected",
-    "Ready For Signature": "ReadyForSignature",
+}
+
+# Approval (not contract) statuses.
+APPROVAL_PENDING = "PendingApproval"
+APPROVAL_APPROVED = "Approved"
+APPROVAL_REJECTED = "Rejected"
+APPROVAL_SENT_BACK = "SentBack"
+
+NO_MATCHING_RULE_MESSAGE = (
+    "No approval rule found for this contract type and value. Please contact your Tenant Admin."
+)
+
+# Settings > Routing & Approval stores the approver role by its display name.
+_RULE_ROLE_TO_USER_ROLE = {
+    "Approver": "APPROVER",
+    "Legal Reviewer": "LEGAL_REVIEWER",
+    "Tenant Admin": "TENANT_ADMIN",
 }
 
 
@@ -160,6 +176,162 @@ def _get_or_create_step_instance(
     db.add(instance)
     db.flush()
     return instance
+
+
+def _matching_matrix_config(db: Session, tenant_id: uuid.UUID, contract: Contract) -> ApprovalMatrixConfig | None:
+    """The Approval Matrix config (UC6) for this contract's type whose value -- and, when the
+    contract has a risk score, risk band -- range contains it. The narrowest value band wins."""
+    value = Decimal(contract.contract_value)
+    risk = contract.risk_score
+    candidates = (
+        db.query(ApprovalMatrixConfig)
+        .filter(ApprovalMatrixConfig.tenant_id == tenant_id, ApprovalMatrixConfig.contract_type == contract.contract_type)
+        .all()
+    )
+
+    def fits(config: ApprovalMatrixConfig) -> bool:
+        if config.value_min is not None and value < config.value_min:
+            return False
+        if config.value_max is not None and value > config.value_max:
+            return False
+        if risk is not None:
+            if config.risk_band_min is not None and risk < config.risk_band_min:
+                return False
+            if config.risk_band_max is not None and risk > config.risk_band_max:
+                return False
+        has_steps = db.query(ApprovalMatrixStep).filter(ApprovalMatrixStep.config_id == config.id).first() is not None
+        return has_steps
+
+    matches = [c for c in candidates if fits(c)]
+    matches.sort(key=lambda c: c.value_min if c.value_min is not None else Decimal(0), reverse=True)
+    return matches[0] if matches else None
+
+
+def _matching_settings_rules(db: Session, tenant_id: uuid.UUID, contract: Contract) -> list[ApprovalMatrixRule]:
+    """Settings > Routing & Approval rules (UC11) whose threshold the contract's value meets, one
+    approval step each, lowest threshold first. Their Contract Type is Product/Service, so a
+    rule matches on the contract's industry as well as its contract type."""
+    return (
+        db.query(ApprovalMatrixRule)
+        .filter(
+            ApprovalMatrixRule.tenant_id == tenant_id,
+            ApprovalMatrixRule.deleted_at.is_(None),
+            ApprovalMatrixRule.contract_type.in_([contract.contract_type, contract.industry]),
+            ApprovalMatrixRule.value_threshold <= contract.contract_value,
+        )
+        .order_by(ApprovalMatrixRule.value_threshold.asc())
+        .all()
+    )
+
+
+def _approver_for_role(db: Session, tenant_id: uuid.UUID, contract: Contract, role_label: str) -> uuid.UUID:
+    role = _RULE_ROLE_TO_USER_ROLE.get(role_label, role_label)
+    # UC6-BR-011: the Contract Owner is never eligible.
+    candidate = (
+        db.query(User)
+        .filter(
+            User.tenant_id == tenant_id,
+            User.role == role,
+            User.deleted_at.is_(None),
+            User.id != contract.contract_owner_id,
+        )
+        .order_by(User.id.asc())
+        .first()
+    )
+    if candidate is None:
+        message = f"No user holds the {role_label} role required by the approval rule. Please contact your Tenant Admin."
+        raise ConflictError(message, details=[message])
+    return candidate.id
+
+
+def start_approval(db: Session, tenant_id: uuid.UUID, contract: Contract, actor_id: uuid.UUID) -> Approval:
+    """REQ-2: open a new approval request for a contract whose negotiation was just Agreed.
+
+    Matches the tenant's approval rules to the contract's type and value and starts at Step 1.
+    Raises ConflictError (writing nothing) when no rule matches. Does not commit; the caller
+    commits it together with the contract's move to Pending Approval, then calls
+    `notify_step_approver`.
+    """
+    config = _matching_matrix_config(db, tenant_id, contract)
+    rule_approvers: list[uuid.UUID] = []
+    if config is not None:
+        total_steps = db.query(ApprovalMatrixStep).filter(ApprovalMatrixStep.config_id == config.id).count()
+    else:
+        rules = _matching_settings_rules(db, tenant_id, contract)
+        if not rules:
+            raise ConflictError(NO_MATCHING_RULE_MESSAGE, details=[NO_MATCHING_RULE_MESSAGE])
+        rule_approvers = [_approver_for_role(db, tenant_id, contract, r.approver_role) for r in rules]
+        total_steps = len(rules)
+
+    now = datetime.now(timezone.utc)
+    # An approval still open from before a Send Back is superseded, never reused -- it stays
+    # in history and the new request starts again at Step 1.
+    for previous in (
+        db.query(Approval)
+        .filter(Approval.contract_id == contract.id, Approval.status == APPROVAL_PENDING)
+        .all()
+    ):
+        previous.status = APPROVAL_SENT_BACK
+        previous.updated_by = actor_id
+        previous.updated_at = now
+
+    approval = Approval(
+        contract_id=contract.id,
+        contract_owner_id=contract.contract_owner_id,
+        config_id=config.id if config is not None else None,
+        current_step_number=1,
+        total_steps=total_steps,
+        status=APPROVAL_PENDING,
+        ai_risk_score=contract.risk_score,
+        created_by=actor_id,
+        updated_by=actor_id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(approval)
+    db.flush()
+
+    if config is not None:
+        _get_or_create_step_instance(db, tenant_id, approval, contract, 1)
+    else:
+        # Rule-based steps have no matrix row to resolve lazily, so each step's approver is
+        # fixed now.
+        for step_number, approver_id in enumerate(rule_approvers, start=1):
+            db.add(
+                ApprovalStepInstance(
+                    approval_id=approval.id,
+                    step_number=step_number,
+                    approver_user_id=approver_id,
+                    status="Pending",
+                    created_by=actor_id,
+                    updated_by=actor_id,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        db.flush()
+    return approval
+
+
+def notify_step_approver(
+    db: Session, tenant_id: uuid.UUID, approval: Approval, contract: Contract, actor_id: uuid.UUID
+) -> None:
+    """Tell the approver of the approval's current step that the contract is waiting on them."""
+    step = approvals_repo.get_current_step_instance(db, approval.id, approval.current_step_number)
+    approver = _resolve_user(db, step.approver_user_id) if step is not None else None
+    notifications.dispatch(
+        db,
+        tenant_id,
+        notifications.EVENT_SENT_FOR_APPROVAL,
+        recipients=[approver.email if approver is not None else None],
+        subject=f"Approval needed: {contract.contract_name}",
+        body=(
+            f"Contract {contract.contract_name} is waiting for your approval "
+            f"({_step_label(db, approval, approval.current_step_number)})."
+        ),
+        entity="Contract",
+        actor_id=actor_id,
+    )
 
 
 def _active_delegation_for(
@@ -392,7 +564,7 @@ def _notify_action(
         entity="Contract",
         actor_id=actor_id,
     )
-    if approval_status == "ReadyForSignature":
+    if approval_status == APPROVAL_APPROVED:
         notifications.dispatch(
             db,
             tenant_id,
@@ -469,34 +641,36 @@ def submit_action(
 
     if payload.actionType == "Reject":
         step.status = "Rejected"
-        approval.status = "Rejected"
-        contract.status = "Rejected"
+        approval.status = APPROVAL_REJECTED
+        contract_status.transition(db, contract, contract_status.REJECTED, actor_id, "rejected by approver")
     elif payload.actionType == "SendBack":
         step.status = "SentBack"
-        # Flush the step's own Approve/Reject/SendBack attribution (comments, acted_by, ...)
-        # before the bulk delete below, or SQLAlchemy's unit-of-work sees a later UPDATE
-        # against a row the bulk DELETE already removed and raises StaleDataError.
-        db.flush()
-        # UC6-BR-005: sending back clears prior approval progress and resets the sequence.
-        approval.current_step_number = 1
-        approval.status = "PendingApproval"
-        contract.status = "In Negotiation"
-        db.query(ApprovalStepInstance).filter(ApprovalStepInstance.approval_id == approval.id).delete(
-            synchronize_session=False
+        # UC6-BR-005: sending back ends this approval request -- it stays in history with its
+        # step record, and the next Mark as Agreed opens a new request from Step 1.
+        approval.status = APPROVAL_SENT_BACK
+        contract_status.transition(
+            db, contract, contract_status.IN_NEGOTIATION, actor_id, "sent back by approver"
         )
-        db.flush()
-        _get_or_create_step_instance(db, tenant_id, approval, contract, 1)
+        routing = negotiation_repo.get_routing_by_contract(db, contract.id)
+        if routing is not None:
+            routing.negotiation_status = contract_status.NEGOTIATION_SENT_BACK
+            routing.updated_by = actor_id
+            routing.updated_at = now
     else:  # Approve
         step.status = "Approved"
         if approval.current_step_number < approval.total_steps:
-            # UC6-BR-023: automatically advance to the next sequential step.
+            # UC6-BR-023: automatically advance to the next sequential step; the contract
+            # stays Pending Approval.
             approval.current_step_number += 1
-            approval.status = "PendingApproval"
+            approval.status = APPROVAL_PENDING
             _get_or_create_step_instance(db, tenant_id, approval, contract, approval.current_step_number)
         else:
-            # UC6-BR-024: the final step was approved -- auto-transition to e-signature.
-            approval.status = "ReadyForSignature"
-            contract.status = "Ready For Signature"
+            # UC6-BR-024 / REQ-3: the last step was approved -- the contract moves to
+            # Pending Signature.
+            approval.status = APPROVAL_APPROVED
+            contract_status.transition(
+                db, contract, contract_status.PENDING_SIGNATURE, actor_id, "all approval steps approved"
+            )
 
     approval.updated_by = actor_id
     approval.updated_at = now
@@ -522,6 +696,8 @@ def submit_action(
     db.commit()
 
     _notify_action(db, tenant_id, contract, actor_id, payload.actionType, approval.status)
+    if payload.actionType == "Approve" and approval.status == APPROVAL_PENDING:
+        notify_step_approver(db, tenant_id, approval, contract, actor_id)
 
     return ApprovalActionResponse(
         approvalId=approval.id,

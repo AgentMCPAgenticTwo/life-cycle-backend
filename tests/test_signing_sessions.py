@@ -74,7 +74,7 @@ def _seed_counterparty(db_session, tenant_id) -> Counterparty:
     return cp
 
 
-def _seed_contract(db_session, tenant_id, owner_id, counterparty_id, status: str = "Sent") -> Contract:
+def _seed_contract(db_session, tenant_id, owner_id, counterparty_id, status: str = "Pending Signature") -> Contract:
     from datetime import date
 
     today = date(2026, 1, 1)
@@ -140,7 +140,7 @@ def secrets_token() -> str:
     return uuid.uuid4().hex
 
 
-def _setup(db_session, *, contract_status: str = "Sent"):
+def _setup(db_session, *, contract_status: str = "Pending Signature"):
     tenant = _seed_tenant(db_session)
     owner = _seed_user(db_session, tenant.id, CONTRACT_OWNER)
     other_owner = _seed_user(db_session, tenant.id, CONTRACT_OWNER)
@@ -423,11 +423,11 @@ def test_sign_advances_to_next_signer_without_executing(db_session, db_client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["signerStatus"] == "Signed"
-    assert body["contractStatus"] == "Sent"
+    assert body["contractStatus"] == "Pending Signature"
     assert body["nextSignerId"] is not None
 
     db_session.refresh(contract)
-    assert contract.status == "Sent"
+    assert contract.status == "Pending Signature"
 
 
 def test_sign_last_signer_executes_contract(db_session, db_client):
@@ -492,11 +492,11 @@ def test_decline_halts_routing_and_sets_contract_declined(db_session, db_client)
     assert resp.status_code == 200
     body = resp.json()
     assert body["signerStatus"] == "Declined"
-    assert body["contractStatus"] == "SignatureDeclined"
+    assert body["contractStatus"] == "Signature Declined"
     assert body["reason"] == "Pricing terms unacceptable"
 
     db_session.refresh(contract)
-    assert contract.status == "SignatureDeclined"
+    assert contract.status == "Signature Declined"
 
     # UC7-BR-018 AC3: routing halted -- the next signer in order was never sent a link, so
     # their session never activates (still Pending, no OTP/link issued).

@@ -46,7 +46,7 @@ from app.services.contract_lifecycle import (
 logger = logging.getLogger(__name__)
 
 # UC7: a contract in one of these states is finished with signatures -- no further reminders.
-SIGNING_CLOSED_STATUSES = {"Executed", "SignatureDeclined", "Withdrawn", "Terminated", "Expired"}
+SIGNING_CLOSED_STATUSES = {"Executed", "Signature Declined", "SignatureDeclined", "Withdrawn", "Terminated", "Expired"}
 DEFAULT_SIGNATURE_REMINDER_DAYS = 3
 
 ALERT_BASIS_END_DATE = "Contract End Date"

@@ -22,6 +22,7 @@ from app.errors import ConflictError, ForbiddenError, NotFoundError, ValidationF
 from app.models.contract import Contract
 from app.models.esignature import AuditCertificate, EsignatureSettings, Signer
 from app.repositories import signers as signers_repo
+from app.services import contract_status
 from app.services import notifications
 from app.schemas.signer import (
     AddSignerRequest,
@@ -36,14 +37,14 @@ from app.schemas.signer import (
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-# UC7-FV-001/BR-015: the UC7 precondition names 'Ready for Signature' as the gating status;
-# UC7-BR-015/MF-001 instead describe the transition as 'Approved' -> 'Sent'. Neither value is
-# actually written to the shared `contracts.status` column anywhere in this codebase except
-# "Ready For Signature" (set by T-APPROVALS-API's UC6-BR-024 auto-transition) -- "Approved" is
-# never persisted. Both spellings are accepted here as the send precondition so this endpoint
-# works against the approvals module's actual behavior without silently dropping the story's
-# literal "Approved" wording. Recorded in this task's `blockers`.
-_SEND_PRECONDITION_STATUSES = {"Ready For Signature", "Approved"}
+# REQ-3: Send for Signature is allowed only while the contract is Pending Signature, and
+# sending does not change the contract status -- Sent/Viewed/Signed/Declined are per-signer.
+_SEND_PRECONDITION_MESSAGE = "Send for Signature is only available while the contract is Pending Signature."
+_ALREADY_SENT_MESSAGE = "This contract has already been sent for signature."
+
+
+def _already_sent(signer_rows: list[Signer]) -> bool:
+    return any(s.signer_status != "Pending" for s in signer_rows)
 
 _DOCUMENT_LOCKED_MESSAGE = (
     "This contract's document is locked and cannot be sent for signature again."
@@ -138,7 +139,9 @@ def list_signers(
     return SignerListResponse(
         contractId=contract.id,
         signers=[_to_response(s) for s in rows],
-        sendForSignatureEnabled=contract.status in _SEND_PRECONDITION_STATUSES and len(rows) > 0,
+        sendForSignatureEnabled=(
+            contract_status.is_pending_signature(contract.status) and len(rows) > 0 and not _already_sent(rows)
+        ),
         signingOrderLocked=_is_locked(rows),
     )
 
@@ -289,10 +292,10 @@ def send_for_signature(
             details=["At least one signer is required before sending for signature."],
         )
 
-    if contract.status not in _SEND_PRECONDITION_STATUSES:
-        raise ConflictError(
-            "Contract must be Approved/Ready for Signature before it can be sent for signature."
-        )
+    if not contract_status.is_pending_signature(contract.status):
+        raise ConflictError(_SEND_PRECONDITION_MESSAGE, details=[_SEND_PRECONDITION_MESSAGE])
+    if _already_sent(rows):
+        raise ConflictError(_ALREADY_SENT_MESSAGE, details=[_ALREADY_SENT_MESSAGE])
 
     actor_id = uuid.UUID(user.user_id)
 
@@ -332,7 +335,8 @@ def send_for_signature(
             s.signer_status = "Sent"
         s.updated_by = actor_id
 
-    contract.status = "Sent"
+    # Normalises a row still on a legacy value; a Pending Signature contract stays as it is.
+    contract.status = contract_status.PENDING_SIGNATURE
     contract.updated_by = actor_id
     db.commit()
     for s in rows:

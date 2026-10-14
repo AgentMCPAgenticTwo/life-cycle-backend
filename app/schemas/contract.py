@@ -37,6 +37,11 @@ RenewalType = Literal["Auto", "Manual", "None"]
 # and UC9-BR-004/016/017/018 persist these lifecycle states to this same shared
 # `contracts.status` column (Repository status display, and the Renew/Amend/Terminate
 # transitions). See this task's `blockers`.
+# Contract status flow fix: the workflow now writes only Draft -> In Negotiation -> Pending
+# Approval -> Pending Signature -> Executed, plus Rejected and "Signature Declined" (see
+# app.services.contract_status). "Ready For Signature", "Sent" and "SignatureDeclined" are no
+# longer written -- migration 0053 rewrites them -- and stay listed only so a row the
+# migration has not reached cannot 500 a contract GET.
 ContractStatus = Literal[
     "Draft",
     "In Negotiation",
@@ -44,8 +49,10 @@ ContractStatus = Literal[
     "Pending Signature",
     "Executed",
     "Rejected",
+    "Signature Declined",
     "Ready For Signature",
     "Sent",
+    "SignatureDeclined",
     "In Approval",
     "In Signature",
     "Active",

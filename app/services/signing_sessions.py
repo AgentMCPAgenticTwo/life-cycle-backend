@@ -24,6 +24,7 @@ from app.models.contract import Contract
 from app.models.esignature import Signer
 from app.models.user import User
 from app.repositories import signing_sessions as repo
+from app.services import contract_status
 from app.services import notifications
 from app.schemas.signing_session import (
     ApplySignatureRequest,
@@ -132,7 +133,7 @@ def _build_session_response(signer: Signer, contract: Contract, prior_signed: bo
 
     if signer.signer_status == "Expired":
         blocked_message = _EXPIRED_MESSAGE
-    elif contract.status == "SignatureDeclined" and signer.signer_status != "Declined":
+    elif contract_status.is_signature_declined(contract.status) and signer.signer_status != "Declined":
         blocked_message = _DECLINED_MESSAGE
     elif signer.signer_status == "Declined":
         blocked_message = None
@@ -182,7 +183,7 @@ def verify_otp(
 
     if signer.signer_status == "Expired":
         raise ForbiddenError(_EXPIRED_MESSAGE)
-    if contract.status == "SignatureDeclined" and signer.signer_status != "Declined":
+    if contract_status.is_signature_declined(contract.status) and signer.signer_status != "Declined":
         raise ForbiddenError(_DECLINED_MESSAGE)
     if signer.signer_status not in ("Sent", "Viewed"):
         raise ConflictError("OTP verification is not available for this signer's current status.")
@@ -286,7 +287,7 @@ def apply_signature(
 
     if signer.signer_status == "Expired":
         raise ForbiddenError(_EXPIRED_MESSAGE)
-    if contract.status == "SignatureDeclined" and signer.signer_status != "Declined":
+    if contract_status.is_signature_declined(contract.status) and signer.signer_status != "Declined":
         raise ForbiddenError(_DECLINED_MESSAGE)
     # UC7-BR-003/017: a signature can only be applied once OTP has been verified (status
     # Viewed).
@@ -367,7 +368,7 @@ def apply_signature(
     return ApplySignatureResponse(
         signerId=signer.id,
         signerStatus="Signed",
-        contractStatus=contract.status if contract.status == "Executed" else "Sent",
+        contractStatus=contract.status,
         nextSignerId=next_signer_id,
     )
 
@@ -382,7 +383,7 @@ def decline_signature(
 
     if signer.signer_status == "Expired":
         raise ForbiddenError(_EXPIRED_MESSAGE)
-    if contract.status == "SignatureDeclined" and signer.signer_status != "Declined":
+    if contract_status.is_signature_declined(contract.status) and signer.signer_status != "Declined":
         raise ForbiddenError(_DECLINED_MESSAGE)
     # UC7-BR-018: Decline to Sign is only available to the active signer in Viewed status.
     if signer.signer_status != "Viewed":
@@ -398,7 +399,7 @@ def decline_signature(
 
     # UC7-BR-008/018: halts routing to subsequent signers and the contract moves to a
     # terminal Signature Declined state -- no further reminders, no further signing.
-    contract.status = "SignatureDeclined"
+    contract.status = contract_status.SIGNATURE_DECLINED
     contract.updated_by = actor_id
 
     db.commit()
@@ -422,6 +423,6 @@ def decline_signature(
     return DeclineSignatureResponse(
         signerId=signer.id,
         signerStatus="Declined",
-        contractStatus="SignatureDeclined",
+        contractStatus=contract.status,
         reason=signer.decline_reason,
     )

@@ -10,8 +10,11 @@ from datetime import date, timedelta
 
 import pytest
 
+from app.models.approval import Approval, ApprovalMatrixConfig, ApprovalMatrixStep
 from app.models.contract import Contract
+from app.models.contract_lifecycle import ActivityLogEntry
 from app.models.counterparty import Counterparty
+from app.models.tracker import ApprovalMatrixRule
 from app.models.tenant import Tenant
 from app.models.template import Template
 from app.models.user import User
@@ -101,6 +104,45 @@ def _routing_payload(reviewer_ids, **overrides) -> dict:
     return payload
 
 
+def _seed_approval_rule(db_session, tenant_id: uuid.UUID, *, contract_type: str = "NDA", steps: int = 1) -> list[uuid.UUID]:
+    """An Approval Matrix config matching the default seeded contract (NDA, 10,000), one
+    APPROVER per step. Returns the approvers in step order."""
+    seed_id = uuid.uuid4()
+    config = ApprovalMatrixConfig(
+        tenant_id=tenant_id, contract_type=contract_type, value_min=0, value_max=1_000_000,
+        created_by=seed_id, updated_by=seed_id,
+    )
+    db_session.add(config)
+    db_session.flush()
+    approver_ids = []
+    for step_number in range(1, steps + 1):
+        approver_id = _seed_user(db_session, tenant_id, APPROVER, name=f"Approver {step_number}")
+        db_session.add(
+            ApprovalMatrixStep(
+                config_id=config.id, step_number=step_number, step_name=f"Level {step_number}",
+                approver_user_id=approver_id, created_by=seed_id, updated_by=seed_id,
+            )
+        )
+        approver_ids.append(approver_id)
+    db_session.commit()
+    return approver_ids
+
+
+def _contract_status(db_session, contract_id) -> str:
+    db_session.expire_all()
+    return db_session.get(Contract, contract_id).status
+
+
+def _status_log(db_session, contract_id) -> list[str]:
+    rows = (
+        db_session.query(ActivityLogEntry)
+        .filter(ActivityLogEntry.contract_id == contract_id, ActivityLogEntry.action_type == "STATUS_CHANGE")
+        .order_by(ActivityLogEntry.performed_at.asc())
+        .all()
+    )
+    return [r.details for r in rows]
+
+
 def _setup_analyzed_contract(db_client, db_session, **contract_overrides):
     tenant_id = _seed_tenant(db_session)
     admin_id = _seed_user(db_session, tenant_id, TENANT_ADMIN)
@@ -162,6 +204,27 @@ def test_routing_happy_path_sets_with_internal(db_client, db_session):
     assert body["negotiationStatus"] == "With Internal"
     assert body["versionNumber"] == 1
     assert len(body["internalReviewers"]) == 1
+
+
+def test_routing_moves_contract_to_in_negotiation_and_logs_it(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    _route(db_client, contract_id, owner_id, [legal_id])
+    assert _contract_status(db_session, contract_id) == "In Negotiation"
+    assert _status_log(db_session, contract_id) == [
+        "Status changed from Draft to In Negotiation: submitted for review"
+    ]
+
+
+def test_failed_routing_leaves_contract_in_draft(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    resp = db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/routing",
+        json=_routing_payload([legal_id], externalPartyEmail="not-an-email"),
+        headers=_headers(CONTRACT_OWNER, owner_id),
+    )
+    assert resp.status_code == 400
+    assert _contract_status(db_session, contract_id) == "Draft"
+    assert _status_log(db_session, contract_id) == []
 
 
 def test_routing_auto_adds_finance_head_above_threshold(db_client, db_session):
@@ -592,20 +655,143 @@ def test_mark_agreed_blocked_before_review_cycle_completes(db_client, db_session
     assert resp.status_code == 409
 
 
-def test_mark_agreed_allowed_after_review_cycle(db_client, db_session):
-    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
-    _route(db_client, contract_id, owner_id, [legal_id])
+def _review_and_mark_agreed(db_client, contract_id, legal_id):
     db_client.post(
         f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/reviews",
         json={},
         headers=_headers(LEGAL_REVIEWER, legal_id),
     )
-    resp = db_client.post(
+    return db_client.post(
         f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/mark-agreed",
         headers=_headers(LEGAL_REVIEWER, legal_id),
     )
+
+
+def test_mark_agreed_allowed_after_review_cycle(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    _seed_approval_rule(db_session, tenant_id)
+    _route(db_client, contract_id, owner_id, [legal_id])
+    resp = _review_and_mark_agreed(db_client, contract_id, legal_id)
     assert resp.status_code == 200
     assert resp.json()["negotiationStatus"] == "Agreed"
+
+
+def test_mark_agreed_moves_contract_to_pending_approval_and_opens_step_one(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    approver_ids = _seed_approval_rule(db_session, tenant_id, steps=2)
+    _route(db_client, contract_id, owner_id, [legal_id])
+    assert _review_and_mark_agreed(db_client, contract_id, legal_id).status_code == 200
+
+    assert _contract_status(db_session, contract_id) == "Pending Approval"
+    assert _status_log(db_session, contract_id)[-1] == (
+        "Status changed from In Negotiation to Pending Approval: negotiation marked Agreed"
+    )
+    approvals = db_session.query(Approval).filter(Approval.contract_id == contract_id).all()
+    assert len(approvals) == 1
+    assert approvals[0].status == "PendingApproval"
+    assert approvals[0].current_step_number == 1
+    assert approvals[0].total_steps == 2
+
+    # The Step 1 approver sees it in their Approvals list; the Step 2 approver does not yet.
+    first = db_client.get("/api/v1/approvals", headers=_headers(APPROVER, approver_ids[0])).json()
+    assert [i["contractId"] for i in first["items"]] == [str(contract_id)]
+    second = db_client.get("/api/v1/approvals", headers=_headers(APPROVER, approver_ids[1])).json()
+    assert second["items"] == []
+
+
+def test_mark_agreed_without_matching_rule_keeps_contract_in_negotiation(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    _seed_approval_rule(db_session, tenant_id, contract_type="MSA")  # does not match the NDA
+    _route(db_client, contract_id, owner_id, [legal_id])
+    resp = _review_and_mark_agreed(db_client, contract_id, legal_id)
+
+    assert resp.status_code == 409
+    assert resp.json()["error"] == (
+        "No approval rule found for this contract type and value. Please contact your Tenant Admin."
+    )
+    assert _contract_status(db_session, contract_id) == "In Negotiation"
+    tracker = db_client.get(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation", headers=_headers(LEGAL_REVIEWER, legal_id)
+    ).json()
+    assert tracker["negotiationStatus"] != "Agreed"
+    assert db_session.query(Approval).filter(Approval.contract_id == contract_id).count() == 0
+
+
+def test_mark_agreed_matches_settings_approval_rule(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    approver_id = _seed_user(db_session, tenant_id, APPROVER)
+    seed_id = uuid.uuid4()
+    # Settings > Routing & Approval rules key on Product/Service (the contract's industry).
+    db_session.add(
+        ApprovalMatrixRule(
+            tenant_id=tenant_id, contract_type="Product", value_threshold=5000, approver_role="Approver",
+            created_by=seed_id, updated_by=seed_id,
+        )
+    )
+    db_session.add(
+        ApprovalMatrixRule(
+            tenant_id=tenant_id, contract_type="Product", value_threshold=50000, approver_role="Tenant Admin",
+            created_by=seed_id, updated_by=seed_id,
+        )
+    )
+    db_session.commit()
+    _route(db_client, contract_id, owner_id, [legal_id])
+    assert _review_and_mark_agreed(db_client, contract_id, legal_id).status_code == 200
+
+    approval = db_session.query(Approval).filter(Approval.contract_id == contract_id).one()
+    assert approval.total_steps == 1  # only the 5,000 threshold applies to a 10,000 contract
+    listed = db_client.get("/api/v1/approvals", headers=_headers(APPROVER, approver_id)).json()
+    assert [i["contractId"] for i in listed["items"]] == [str(contract_id)]
+
+
+def test_sent_back_contract_can_be_resubmitted_and_gets_a_new_approval(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    (approver_id,) = _seed_approval_rule(db_session, tenant_id)
+    _route(db_client, contract_id, owner_id, [legal_id])
+    assert _review_and_mark_agreed(db_client, contract_id, legal_id).status_code == 200
+    first_approval = db_session.query(Approval).filter(Approval.contract_id == contract_id).one()
+
+    sent_back = db_client.post(
+        f"/api/v1/approvals/{first_approval.id}/actions",
+        json={"actionType": "SendBack", "comments": "Tighten the liability cap."},
+        headers=_headers(APPROVER, approver_id),
+    )
+    assert sent_back.status_code == 200
+    assert _contract_status(db_session, contract_id) == "In Negotiation"
+
+    # REQ-1: a sent-back contract (already In Negotiation) can be sent for review again.
+    resend = db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/routing",
+        json=_routing_payload([legal_id]),
+        headers=_headers(CONTRACT_OWNER, owner_id),
+    )
+    assert resend.status_code == 200
+    assert resend.json()["negotiationStatus"] == "With Internal"
+    assert resend.json()["versionNumber"] > 1
+    assert _contract_status(db_session, contract_id) == "In Negotiation"
+
+    # REQ-2: agreeing again opens a new approval; the old one stays in history.
+    assert _review_and_mark_agreed(db_client, contract_id, legal_id).status_code == 200
+    assert _contract_status(db_session, contract_id) == "Pending Approval"
+    approvals = {
+        a.id: a.status for a in db_session.query(Approval).filter(Approval.contract_id == contract_id).all()
+    }
+    assert len(approvals) == 2
+    assert approvals[first_approval.id] == "SentBack"
+    assert sorted(approvals.values()) == ["PendingApproval", "SentBack"]
+
+
+def test_mark_agreed_twice_is_rejected(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    _seed_approval_rule(db_session, tenant_id)
+    _route(db_client, contract_id, owner_id, [legal_id])
+    assert _review_and_mark_agreed(db_client, contract_id, legal_id).status_code == 200
+    again = db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/mark-agreed",
+        headers=_headers(LEGAL_REVIEWER, legal_id),
+    )
+    assert again.status_code == 409
+    assert db_session.query(Approval).filter(Approval.contract_id == contract_id).count() == 1
 
 
 def test_mark_agreed_disallowed_for_contract_owner(db_client, db_session):

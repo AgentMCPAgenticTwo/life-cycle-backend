@@ -28,6 +28,8 @@ from app.models.lifecycle_negotiation import (
 )
 from app.repositories import contracts as contracts_repo
 from app.repositories import lifecycle_negotiation as repo
+from app.services import approvals as approval_service
+from app.services import contract_status
 from app.services import lifecycle_clauses as clause_service
 from app.services import notifications
 from app.schemas.lifecycle_negotiation import (
@@ -53,6 +55,8 @@ from app.schemas.lifecycle_negotiation import (
 )
 
 _ROUTING_TYPES = {"Sequential", "Parallel"}
+NEGOTIATION_AGREED = contract_status.NEGOTIATION_AGREED
+NEGOTIATION_SENT_BACK = contract_status.NEGOTIATION_SENT_BACK
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _FINANCE_HEAD_THRESHOLD = Decimal("1000000")
 _LINK_TTL = timedelta(hours=72)
@@ -117,14 +121,24 @@ def create_routing(
     db: Session, tenant_id: uuid.UUID, user: CurrentUser, contract_id: uuid.UUID, payload: RoutingRequest
 ) -> RoutingResponse:
     contract = _get_contract_or_404(db, tenant_id, contract_id)
+    existing = repo.get_routing_by_contract(db, contract.id)
 
+    # A contract an approver sent back is already In Negotiation; it may be sent for review
+    # again, reusing its routing so the version history continues.
+    resend_after_send_back = (
+        contract.status == contract_status.IN_NEGOTIATION
+        and existing is not None
+        and existing.negotiation_status == NEGOTIATION_SENT_BACK
+    )
     # UC5-BR-023: routing requires a Draft contract with at least one completed AI Clause
     # Analysis pass (UC4).
-    if contract.status != "Draft" or not clause_service.has_completed_analysis_pass(db, contract.id):
+    if not resend_after_send_back and (
+        contract.status != contract_status.DRAFT or not clause_service.has_completed_analysis_pass(db, contract.id)
+    ):
         raise ConflictError(
             "This contract must be in Draft status with a completed AI clause analysis pass before it can be routed."
         )
-    if repo.get_routing_by_contract(db, contract.id) is not None:
+    if existing is not None and not resend_after_send_back:
         raise ConflictError("This contract has already been routed for negotiation.")
 
     if payload.routingType not in _ROUTING_TYPES:
@@ -161,21 +175,35 @@ def create_routing(
 
     user_uuid = uuid.UUID(user.user_id)
     now = _now()
-    routing = repo.insert_routing(
-        db,
-        NegotiationRouting(
-            contract_id=contract.id,
-            routing_type=payload.routingType,
-            external_party_name=payload.externalPartyName,
-            external_party_email=payload.externalPartyEmail,
-            assigned_date=payload.assignedDate,
-            due_date=payload.dueDate,
-            negotiation_status="With Internal",
-            current_version_number=1,
-            created_by=user_uuid,
-            updated_by=user_uuid,
-        ),
-    )
+    if existing is None:
+        routing = repo.insert_routing(
+            db,
+            NegotiationRouting(
+                contract_id=contract.id,
+                routing_type=payload.routingType,
+                external_party_name=payload.externalPartyName,
+                external_party_email=payload.externalPartyEmail,
+                assigned_date=payload.assignedDate,
+                due_date=payload.dueDate,
+                negotiation_status="With Internal",
+                current_version_number=1,
+                created_by=user_uuid,
+                updated_by=user_uuid,
+            ),
+        )
+    else:
+        # New review cycle on the same routing: fresh reviewer list, next version number.
+        routing = existing
+        repo.delete_reviewers(db, routing.id)
+        routing.routing_type = payload.routingType
+        routing.external_party_name = payload.externalPartyName
+        routing.external_party_email = payload.externalPartyEmail
+        routing.assigned_date = payload.assignedDate
+        routing.due_date = payload.dueDate
+        routing.negotiation_status = "With Internal"
+        routing.current_version_number += 1
+        routing.updated_at = now
+        routing.updated_by = user_uuid
 
     sequence = 1
     for reviewer_user in reviewer_users:
@@ -237,12 +265,21 @@ def create_routing(
         NegotiationVersion(
             contract_id=contract.id,
             negotiation_routing_id=routing.id,
-            version_number=1,
+            version_number=routing.current_version_number,
             source=_SOURCE_INTERNAL,
             document_snapshot=clause_service.snapshot_clauses(db, contract.id),
             created_by=user_uuid,
             updated_by=user_uuid,
         ),
+    )
+    # REQ-1: a successful Submit for Review moves the contract to In Negotiation. It shares
+    # the routing's transaction, so a failed send leaves the contract in Draft.
+    contract_status.transition(
+        db,
+        contract,
+        contract_status.IN_NEGOTIATION,
+        user_uuid,
+        "re-submitted for review" if resend_after_send_back else "submitted for review",
     )
     db.commit()
     db.refresh(routing)
@@ -781,8 +818,10 @@ def mark_agreed(
     contract = _get_contract_or_404(db, tenant_id, contract_id)
     routing = _get_routing_or_404(db, contract.id)
 
-    if routing.negotiation_status == "Agreed":
-        raise ConflictError("Negotiation is already marked Agreed.")
+    if contract.status != contract_status.IN_NEGOTIATION:
+        if routing.negotiation_status == NEGOTIATION_AGREED:
+            raise ConflictError("Negotiation is already marked Agreed.")
+        raise ConflictError("Only a contract In Negotiation can be marked Agreed.")
     # UC5-BR-021: at least one full review cycle (one submitted reviewer, or a version
     # beyond the initial routing) must have completed.
     reviewers = repo.list_reviewers(db, routing.id)
@@ -791,11 +830,19 @@ def mark_agreed(
         raise ConflictError("At least one full review cycle must complete before marking Agreed.")
 
     user_uuid = uuid.UUID(user.user_id)
-    routing.negotiation_status = "Agreed"
+    # REQ-2: agreement and the approval request are one unit -- with no matching approval
+    # rule this raises before anything is written, so the negotiation stays un-Agreed and
+    # the contract stays In Negotiation.
+    approval = approval_service.start_approval(db, tenant_id, contract, user_uuid)
+    routing.negotiation_status = NEGOTIATION_AGREED
     routing.updated_at = _now()
     routing.updated_by = user_uuid
+    contract_status.transition(
+        db, contract, contract_status.PENDING_APPROVAL, user_uuid, "negotiation marked Agreed"
+    )
     db.commit()
     db.refresh(routing)
+    approval_service.notify_step_approver(db, tenant_id, approval, contract, user_uuid)
     return MarkAgreedResponse(
         negotiationStatus=routing.negotiation_status,
         versionNumber=routing.current_version_number,

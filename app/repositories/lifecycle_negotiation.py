@@ -54,6 +54,13 @@ def get_reviewer(
     )
 
 
+def delete_reviewers(db: Session, routing_id: uuid.UUID) -> None:
+    db.query(NegotiationReviewer).filter(NegotiationReviewer.negotiation_routing_id == routing_id).delete(
+        synchronize_session=False
+    )
+    db.flush()
+
+
 def insert_reviewer(db: Session, reviewer: NegotiationReviewer) -> NegotiationReviewer:
     db.add(reviewer)
     db.flush()

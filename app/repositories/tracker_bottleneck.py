@@ -25,6 +25,7 @@ STATUS_TO_STAGE = {
     "In Negotiation": "Negotiation",
     "PendingApproval": "Approval",
     "Pending Approval": "Approval",
+    "Pending Signature": "Signature",
     "Ready For Signature": "Signature",
     "Sent": "Signature",
 }

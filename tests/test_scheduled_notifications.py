@@ -26,6 +26,7 @@ from tests.test_lifecycle_negotiation import (
     TENANT_ADMIN,
     _headers,
     _route,
+    _seed_approval_rule,
     _seed_contract,
     _seed_tenant,
     _seed_user,
@@ -91,6 +92,7 @@ def test_last_reviewer_submission_auto_issues_and_emails_the_secure_link(db_clie
 def test_parallel_routing_only_auto_sends_once_every_reviewer_has_submitted(db_client, db_session):
     tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
     second_reviewer = _seed_user(db_session, tenant_id, LEGAL_REVIEWER)
+    _seed_approval_rule(db_session, tenant_id)
     _route(db_client, contract_id, owner_id, [legal_id, second_reviewer], routingType="Parallel")
 
     first = _submit_review(db_client, contract_id, legal_id)
@@ -149,6 +151,7 @@ def test_reviewer_reminders_stop_once_the_review_is_submitted(db_client, db_sess
 def test_reviewer_reminders_stop_once_the_contract_is_marked_agreed(db_client, db_session):
     tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
     second_reviewer = _seed_user(db_session, tenant_id, LEGAL_REVIEWER)
+    _seed_approval_rule(db_session, tenant_id)
     _route(db_client, contract_id, owner_id, [legal_id, second_reviewer], routingType="Parallel")
     _submit_review(db_client, contract_id, legal_id)  # one still Pending -> would be reminded
 
@@ -187,7 +190,7 @@ def test_signature_reminder_fires_every_configured_number_of_days(db_client, db_
     tenant_id = _seed_tenant(db_session)
     admin_id = _seed_user(db_session, tenant_id, TENANT_ADMIN)
     owner_id = _seed_user(db_session, tenant_id, CONTRACT_OWNER)
-    contract_id = _seed_contract(db_session, tenant_id, admin_id, owner_id, status="Sent")
+    contract_id = _seed_contract(db_session, tenant_id, admin_id, owner_id, status="Pending Signature")
     now = datetime.now(timezone.utc)
     signer = _seed_signer(
         db_session, tenant_id, contract_id, admin_id, last_sent=now - timedelta(days=4), frequency=3
@@ -205,7 +208,7 @@ def test_signature_reminder_stops_once_the_signer_has_signed(db_client, db_sessi
     tenant_id = _seed_tenant(db_session)
     admin_id = _seed_user(db_session, tenant_id, TENANT_ADMIN)
     owner_id = _seed_user(db_session, tenant_id, CONTRACT_OWNER)
-    contract_id = _seed_contract(db_session, tenant_id, admin_id, owner_id, status="Sent")
+    contract_id = _seed_contract(db_session, tenant_id, admin_id, owner_id, status="Pending Signature")
     now = datetime.now(timezone.utc)
     _seed_signer(
         db_session, tenant_id, contract_id, admin_id,
