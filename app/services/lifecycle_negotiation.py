@@ -29,6 +29,7 @@ from app.models.lifecycle_negotiation import (
 from app.repositories import contracts as contracts_repo
 from app.repositories import lifecycle_negotiation as repo
 from app.services import lifecycle_clauses as clause_service
+from app.services import notifications
 from app.schemas.lifecycle_negotiation import (
     ClauseDiffResponse,
     CommentRequest,
@@ -396,7 +397,8 @@ def submit_review(
     # UC5-BR-019: once every reviewer (including auto-added mandatory ones) has submitted,
     # the negotiation moves to With Counterparty.
     all_reviewers = repo.list_reviewers(db, routing.id)
-    if not stale and all(r.review_status == "Submitted" for r in all_reviewers):
+    internal_review_complete = not stale and all(r.review_status == "Submitted" for r in all_reviewers)
+    if internal_review_complete:
         routing.negotiation_status = "With Counterparty"
     routing.updated_at = now
     routing.updated_by = user_uuid
@@ -405,9 +407,76 @@ def submit_review(
     # about what the reviewer has to do next, not about the write having been thrown away.
     db.commit()
     db.refresh(routing)
+
+    # UC5 Auto Send to Counterparty: the moment internal review completes -- the last
+    # reviewer under Sequential routing, every reviewer under Parallel, which is the same
+    # "all Submitted" condition either way -- the secure link and its OTP are issued and
+    # emailed without anyone having to press Generate Link. The tracker then reports
+    # negotiationStatus 'With Counterparty', which is the frontend's "Sent to counterparty".
+    if internal_review_complete:
+        _issue_external_link(db, tenant_id, routing, contract.contract_name, user_uuid)
+        db.refresh(routing)
+
     if stale:
         raise ConflictError(_STALE_REDLINE_MESSAGE, details=[_STALE_REDLINE_MESSAGE])
     return SubmitReviewResponse(versionNumber=routing.current_version_number, negotiationStatus=routing.negotiation_status)
+
+
+def _generate_otp() -> str:
+    """Seam for tests: the OTP is never returned by the API, so a test that needs to complete
+    the external flow patches this rather than reading it off a response."""
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _issue_external_link(
+    db: Session,
+    tenant_id: uuid.UUID,
+    routing: NegotiationRouting,
+    contract_name: str,
+    actor_id: uuid.UUID,
+) -> NegotiationExternalLink:
+    """Mint a secure link + OTP for the External Party and email both to them.
+
+    UC5-BR-016: the OTP leaves the system only by email. It is hashed before it is stored and
+    is not carried on any response body, so neither the API nor any screen can show it.
+    Commits, then dispatches -- the link is durable before the mail attempt, per the rule in
+    `app.services.notifications`.
+    """
+    otp = _generate_otp()
+    now = _now()
+    link = repo.insert_external_link(
+        db,
+        NegotiationExternalLink(
+            negotiation_routing_id=routing.id,
+            link_token=secrets.token_urlsafe(24),
+            otp_hash=hashlib.sha256(otp.encode()).hexdigest(),
+            failed_attempts=0,
+            status="Active",
+            expires_at=now + _LINK_TTL,
+            created_by=actor_id,
+            updated_by=actor_id,
+        ),
+    )
+    db.commit()
+    db.refresh(link)
+    notifications.dispatch(
+        db,
+        tenant_id,
+        notifications.EVENT_SENT_TO_COUNTERPARTY,
+        recipients=[routing.external_party_email],
+        subject=f"Please review {contract_name}",
+        body=(
+            f"{routing.external_party_name},\n\n"
+            f"Internal review of {contract_name} is complete and the contract has been sent "
+            "to you for review.\n\n"
+            f"Secure link reference: {link.link_token}\n"
+            f"One-time password: {otp}\n\n"
+            f"The link expires at {link.expires_at:%Y-%m-%d %H:%M} UTC."
+        ),
+        entity="Negotiation",
+        actor_id=actor_id,
+    )
+    return link
 
 
 def generate_external_link(
@@ -420,25 +489,8 @@ def generate_external_link(
     if routing.negotiation_status != "With Counterparty":
         raise ConflictError("Internal review must complete before generating an external link.")
 
-    user_uuid = uuid.UUID(user.user_id)
-    token = secrets.token_urlsafe(24)
-    otp = f"{secrets.randbelow(1_000_000):06d}"
-    now = _now()
-    link = repo.insert_external_link(
-        db,
-        NegotiationExternalLink(
-            negotiation_routing_id=routing.id,
-            link_token=token,
-            otp_hash=hashlib.sha256(otp.encode()).hexdigest(),
-            failed_attempts=0,
-            status="Active",
-            expires_at=now + _LINK_TTL,
-            created_by=user_uuid,
-            updated_by=user_uuid,
-        ),
-    )
-    db.commit()
-    return GenerateExternalLinkResponse(linkToken=link.link_token, expiresAt=link.expires_at, status=link.status, otp=otp)
+    link = _issue_external_link(db, tenant_id, routing, contract.contract_name, uuid.UUID(user.user_id))
+    return GenerateExternalLinkResponse(linkToken=link.link_token, expiresAt=link.expires_at, status=link.status)
 
 
 def _get_link_or_404(db: Session, link_token: str) -> NegotiationExternalLink:
@@ -704,6 +756,22 @@ def send_reminder(
         ),
     )
     db.commit()
+    # UC5 Reviewer Reminders (manual): clicking Send Reminder emails the overdue reviewer.
+    # The automatic once-a-day variant lives in app.services.scheduled_notifications.
+    notifications.dispatch(
+        db,
+        tenant_id,
+        notifications.EVENT_REVIEW_REMINDER,
+        recipients=[sent_to if reviewer_user is not None else None],
+        subject=f"Reminder: your review of {contract.contract_name} is overdue",
+        body=(
+            f"{reviewer.reviewer_name},\n\n"
+            f"Your review of {contract.contract_name} was due on {routing.due_date:%Y-%m-%d} "
+            "and has not been submitted yet."
+        ),
+        entity="Negotiation",
+        actor_id=user_uuid,
+    )
     return ReminderResponse(sentTo=sent_to, sentAt=now, reminderType="Manual")
 
 

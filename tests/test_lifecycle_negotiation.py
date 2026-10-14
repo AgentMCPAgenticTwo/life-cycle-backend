@@ -8,11 +8,14 @@
 import uuid
 from datetime import date, timedelta
 
+import pytest
+
 from app.models.contract import Contract
 from app.models.counterparty import Counterparty
 from app.models.tenant import Tenant
 from app.models.template import Template
 from app.models.user import User
+from app.services import lifecycle_negotiation as negotiation_service
 from tests.conftest import auth_headers
 
 TENANT_ADMIN = "TENANT_ADMIN"
@@ -20,6 +23,15 @@ CONTRACT_OWNER = "CONTRACT_OWNER"
 LEGAL_REVIEWER = "LEGAL_REVIEWER"
 APPROVER = "APPROVER"
 EXTERNAL_PARTY = "EXTERNAL_PARTY"
+
+# The OTP never leaves the system on a response body (UC5-BR-016: it is emailed only), so a
+# test that has to complete the external flow pins the generator instead of reading it back.
+FIXED_OTP = "135790"
+
+
+@pytest.fixture(autouse=True)
+def _fixed_otp(monkeypatch):
+    monkeypatch.setattr(negotiation_service, "_generate_otp", lambda: FIXED_OTP)
 
 
 def _headers(role: str, user_id) -> dict:
@@ -329,7 +341,7 @@ def test_full_external_flow_round_trips_back_to_with_internal(db_client, db_sess
     assert link_resp.status_code == 200
     link = link_resp.json()
     token = link["linkToken"]
-    otp = link["otp"]
+    otp = FIXED_OTP
 
     external_user_id = uuid.uuid4()
 
@@ -384,7 +396,7 @@ def test_otp_locks_after_three_failed_attempts(db_client, db_session):
 
     resp = db_client.post(
         f"/api/v1/lifecycle/negotiation/external/{token}/verify-otp",
-        json={"otp": link["otp"]},
+        json={"otp": FIXED_OTP},
         headers=_headers(EXTERNAL_PARTY, external_user_id),
     )
     assert resp.status_code == 403
@@ -415,7 +427,7 @@ def test_verify_otp_requires_no_auth_headers(db_client, db_session):
 
     resp = db_client.post(
         f"/api/v1/lifecycle/negotiation/external/{link['linkToken']}/verify-otp",
-        json={"otp": link["otp"]},
+        json={"otp": FIXED_OTP},
     )
     assert resp.status_code == 200
     assert resp.json()["verified"] is True
@@ -458,7 +470,7 @@ def test_verify_otp_reopening_locked_link_denies_access_with_no_fields(db_client
         db_client.post(f"/api/v1/lifecycle/negotiation/external/{token}/verify-otp", json={"otp": "000000"})
 
     reopen = db_client.post(
-        f"/api/v1/lifecycle/negotiation/external/{token}/verify-otp", json={"otp": link["otp"]}
+        f"/api/v1/lifecycle/negotiation/external/{token}/verify-otp", json={"otp": FIXED_OTP}
     )
     assert reopen.status_code == 403
     assert "negotiationData" not in reopen.json()

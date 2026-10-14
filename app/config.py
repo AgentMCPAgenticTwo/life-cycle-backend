@@ -29,6 +29,13 @@ class Settings:
     smtp_from: str = os.environ.get("SMTP_FROM", "no-reply@localhost")
     smtp_use_tls: bool = os.environ.get("SMTP_USE_TLS", "true").lower() == "true"
     smtp_timeout_seconds: int = int(os.environ.get("SMTP_TIMEOUT_SECONDS", "10"))
+    # How often app.services.scheduled_notifications sweeps for overdue reviews, due
+    # signature reminders and renewal alerts. The sweeps are idempotent per day/per cadence,
+    # so a shorter interval only makes an alert land sooner. 0 disables the in-process sweep
+    # (e.g. when an external scheduler calls `run_all` instead).
+    notification_sweep_interval_seconds: int = int(
+        os.environ.get("NOTIFICATION_SWEEP_INTERVAL_SECONDS", "3600")
+    )
 
 
 settings = Settings()

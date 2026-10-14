@@ -1,0 +1,881 @@
+{
+  "trace_id": "4d69d08b3fba",
+  "branch": "api-correction/4d69d08b3fba",
+  "maintenance_branch": "api-correction/4d69d08b3fba",
+  "status": "SUCCESS",
+  "summary": "All checks pass: `python -m compileall app` clean, `pytest -q` → **502 passed**, and the OpenAPI document still exposes the three contract routes with the contract's exact spelling.\n\n**What I changed**\n\n*Contract alignment* — `GET /negotiation`, `POST /negotiation/routing` and `POST /negotiation/reminder` already existed here with exactly the field names, enum strings (`Sequential`/`Parallel`, `With Internal`/`With Counterparty`/`Agreed`, `Pending`/`Submitted`/`Overdue`, `Internal`/`External`) and the 404-when-not-routed behaviour the shared contract names, so no renames were needed. The work was attaching the described behaviour to them.\n\n1. **Auto Send to Counterparty (UC5)** — `app/services/lifecycle_negotiation.py`: extracted `_issue_external_link`, and `submit_review` now calls it the moment internal review completes (the last reviewer under Sequential, all reviewers under Parallel — the same \"all Submitted\" condition). The secure link and OTP are emailed to the external party via the existing `notifications.dispatch`; the tracker then reports `negotiationStatus: \"With Counterparty\"`.\n2. **OTP never in the API** — removed the `otp` field from `GenerateExternalLinkResponse`; the OTP is generated through a `_generate_otp` seam, hashed into storage, and leaves only by email. Updated the existing negotiation tests to pin that seam instead of reading the OTP off a response.\n3. **Reviewer reminders (UC5)** — the manual `POST /negotiation/reminder` now actually emails the overdue reviewer. The automatic daily variant lives in the new `app/services/scheduled_notifications.run_reviewer_reminders`: one email per day to each pending reviewer and to the owner, guarded by `negotiation_reminders` rows (`reminder_type=\"Auto\"`), stopping on submission or on Agreed.\n4. **Signature reminders (UC7)** — `run_signature_reminders` re-prompts open signers every X days (signer's frequency → tenant e-signature setting → 3), anchored on `signers.last_reminder_sent_at`, stopping on Signed/Declined/Expired or a withdrawn/declined/executed contract.\n5. **Renewal alerts (UC9)** — `run_renewal_alerts` fires at the 90/60/30 windows before the End Date and, separately, the Notice Period deadline, to the Owner and every Tenant Admin; the existing `renewal_alerts` table is the once-only guard.\n6. **Driving it** — new `app/repositories/scheduled_notifications.py` for the sweep queries, an in-process sweep task started in `app/main.py`'s lifespan (`NOTIFICATION_SWEEP_INTERVAL_SECONDS`, default 3600, `0` disables), and three new rows in the Settings → Notifications event list so each new channel honours its toggle. New `tests/test_scheduled_notifications.py` covers all four behaviours.\n\n**Constraints that shaped this:** migrations live in `alembic/`, outside the paths I may modify, so I used only tables that already exist (`negotiation_reminders`, `renewal_alerts`, `signers.last_reminder_sent_at`) and added no columns. Reading: \"the tracker shows 'Sent to counterparty'\" is the frontend's label for the contract's `negotiationStatus: \"With Counterparty\"` — I did not introduce a fourth enum value, since the contract pins that enum. Nothing in this instruction was frontend-side work.",
+  "files_changed": [
+    "app/config.py",
+    "app/main.py",
+    "app/repositories/lifecycle_negotiation.py",
+    "app/repositories/scheduled_notifications.py",
+    "app/repositories/settings_notifications.py",
+    "app/schemas/lifecycle_negotiation.py",
+    "app/services/lifecycle_negotiation.py",
+    "app/services/notifications.py",
+    "app/services/scheduled_notifications.py",
+    "tests/test_lifecycle_negotiation.py",
+    "tests/test_scheduled_notifications.py"
+  ],
+  "lines_changed": 908,
+  "blockers": [
+    "Not applied -- Rename/realign GET /negotiation, POST /negotiation/routing, POST /negotiation/reminder and their DTO fields to the shared contract: already true - paths, field names, enum string values and the 404-when-not-routed rule already match the contract exactly",
+    "Not applied -- Tracker label 'Sent to counterparty' as a distinct status value: the shared contract pins negotiationStatus to 'With Internal'|'With Counterparty'|'Agreed'; the backend emits 'With Counterparty' and the label is the frontend's rendering of it",
+    "Not applied -- A dedicated scheduler/cron dependency for the daily sweeps: CLAUDE.md forbids adding packages and alembic/ is outside the writable path set; the sweep runs in-process from the app lifespan and run_all is callable by an external scheduler instead"
+  ],
+  "visual_check": {
+    "verdict": "skipped",
+    "evidence": "",
+    "screenshot_path": ""
+  },
+  "context_sharing": {
+    "target": "backend",
+    "branch": "api-correction/4d69d08b3fba",
+    "base_path": "/api/v1/lifecycle",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "routingType",
+            "type": "enum"
+          },
+          {
+            "name": "internalReviewers",
+            "type": "array"
+          },
+          {
+            "name": "externalPartyName",
+            "type": "string"
+          },
+          {
+            "name": "externalPartyEmail",
+            "type": "string"
+          },
+          {
+            "name": "assignedDate",
+            "type": "date"
+          },
+          {
+            "name": "dueDate",
+            "type": "date"
+          },
+          {
+            "name": "negotiationStatus",
+            "type": "enum"
+          },
+          {
+            "name": "versionNumber",
+            "type": "number"
+          },
+          {
+            "name": "overdueFlag",
+            "type": "boolean"
+          },
+          {
+            "name": "versions",
+            "type": "array"
+          },
+          {
+            "name": "comments",
+            "type": "array"
+          }
+        ],
+        "purpose": "Negotiation tracker; 404 when the contract has not been routed"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/routing",
+        "request_fields": [
+          {
+            "name": "routingType",
+            "type": "enum"
+          },
+          {
+            "name": "internalReviewers",
+            "type": "array"
+          },
+          {
+            "name": "externalPartyName",
+            "type": "string"
+          },
+          {
+            "name": "externalPartyEmail",
+            "type": "string"
+          },
+          {
+            "name": "assignedDate",
+            "type": "date"
+          },
+          {
+            "name": "dueDate",
+            "type": "date"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "routingType",
+            "type": "enum"
+          },
+          {
+            "name": "internalReviewers",
+            "type": "array"
+          },
+          {
+            "name": "externalPartyName",
+            "type": "string"
+          },
+          {
+            "name": "externalPartyEmail",
+            "type": "string"
+          },
+          {
+            "name": "assignedDate",
+            "type": "date"
+          },
+          {
+            "name": "dueDate",
+            "type": "date"
+          },
+          {
+            "name": "negotiationStatus",
+            "type": "enum"
+          },
+          {
+            "name": "versionNumber",
+            "type": "number"
+          }
+        ],
+        "purpose": "Submit routing configuration (role CONTRACT_OWNER only)"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/reminder",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "sentTo",
+            "type": "string"
+          },
+          {
+            "name": "sentAt",
+            "type": "date"
+          },
+          {
+            "name": "reminderType",
+            "type": "enum"
+          }
+        ],
+        "purpose": "Send a manual reminder to the first overdue pending reviewer; no request body"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/reviews",
+        "request_fields": [
+          {
+            "name": "commentText",
+            "type": "string"
+          },
+          {
+            "name": "redlineText",
+            "type": "string"
+          },
+          {
+            "name": "expectedVersion",
+            "type": "number"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "versionNumber",
+            "type": "number"
+          },
+          {
+            "name": "negotiationStatus",
+            "type": "enum"
+          }
+        ],
+        "purpose": "Internal reviewer submits review/redlines"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/external-link",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "linkToken",
+            "type": "string"
+          },
+          {
+            "name": "expiresAt",
+            "type": "date"
+          },
+          {
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "purpose": "Issue the secure external-party link (OTP is emailed, never returned)"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/compare",
+        "request_fields": [
+          {
+            "name": "versionA",
+            "type": "number"
+          },
+          {
+            "name": "versionB",
+            "type": "number"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "versionA",
+            "type": "object"
+          },
+          {
+            "name": "versionB",
+            "type": "object"
+          },
+          {
+            "name": "differences",
+            "type": "array"
+          },
+          {
+            "name": "comments",
+            "type": "array"
+          },
+          {
+            "name": "negotiationStatus",
+            "type": "enum"
+          },
+          {
+            "name": "routingType",
+            "type": "enum"
+          },
+          {
+            "name": "internalReviewers",
+            "type": "array"
+          },
+          {
+            "name": "externalPartyName",
+            "type": "string"
+          },
+          {
+            "name": "externalPartyEmail",
+            "type": "string"
+          },
+          {
+            "name": "assignedDate",
+            "type": "date"
+          },
+          {
+            "name": "dueDate",
+            "type": "date"
+          }
+        ],
+        "purpose": "Compare two negotiation versions"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/mark-agreed",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "negotiationStatus",
+            "type": "enum"
+          },
+          {
+            "name": "versionNumber",
+            "type": "number"
+          },
+          {
+            "name": "routingType",
+            "type": "enum"
+          },
+          {
+            "name": "internalReviewers",
+            "type": "array"
+          },
+          {
+            "name": "externalPartyName",
+            "type": "string"
+          },
+          {
+            "name": "externalPartyEmail",
+            "type": "string"
+          },
+          {
+            "name": "assignedDate",
+            "type": "date"
+          },
+          {
+            "name": "dueDate",
+            "type": "date"
+          }
+        ],
+        "purpose": "Mark negotiation Agreed (LEGAL_REVIEWER only)"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/lifecycle/contracts/{contractId}/negotiation/comments",
+        "request_fields": [
+          {
+            "name": "clauseId",
+            "type": "string"
+          },
+          {
+            "name": "commentText",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "commentId",
+            "type": "string"
+          },
+          {
+            "name": "clauseId",
+            "type": "string"
+          },
+          {
+            "name": "commentText",
+            "type": "string"
+          },
+          {
+            "name": "authorName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "date"
+          },
+          {
+            "name": "versionNumber",
+            "type": "number"
+          }
+        ],
+        "purpose": "Add a negotiation comment"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/lifecycle/negotiation/external/{linkToken}/verify-otp",
+        "request_fields": [
+          {
+            "name": "linkToken",
+            "type": "string"
+          },
+          {
+            "name": "otp",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "verified",
+            "type": "boolean"
+          },
+          {
+            "name": "negotiationData",
+            "type": "object"
+          }
+        ],
+        "purpose": "External party verifies OTP; no auth headers required"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/lifecycle/negotiation/external/{linkToken}/submit",
+        "request_fields": [
+          {
+            "name": "commentText",
+            "type": "string"
+          },
+          {
+            "name": "redlineText",
+            "type": "string"
+          },
+          {
+            "name": "clauseRedlines",
+            "type": "array"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "versionNumber",
+            "type": "number"
+          },
+          {
+            "name": "negotiationStatus",
+            "type": "enum"
+          }
+        ],
+        "purpose": "External party submits redlines; no auth headers required"
+      }
+    ],
+    "types": {
+      "RoutingRequest": [
+        {
+          "name": "routingType",
+          "type": "enum"
+        },
+        {
+          "name": "internalReviewers",
+          "type": "array"
+        },
+        {
+          "name": "externalPartyName",
+          "type": "string"
+        },
+        {
+          "name": "externalPartyEmail",
+          "type": "string"
+        },
+        {
+          "name": "assignedDate",
+          "type": "date"
+        },
+        {
+          "name": "dueDate",
+          "type": "date"
+        }
+      ],
+      "RoutingResponse": [
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "routingType",
+          "type": "enum"
+        },
+        {
+          "name": "internalReviewers",
+          "type": "array"
+        },
+        {
+          "name": "externalPartyName",
+          "type": "string"
+        },
+        {
+          "name": "externalPartyEmail",
+          "type": "string"
+        },
+        {
+          "name": "assignedDate",
+          "type": "date"
+        },
+        {
+          "name": "dueDate",
+          "type": "date"
+        },
+        {
+          "name": "negotiationStatus",
+          "type": "enum"
+        },
+        {
+          "name": "versionNumber",
+          "type": "number"
+        }
+      ],
+      "ReviewerResponse": [
+        {
+          "name": "reviewerId",
+          "type": "string"
+        },
+        {
+          "name": "reviewerName",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "string"
+        },
+        {
+          "name": "isMandatory",
+          "type": "boolean"
+        },
+        {
+          "name": "reviewStatus",
+          "type": "enum"
+        },
+        {
+          "name": "submittedAt",
+          "type": "date"
+        },
+        {
+          "name": "sequenceOrder",
+          "type": "number"
+        }
+      ],
+      "VersionSummaryResponse": [
+        {
+          "name": "versionNumber",
+          "type": "number"
+        },
+        {
+          "name": "createdAt",
+          "type": "date"
+        },
+        {
+          "name": "createdBy",
+          "type": "string"
+        },
+        {
+          "name": "source",
+          "type": "enum"
+        }
+      ],
+      "CommentResponse": [
+        {
+          "name": "commentId",
+          "type": "string"
+        },
+        {
+          "name": "clauseId",
+          "type": "string"
+        },
+        {
+          "name": "commentText",
+          "type": "string"
+        },
+        {
+          "name": "authorName",
+          "type": "string"
+        },
+        {
+          "name": "createdAt",
+          "type": "date"
+        },
+        {
+          "name": "versionNumber",
+          "type": "number"
+        }
+      ],
+      "CommentRequest": [
+        {
+          "name": "clauseId",
+          "type": "string"
+        },
+        {
+          "name": "commentText",
+          "type": "string"
+        }
+      ],
+      "NegotiationTrackerResponse": [
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "routingType",
+          "type": "enum"
+        },
+        {
+          "name": "internalReviewers",
+          "type": "array"
+        },
+        {
+          "name": "externalPartyName",
+          "type": "string"
+        },
+        {
+          "name": "externalPartyEmail",
+          "type": "string"
+        },
+        {
+          "name": "assignedDate",
+          "type": "date"
+        },
+        {
+          "name": "dueDate",
+          "type": "date"
+        },
+        {
+          "name": "negotiationStatus",
+          "type": "enum"
+        },
+        {
+          "name": "versionNumber",
+          "type": "number"
+        },
+        {
+          "name": "overdueFlag",
+          "type": "boolean"
+        },
+        {
+          "name": "versions",
+          "type": "array"
+        },
+        {
+          "name": "comments",
+          "type": "array"
+        }
+      ],
+      "ReminderResponse": [
+        {
+          "name": "sentTo",
+          "type": "string"
+        },
+        {
+          "name": "sentAt",
+          "type": "date"
+        },
+        {
+          "name": "reminderType",
+          "type": "enum"
+        }
+      ],
+      "SubmitReviewRequest": [
+        {
+          "name": "commentText",
+          "type": "string"
+        },
+        {
+          "name": "redlineText",
+          "type": "string"
+        },
+        {
+          "name": "expectedVersion",
+          "type": "number"
+        }
+      ],
+      "SubmitReviewResponse": [
+        {
+          "name": "versionNumber",
+          "type": "number"
+        },
+        {
+          "name": "negotiationStatus",
+          "type": "enum"
+        }
+      ],
+      "GenerateExternalLinkResponse": [
+        {
+          "name": "linkToken",
+          "type": "string"
+        },
+        {
+          "name": "expiresAt",
+          "type": "date"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "VerifyOtpRequest": [
+        {
+          "name": "otp",
+          "type": "string"
+        }
+      ],
+      "VerifyOtpResponse": [
+        {
+          "name": "verified",
+          "type": "boolean"
+        },
+        {
+          "name": "negotiationData",
+          "type": "object"
+        }
+      ],
+      "NegotiationExternalViewResponse": [
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "versionNumber",
+          "type": "number"
+        },
+        {
+          "name": "documentText",
+          "type": "string"
+        },
+        {
+          "name": "commentBoxEnabled",
+          "type": "boolean"
+        }
+      ],
+      "ClauseRedlineRequest": [
+        {
+          "name": "clauseId",
+          "type": "string"
+        },
+        {
+          "name": "clauseText",
+          "type": "string"
+        }
+      ],
+      "ExternalSubmitRequest": [
+        {
+          "name": "commentText",
+          "type": "string"
+        },
+        {
+          "name": "redlineText",
+          "type": "string"
+        },
+        {
+          "name": "clauseRedlines",
+          "type": "array"
+        }
+      ],
+      "ExternalSubmitResponse": [
+        {
+          "name": "versionNumber",
+          "type": "number"
+        },
+        {
+          "name": "negotiationStatus",
+          "type": "enum"
+        }
+      ],
+      "ClauseDiffResponse": [
+        {
+          "name": "clauseId",
+          "type": "string"
+        },
+        {
+          "name": "clauseCategory",
+          "type": "string"
+        },
+        {
+          "name": "textA",
+          "type": "string"
+        },
+        {
+          "name": "textB",
+          "type": "string"
+        },
+        {
+          "name": "changeType",
+          "type": "enum"
+        }
+      ],
+      "CompareVersionsResponse": [
+        {
+          "name": "versionA",
+          "type": "object"
+        },
+        {
+          "name": "versionB",
+          "type": "object"
+        },
+        {
+          "name": "differences",
+          "type": "array"
+        },
+        {
+          "name": "comments",
+          "type": "array"
+        },
+        {
+          "name": "negotiationStatus",
+          "type": "enum"
+        },
+        {
+          "name": "routingType",
+          "type": "enum"
+        },
+        {
+          "name": "internalReviewers",
+          "type": "array"
+        },
+        {
+          "name": "externalPartyName",
+          "type": "string"
+        },
+        {
+          "name": "externalPartyEmail",
+          "type": "string"
+        },
+        {
+          "name": "assignedDate",
+          "type": "date"
+        },
+        {
+          "name": "dueDate",
+          "type": "date"
+        }
+      ],
+      "MarkAgreedResponse": [
+        {
+          "name": "negotiationStatus",
+          "type": "enum"
+        },
+        {
+          "name": "versionNumber",
+          "type": "number"
+        },
+        {
+          "name": "routingType",
+          "type": "enum"
+        },
+        {
+          "name": "internalReviewers",
+          "type": "array"
+        },
+        {
+          "name": "externalPartyName",
+          "type": "string"
+        },
+        {
+          "name": "externalPartyEmail",
+          "type": "string"
+        },
+        {
+          "name": "assignedDate",
+          "type": "date"
+        },
+        {
+          "name": "dueDate",
+          "type": "date"
+        }
+      ]
+    },
+    "notes": "All three endpoints the frontend listed are implemented; GET .../negotiation returns 404 when no routing row exists, as required. Enum values emitted: routingType 'Sequential'|'Parallel'; negotiationStatus 'With Internal'|'With Counterparty'|'Agreed'; VersionSummaryResponse.source 'Internal'|'External'; reminderType is 'Manual' for this endpoint ('Auto' is only written by the background sweep in app/services/scheduled_notifications.py, which exposes no HTTP route). reviewStatus is only ever 'Pending' or 'Submitted' — the backend never writes 'Overdue'; lateness is conveyed by NegotiationTrackerResponse.overdueFlag, so the UI must derive an Overdue label from overdueFlag + reviewStatus 'Pending'. POST .../routing is restricted to CONTRACT_OWNER and POST .../mark-agreed to LEGAL_REVIEWER — other roles get 403. internalReviewers is an array of UUID strings in RoutingRequest but an array of ReviewerResponse objects in every response."
+  },
+  "usage": {
+    "num_turns": 62,
+    "duration_ms": 469724,
+    "total_cost_usd": 3.1272215999999995,
+    "input_tokens": 7542,
+    "output_tokens": 33770,
+    "cache_creation_input_tokens": 120378,
+    "cache_read_input_tokens": 6238982,
+    "is_error": false
+  }
+}

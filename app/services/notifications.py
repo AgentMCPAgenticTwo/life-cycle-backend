@@ -42,6 +42,11 @@ EVENT_SENT_FOR_SIGNATURE = "Contract Sent for Signature"
 EVENT_SIGNATURE_DECLINED = "Contract Signature Declined"
 EVENT_EXECUTED = "Contract Signed"
 EVENT_USER_INVITED = "New User Invited"
+# UC5/UC7/UC9 time-driven and automatic notifications (see app.services.scheduled_notifications).
+EVENT_SENT_TO_COUNTERPARTY = "Contract Sent to Counterparty"
+EVENT_REVIEW_REMINDER = "Review Reminder"
+EVENT_SIGNATURE_REMINDER = "Signature Reminder"
+EVENT_EXPIRING_SOON = "Contract Expiring Soon"
 
 
 def _toggles(db: Session, tenant_id: uuid.UUID, event_name: str) -> tuple[bool, bool]:
