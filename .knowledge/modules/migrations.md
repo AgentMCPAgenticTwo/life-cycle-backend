@@ -7,7 +7,7 @@ tags: [backend, migrations, alembic, postgresql]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ a01dca2cd1cf0d1b42a73a36cc3fce4dadcc0c75
+    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
     title: Codebase knowledge graph
 status: stable
 ---
@@ -38,6 +38,17 @@ pre-existing tables except the one explicitly named `0031_alter_contracts_for_li
 which predates and is owned by the `life-cycle-uc8-uc9` batch itself, not a later batch
 rewriting an earlier one). New modules must follow the same pattern: add new numbered revisions,
 never touch an existing one.
+
+# Gap: the auth tables/columns are model-only
+
+The login work added `refresh_tokens` (`app/models/refresh_token.py`) and the
+`password_hash`/`is_active`/`must_change_password`/`last_login_at` columns on `users`
+(`app/models/user.py`) **without** a revision after `0051` — the highest revision is still
+`0051_create_tenant_audit_log.py`. Tests pass because `tests/conftest.py` builds the schema from
+`Base.metadata`, but a Postgres database brought up by `alembic upgrade head` will lack them.
+Any fix must be a new `0052_…` revision, never an edit to `0002_create_users.py`. See
+[Conventions > Deviation](/conventions.md#deviation-found-auth-schema-has-no-migration) and
+[Auth](/modules/auth.md).
 
 # No reference-data seeding found
 

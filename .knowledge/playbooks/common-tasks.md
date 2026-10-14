@@ -7,7 +7,7 @@ tags: [backend, playbook]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ a01dca2cd1cf0d1b42a73a36cc3fce4dadcc0c75
+    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
     title: Codebase knowledge graph
 status: stable
 ---
@@ -44,9 +44,21 @@ status: stable
 
 All authorization goes through `app.auth.require_roles(*allowed)` as a FastAPI `Depends` on the
 route — see [App Core](/modules/app-core.md). Do not write ad hoc role checks in services;
-owner/assignment checks (not just role) belong in the service layer using `X-User-Id` via
-`current_user`/`current_tenant_id`, matching the "Owner/assignment checks use X-User-Id, not the
-role alone" rule.
+owner/assignment checks (not just role) belong in the service layer using the authenticated user
+id via `current_user`/`current_tenant_id`, matching the "owner/assignment checks use the
+caller's identity, not the role alone" rule. Authentication itself is a bearer JWT — see
+[Auth](/modules/auth.md).
+
+# Touch the login / token flow
+
+Rules go in `app/services/auth.py` (credential check, deactivation, rotation, password change);
+primitives go in `app/security.py` (bcrypt hashing, `password_violations`, JWT signing,
+refresh-token digest/expiry). `app/routers/auth.py` stays a thin binding plus
+`_set_refresh_cookie`. Never log or return a raw refresh token: only its SHA-256 digest is
+stored and it reaches the browser only in the httpOnly cookie. Config knobs (`JWT_SECRET`,
+`ACCESS_TOKEN_TTL_MINUTES`, `REFRESH_TOKEN_TTL_DAYS`, `REFRESH_COOKIE_NAME`,
+`REFRESH_COOKIE_SECURE`) live in `app/config.py` and come from the environment. In tests, use
+`auth_headers` from `tests/conftest.py` — see [Tests](/modules/tests.md).
 
 # Add a new tracker tab
 
@@ -59,9 +71,10 @@ needs an override/audit trail.
 
 # Diagnose a 401 vs 403 vs 404 in a module
 
-* 401: `X-User-Role` missing, or `X-User-Id` missing/unparseable/unknown — both raised in
-  `app/auth.py` (`current_user`, `current_tenant_id`).
-* 403: role present but not in that endpoint's `require_roles(...)` list (coarse), or
+* 401: `Authorization` header missing, or the bearer token invalid/expired/pointing at an
+  unknown user — both raised in `app/auth.py` (`current_user`, `current_tenant_id`).
+* 403: the user's `users` row has `is_active` false (`current_user`), role present but not in
+  that endpoint's `require_roles(...)` list (coarse), or
   `app.errors.ForbiddenError` raised by a service for a fine-grained owner/assignment check.
 * 404: `app.errors.NotFoundError`, typically from a `_get_contract_or_404`-style helper — see
   the hotspot note in [Contract Lifecycle](/modules/contract-lifecycle.md) and

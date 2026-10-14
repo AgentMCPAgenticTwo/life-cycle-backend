@@ -1,27 +1,34 @@
 ---
 type: Convention
 title: life-cycle-backend conventions
-description: Header-auth, layering, persistence, error-shape and id conventions as actually implemented, verified line-by-line against CLAUDE.md's stated rules.
+description: Bearer-token auth, layering, persistence, error-shape and id conventions as actually implemented, verified line-by-line against CLAUDE.md's stated rules.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app
 tags: [backend, conventions, auth, persistence]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ a01dca2cd1cf0d1b42a73a36cc3fce4dadcc0c75
+    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
     title: Codebase knowledge graph
 status: stable
 ---
 
-# Header-auth (verified in `app/auth.py`)
+# Authentication (verified in `app/auth.py` and `app/security.py`)
 
-* `X-User-Role` and `X-User-Id` are both declared via `fastapi.security.APIKeyHeader` with
-  distinct `scheme_name`s (`UserRoleHeader`, `UserIdHeader`) — this is what makes them appear as
-  OpenAPI security schemes so Swagger's "Authorize" UI actually sends them.
-* Missing `X-User-Role` -> `current_user` raises `HTTPException(401)`. A role outside an
-  endpoint's allowed list -> `require_roles`'s inner `_check` raises `HTTPException(403)`.
-* `current_tenant_id` additionally resolves `X-User-Id` to a `users` row to get `tenant_id`; an
-  unparseable or unknown `X-User-Id` is also a 401, not a 400 — treated as "no auth", not "bad
-  input".
+Real login replaced the former `X-User-Role`/`X-User-Id` header stub; see
+[Auth](/modules/auth.md) for the token design.
+
+* Callers send `Authorization: Bearer <JWT>`. The scheme is declared via
+  `fastapi.security.HTTPBearer(scheme_name="BearerAuth", auto_error=False)` so it appears as an
+  OpenAPI security scheme and Swagger's "Authorize" UI actually sends it.
+* Missing/malformed/expired token, or a token whose `sub` matches no live `users` row ->
+  `current_user` raises `HTTPException(401)`. A user row with `is_active` false -> **403**. A
+  role outside an endpoint's allowed list -> `require_roles`'s inner `_check` raises
+  `HTTPException(403)`.
+* The role is read from the `users` row on every request, never from the token claims — a
+  deactivation or role change takes effect on the next request, not the next login.
+* `current_tenant_id` additionally resolves the authenticated user id to a `users` row to get
+  `tenant_id`; an unparseable or unknown id is also a 401, not a 400 — treated as "no auth", not
+  "bad input".
 * Roles are passed as `*allowed: str` into `require_roles(...)` per call site, sourced from each
   endpoint's own contract — confirmed no hard-coded role list spans modules it shouldn't.
 
@@ -54,7 +61,8 @@ handlers registered on the `FastAPI` app:
   "CORS before auth in the middleware order."
 * `allow_credentials=True` is paired with an explicit `allow_origins` list parsed from
   `CORS_ORIGINS` (defaulting to `http://localhost:5173`, a single concrete origin) — never
-  `"*"`. `allow_headers` includes `Content-Type`, `X-User-Role`, `X-User-Id`.
+  `"*"`. `allow_headers` includes `Content-Type`, `Authorization`, and the now-unused
+  `X-User-Role`/`X-User-Id` (kept listed after the switch to bearer auth).
 
 # Persistence (verified in `app/models/mixins.py` and a sample migration)
 
@@ -75,6 +83,15 @@ handlers registered on the `FastAPI` app:
   unset). New tables are additive, one per migration, matching the "never edit/reorder an
   existing migration" rule — confirmed no migration file redefines or drops a table from an
   earlier batch.
+
+# Deviation found: auth schema has no migration
+
+`app/models/user.py` gained `password_hash`, `is_active`, `must_change_password`,
+`last_login_at` and `app/models/refresh_token.py` added the whole `refresh_tokens` table, but
+no revision after `0051_create_tenant_audit_log.py` exists for either. The test suite passes
+because `tests/conftest.py` builds the schema from `Base.metadata`; a Postgres database migrated
+with `alembic upgrade head` will not have these columns or that table. See
+[Migrations](/modules/migrations.md) and [Auth](/modules/auth.md).
 
 # Deviation found: no idempotent reference-data seeding in code
 

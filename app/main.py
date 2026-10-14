@@ -19,6 +19,7 @@ from app.config import settings
 from app.routers import (
     approval_matrix,
     approvals,
+    auth,
     clauses,
     contract_lifecycle,
     contracts,
@@ -78,7 +79,7 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-User-Role", "X-User-Id"],
+    allow_headers=["Content-Type", "Authorization", "X-User-Role", "X-User-Id"],
 )
 
 
@@ -111,6 +112,11 @@ def health() -> dict[str, str]:
 # Feature routers are included here as modules are implemented.
 app.include_router(approval_matrix.router, prefix="/api/v1")
 app.include_router(approvals.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
+# The frontend contract spells the auth routes as bare `/auth/login`, `/auth/refresh`, ...
+# while every other route it lists carries the `/api/v1` base path. Serving both spellings
+# costs one extra mount and removes the chance of a 404 on the login call itself.
+app.include_router(auth.router)
 app.include_router(clauses.router, prefix="/api/v1")
 app.include_router(contracts.router, prefix="/api/v1")
 app.include_router(contract_lifecycle.router, prefix="/api/v1")

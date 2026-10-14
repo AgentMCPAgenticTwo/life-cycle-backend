@@ -13,10 +13,21 @@ from sqlalchemy.orm import Session
 from app.auth import CurrentUser
 from app.errors import ConflictError, NotFoundError, ValidationFailedError
 from app.models.tracker import TenantAuditLog, TenantUser
+from app.models.user import User
+from app.repositories import auth as auth_repo
 from app.repositories import settings_audit_log as audit_log_repo
 from app.repositories import settings_users as users_repo
 from app.schemas.pagination import PageParams
-from app.schemas.settings_users import CreateUserRequest, UserListItemResponse, UserListResponse, UpdateUserStatusRequest
+from app.schemas.settings_users import (
+    CreateUserRequest,
+    CreateUserResponse,
+    ResetPasswordResponse,
+    UserListItemResponse,
+    UserListResponse,
+    UpdateUserStatusRequest,
+)
+from app.security import PASSWORD_RULE_MESSAGE, generate_password, hash_password, password_violations
+from app.services.auth import role_code_for
 
 REQUIRED_FIELDS_MESSAGE = "Please complete all required fields"
 EMAIL_FORMAT_MESSAGE = "User Email must be a valid email address."
@@ -97,8 +108,64 @@ def list_users(db: Session, tenant_id: uuid.UUID, page_params: PageParams) -> Us
     )
 
 
-def create_user(db: Session, tenant_id: uuid.UUID, user: CurrentUser, payload: CreateUserRequest) -> UserListItemResponse:
+def _credential_for(password: str | None) -> str:
+    """An admin-supplied password must satisfy the strength rule; an empty one is generated.
+
+    The plain value is returned to the caller for the one-time hand-over only -- it is never
+    stored, logged, or written to the audit trail.
+    """
+    if password is None or not password.strip():
+        return generate_password()
+    violations = password_violations(password)
+    if violations:
+        raise ValidationFailedError(PASSWORD_RULE_MESSAGE, details=violations)
+    return password
+
+
+def _upsert_login_user(
+    db: Session,
+    tenant_id: uuid.UUID,
+    *,
+    name: str,
+    email: str,
+    role_label: str,
+    password: str,
+    actor_uuid: uuid.UUID,
+) -> User:
+    """Creates (or links, when a `users` row for that tenant+email already exists) the row
+    real login authenticates against. Settings > Users and `users` are two tables keyed by
+    the same tenant+email pair; `users.role` holds the role *code* that `require_roles` and
+    the access token use.
+    """
+    now = datetime.now(timezone.utc)
+    login_user = auth_repo.find_user_in_tenant_by_email(db, tenant_id, email)
+    if login_user is None:
+        login_user = User(
+            tenant_id=tenant_id,
+            name=name,
+            email=email,
+            role=role_code_for(role_label),
+            created_by=actor_uuid,
+            updated_by=actor_uuid,
+            created_at=now,
+            updated_at=now,
+        )
+        auth_repo.insert_user(db, login_user)
+    else:
+        login_user.name = name
+        login_user.role = role_code_for(role_label)
+        login_user.updated_by = actor_uuid
+        login_user.updated_at = now
+    login_user.password_hash = hash_password(password)
+    login_user.must_change_password = True
+    login_user.is_active = True
+    db.flush()
+    return login_user
+
+
+def create_user(db: Session, tenant_id: uuid.UUID, user: CurrentUser, payload: CreateUserRequest) -> CreateUserResponse:
     _validate_create(payload)
+    password = _credential_for(payload.initialPassword)
 
     email = payload.email.strip()
     existing = users_repo.find_by_email(db, tenant_id, email)
@@ -119,9 +186,51 @@ def create_user(db: Session, tenant_id: uuid.UUID, user: CurrentUser, payload: C
         updated_at=now,
     )
     users_repo.insert(db, row)
+    _upsert_login_user(
+        db,
+        tenant_id,
+        name=row.name,
+        email=row.email,
+        role_label=row.role,
+        password=password,
+        actor_uuid=actor_uuid,
+    )
     _log(db, tenant_id, user, action="Created", entity_label="User", details=f"Created user {row.email}")
     db.commit()
-    return _to_response(row)
+    return CreateUserResponse(**_to_response(row).model_dump(), temporaryPassword=password)
+
+
+def reset_password(
+    db: Session, tenant_id: uuid.UUID, user: CurrentUser, user_id: uuid.UUID
+) -> ResetPasswordResponse:
+    """Issues a new temporary password: the user must change it at next login, and every
+    session they currently hold is revoked so the old password cannot keep one alive.
+    """
+    row = users_repo.get_by_id(db, tenant_id, user_id)
+    if row is None:
+        raise NotFoundError("user not found")
+
+    password = generate_password()
+    login_user = _upsert_login_user(
+        db,
+        tenant_id,
+        name=row.name,
+        email=row.email,
+        role_label=row.role,
+        password=password,
+        actor_uuid=_safe_uuid(user.user_id),
+    )
+    auth_repo.revoke_all_for_user(db, login_user.id)
+    _log(
+        db,
+        tenant_id,
+        user,
+        action="Updated",
+        entity_label="User",
+        details=f"Password reset for {row.email}",
+    )
+    db.commit()
+    return ResetPasswordResponse(temporaryPassword=password)
 
 
 def update_user_status(
@@ -156,6 +265,13 @@ def update_user_status(
     row.status = new_status
     row.updated_at = datetime.now(timezone.utc)
     row.updated_by = _safe_uuid(user.user_id)
+    # Keep the login row in step: a deactivated user must be refused at authentication
+    # (403), and every session they hold revoked, not merely greyed out in the table.
+    login_user = auth_repo.find_user_in_tenant_by_email(db, tenant_id, row.email)
+    if login_user is not None:
+        login_user.is_active = new_status != "Deactivated"
+        if new_status == "Deactivated":
+            auth_repo.revoke_all_for_user(db, login_user.id)
     _log(
         db,
         tenant_id,

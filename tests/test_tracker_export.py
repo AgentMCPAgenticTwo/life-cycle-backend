@@ -11,6 +11,7 @@ from app.models.counterparty import Counterparty
 from app.models.tenant import Tenant
 from app.models.tracker import ContractOwner
 from app.models.user import User
+from tests.conftest import auth_headers
 
 TENANT_ADMIN = "TENANT_ADMIN"
 CONTRACT_OWNER = "CONTRACT_OWNER"
@@ -41,7 +42,7 @@ def _seed_tenant_and_user(db_session, role: str, tenant_id: uuid.UUID | None = N
 
 
 def _headers(role: str, user_id: uuid.UUID) -> dict:
-    return {"X-User-Role": role, "X-User-Id": str(user_id)}
+    return auth_headers(role, user_id)
 
 
 def _seed_contract(
@@ -110,8 +111,8 @@ def _body(**overrides) -> dict:
     return payload
 
 
-def test_requires_role_header(client):
-    response = client.post("/api/v1/tracker/export", json=_body())
+def test_requires_role_header(db_client):
+    response = db_client.post("/api/v1/tracker/export", json=_body())
     assert response.status_code == 401
 
 

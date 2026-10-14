@@ -27,7 +27,7 @@ Internal (`router`): `PUT .../metadata`, `POST .../ask-ai`, `POST .../proceed-to
 `GET .../negotiation/compare`, `POST .../negotiation/reminder`,
 `POST .../negotiation/mark-agreed`, `POST .../negotiation/comments`.
 
-External (`external_router`, token-based, no `X-User-Role`/`X-User-Id`):
+External (`external_router`, link-token based, no `Authorization` bearer token):
 `POST /negotiation/external/{linkToken}/verify-otp`,
 `POST /negotiation/external/{linkToken}/submit`.
 

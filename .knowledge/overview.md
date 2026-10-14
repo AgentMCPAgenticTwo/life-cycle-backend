@@ -7,7 +7,7 @@ tags: [backend, fastapi, python, postgresql]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ a01dca2cd1cf0d1b42a73a36cc3fce4dadcc0c75
+    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
     title: Codebase knowledge graph
 status: stable
 ---
@@ -18,7 +18,8 @@ A contract lifecycle management API: dashboards, contract CRUD and third-party-p
 templates/clauses, lifecycle negotiation (clause analysis, ask-AI, routing, external-party
 negotiation), approvals and e-signature, contract detail/obligations/renewal/termination, and
 a management tracker + tenant settings surface. One FastAPI app serves all of it under
-`/api/v1`, consumed by a separate React frontend over header-stub auth (no login/tokens).
+`/api/v1`, consumed by a separate React frontend authenticated with JWT bearer tokens issued by
+`/auth/login` — see [Auth](/modules/auth.md), which replaced the earlier header-stub auth.
 
 # Stack
 
@@ -39,8 +40,10 @@ a management tracker + tenant settings surface. One FastAPI app serves all of it
 
 ```
 app/main.py                   FastAPI app wiring: CORS, exception handlers, router includes, migrations-at-startup
-app/auth.py                   header-auth dependency (current_user, require_roles, current_tenant_id)
-app/config.py                 Settings read from the environment (PORT, DATABASE_URL, CORS_ORIGINS)
+app/auth.py                   bearer-token dependency (current_user, require_roles, current_tenant_id)
+app/security.py               password rules/bcrypt hashing, JWT and refresh-token primitives
+app/scripts/create_admin.py   CLI to create/reset the first TENANT_ADMIN
+app/config.py                 Settings read from the environment (PORT, DATABASE_URL, CORS_ORIGINS, JWT_SECRET, token TTLs, refresh-cookie settings)
 app/db.py                     SQLAlchemy Base/engine/SessionLocal/get_db
 app/errors.py                 NotFoundError/ForbiddenError/ConflictError/ValidationFailedError -> shared error body
 app/models/<area>.py          15 files: ORM models, grouped by feature area, not 1:1 with resources
@@ -56,6 +59,10 @@ tests/                        32 files, one per resource/concern, pytest
 
 * `app/main.py` — ASGI app (`app = FastAPI(...)`), started via `uvicorn app.main:app --port 5199`.
 * `GET /health` — unauthenticated liveness check, defined directly in `app/main.py`.
+* `POST /auth/login` — the only other unauthenticated route; `app/main.py` mounts
+  `auth.router` both under `/api/v1` and at the bare root. See [Auth](/modules/auth.md).
+* `python -m app.scripts.create_admin …` — creates/resets the first `TENANT_ADMIN` so a fresh
+  database has someone who can sign in.
 * Migrations run automatically in the `lifespan` startup hook (`_run_migrations`), calling
   `alembic upgrade head` against `DATABASE_URL` — a no-op if `DATABASE_URL` is unset, so the app
   still boots for the health check without a database.
@@ -66,6 +73,7 @@ tests/                        32 files, one per resource/concern, pytest
 python -m compileall app      # syntax check
 pytest -q                     # test suite (32 files under tests/)
 uvicorn app.main:app --port 5199 &   # run for manual verification
+python -m app.scripts.create_admin --tenant "Acme Co" --name "Ada" --email ada@acme.test
 ```
 
 # Where to go next

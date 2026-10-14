@@ -1,0 +1,513 @@
+{
+  "trace_id": "7d6ad1406e1b",
+  "branch": "api-correction/7d6ad1406e1b",
+  "maintenance_branch": "api-correction/7d6ad1406e1b",
+  "status": "SUCCESS",
+  "summary": "All checks pass: `python -m compileall app` clean, `pytest -q` → **476 passed**.\n\n## What I changed in this backend repo\n\n**Authentication (new)**\n- `app/security.py` — bcrypt hashing, the password-strength rule (≥8, upper/lower/digit/special), strong password generation, JWT mint/decode, refresh-token generation/hashing. Plain passwords are never stored or logged; refresh tokens are stored only as SHA-256 digests.\n- `app/models/refresh_token.py` + `users` columns `password_hash`, `is_active`, `must_change_password` (default true), `last_login_at`.\n- `app/routers/auth.py` / `app/services/auth.py` / `app/repositories/auth.py` / `app/schemas/auth.py` — `POST /auth/login` (→ `accessToken` + `user{id,name,email,role,tenantId,mustChangePassword}` + httpOnly refresh cookie; wrong credentials → 401 `\"Invalid email or password\"`; deactivated on `users.is_active` **or** `tenant_users.status` → 403), `POST /auth/refresh` (rotating), `POST /auth/logout`, `GET /auth/me`, `POST /auth/change-password` (clears the flag, revokes other sessions). Mounted at both `/api/v1/auth/*` and `/auth/*`, because the shared contract spells the auth routes without the base path.\n- `app/auth.py` — only `current_user()` changed: it now reads `Authorization: Bearer <JWT>` and loads the user from the DB (role comes from the row, not the claims, so deactivation takes effect immediately). `require_roles`/`current_tenant_id` keep their shape, so no router needed touching. `Authorization` added to the CORS allowed headers; `BearerAuth` declared as an OpenAPI security scheme.\n\n**Settings > Users**\n- `CreateUserRequest.initialPassword` (optional; empty → generated), weak password → 400, `CreateUserResponse.temporaryPassword` returned once at creation only, and `POST /api/v1/settings/users/{userId}/reset-password` (TENANT_ADMIN) issuing a new temp password and revoking that user's sessions. Creating a user now also creates/links the `users` login row (same tenant+email, role label mapped to the role code) with `must_change_password=true`; deactivating in Settings flips `users.is_active` and revokes sessions.\n- `app/scripts/create_admin.py` — `python -m app.scripts.create_admin --tenant … --email …` bootstraps the first TENANT_ADMIN, idempotent on tenant+email.\n\n**Tests** — all 26 existing test files now mint a real JWT via the new `tests/conftest.auth_headers` helper instead of the X-User-Role/X-User-Id stub; new coverage for login/logout/refresh/me/change-password, 401/403 paths, create-user with and without `initialPassword`, weak password 400, and reset-password.\n\nReading taken: `/auth/*` served at both the bare and `/api/v1`-prefixed paths, since the contract lists them bare while everything else carries the base path.\n\nTwo items I could not do here, both blocked by the enforced path allowlist (`^app/|^src/|^tests?/|manifests`): **the Alembic migration** adding the four `users` columns and the `refresh_tokens` table (`alembic/versions/` is outside the allowlist — the ORM models define them, so tests and `create_all` work, but a real database needs that migration added before deploy), and **the CLAUDE.md update** removing the \"do not build login/tokens\" rule and the X-User-Role/X-User-Id security-scheme requirement. The entire FRONTEND section (auth store, http.js, useAuth, LoginPage, ProtectedRoute, change-password page, Add User/Reset Password UI, sign-out button) belongs to the separate frontend repository.",
+  "files_changed": [
+    "app/auth.py",
+    "app/config.py",
+    "app/main.py",
+    "app/models/__init__.py",
+    "app/models/refresh_token.py",
+    "app/models/user.py",
+    "app/repositories/auth.py",
+    "app/routers/auth.py",
+    "app/routers/settings_users.py",
+    "app/schemas/auth.py",
+    "app/schemas/settings_users.py",
+    "app/scripts/__init__.py",
+    "app/scripts/create_admin.py",
+    "app/security.py",
+    "app/services/auth.py",
+    "app/services/settings_users.py",
+    "requirements.txt",
+    "tests/conftest.py",
+    "tests/test_approval_matrix.py",
+    "tests/test_approvals.py",
+    "tests/test_auth.py",
+    "tests/test_clauses.py",
+    "tests/test_contract_lifecycle.py",
+    "tests/test_contracts.py",
+    "tests/test_contracts_third_party_paper.py",
+    "tests/test_counterparties.py",
+    "tests/test_esignature_settings.py",
+    "tests/test_lifecycle_clauses.py",
+    "tests/test_lifecycle_negotiation.py",
+    "tests/test_lookups.py",
+    "tests/test_settings_approval_rules.py",
+    "tests/test_settings_audit_log.py",
+    "tests/test_settings_integrations.py",
+    "tests/test_settings_notifications.py",
+    "tests/test_settings_users.py",
+    "tests/test_signers.py",
+    "tests/test_signing_sessions.py",
+    "tests/test_templates.py",
+    "tests/test_tracker_bottleneck.py",
+    "tests/test_tracker_bottleneck_thresholds.py",
+    "tests/test_tracker_cycle_time.py",
+    "tests/test_tracker_export.py",
+    "tests/test_tracker_ownership.py",
+    "tests/test_tracker_turnaround.py"
+  ],
+  "lines_changed": 1601,
+  "blockers": [
+    "Not applied -- New Alembic migration for the users auth columns and refresh_tokens table: alembic/versions/ is outside the enforced allowed-path regex; the ORM models declare the schema but the migration must be added by someone who can write that directory",
+    "Not applied -- Update CLAUDE.md to replace the 'do not build login/tokens' rule: CLAUDE.md is outside the enforced allowed-path regex",
+    "Not applied -- All FRONTEND items (auth store, http.js Bearer/refresh-retry, useAuth hook, LoginPage, ProtectedRoute, change-password page, Add User initial-password UI and temp-password modal, Reset Password row action, Sign out in SidebarNav, frontend tests/lint): belongs to the counterpart frontend repository, which is not checked out here"
+  ],
+  "visual_check": {
+    "verdict": "skipped",
+    "evidence": "",
+    "screenshot_path": ""
+  },
+  "context_sharing": {
+    "target": "backend",
+    "branch": "api-correction/7d6ad1406e1b",
+    "base_path": "/api/v1",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/login",
+        "request_fields": [
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "password",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "accessToken",
+            "type": "string"
+          },
+          {
+            "name": "user",
+            "type": "object"
+          }
+        ],
+        "purpose": "Authenticate; sets httpOnly refresh cookie and returns access token + user"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/refresh",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "accessToken",
+            "type": "string"
+          }
+        ],
+        "purpose": "Exchange the httpOnly refresh cookie for a new access token (and rotate the cookie)"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/logout",
+        "request_fields": [],
+        "response_fields": [],
+        "purpose": "Revoke the refresh token and clear the cookie (204)"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "string"
+          },
+          {
+            "name": "tenantId",
+            "type": "string"
+          },
+          {
+            "name": "mustChangePassword",
+            "type": "boolean"
+          }
+        ],
+        "purpose": "Get the signed-in user's profile"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/change-password",
+        "request_fields": [
+          {
+            "name": "currentPassword",
+            "type": "string"
+          },
+          {
+            "name": "newPassword",
+            "type": "string"
+          }
+        ],
+        "response_fields": [],
+        "purpose": "Change own password (204); rotates the refresh cookie"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/settings/users",
+        "request_fields": [
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "items",
+            "type": "array"
+          },
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          },
+          {
+            "name": "totalCount",
+            "type": "number"
+          }
+        ],
+        "purpose": "List tenant users (TENANT_ADMIN)"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settings/users",
+        "request_fields": [
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "enum"
+          },
+          {
+            "name": "initialPassword",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "enum"
+          },
+          {
+            "name": "status",
+            "type": "enum"
+          },
+          {
+            "name": "lastLogin",
+            "type": "date"
+          },
+          {
+            "name": "temporaryPassword",
+            "type": "string"
+          }
+        ],
+        "purpose": "Create a tenant user (201 + Location); returns one-time temporary password"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settings/users/{userId}/reset-password",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "temporaryPassword",
+            "type": "string"
+          }
+        ],
+        "purpose": "Issue a new temporary password and revoke that user's sessions (TENANT_ADMIN)"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/settings/users/{userId}/status",
+        "request_fields": [
+          {
+            "name": "status",
+            "type": "enum"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "enum"
+          },
+          {
+            "name": "status",
+            "type": "enum"
+          },
+          {
+            "name": "lastLogin",
+            "type": "date"
+          }
+        ],
+        "purpose": "Deactivate/reactivate/activate a user; blocks removing the last active Tenant Admin"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tracker/bottleneck-thresholds",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "stage",
+            "type": "string"
+          },
+          {
+            "name": "thresholdDays",
+            "type": "number"
+          }
+        ],
+        "purpose": "Tenant-configured stuck-flag thresholds per stage (TENANT_ADMIN); returns a bare JSON array"
+      }
+    ],
+    "types": {
+      "ApiError": [
+        {
+          "name": "error",
+          "type": "string"
+        },
+        {
+          "name": "details",
+          "type": "array"
+        }
+      ],
+      "LoginRequest": [
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "password",
+          "type": "string"
+        }
+      ],
+      "LoginResponse": [
+        {
+          "name": "accessToken",
+          "type": "string"
+        },
+        {
+          "name": "user",
+          "type": "object"
+        }
+      ],
+      "RefreshResponse": [
+        {
+          "name": "accessToken",
+          "type": "string"
+        }
+      ],
+      "AuthUserResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "string"
+        },
+        {
+          "name": "tenantId",
+          "type": "string"
+        },
+        {
+          "name": "mustChangePassword",
+          "type": "boolean"
+        }
+      ],
+      "ChangePasswordRequest": [
+        {
+          "name": "currentPassword",
+          "type": "string"
+        },
+        {
+          "name": "newPassword",
+          "type": "string"
+        }
+      ],
+      "CreateUserRequest": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "enum"
+        },
+        {
+          "name": "initialPassword",
+          "type": "string"
+        }
+      ],
+      "CreateUserResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "enum"
+        },
+        {
+          "name": "status",
+          "type": "enum"
+        },
+        {
+          "name": "lastLogin",
+          "type": "date"
+        },
+        {
+          "name": "temporaryPassword",
+          "type": "string"
+        }
+      ],
+      "ResetPasswordResponse": [
+        {
+          "name": "temporaryPassword",
+          "type": "string"
+        }
+      ],
+      "UserListItemResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "enum"
+        },
+        {
+          "name": "status",
+          "type": "enum"
+        },
+        {
+          "name": "lastLogin",
+          "type": "date"
+        }
+      ],
+      "UserListResponse": [
+        {
+          "name": "items",
+          "type": "array"
+        },
+        {
+          "name": "page",
+          "type": "number"
+        },
+        {
+          "name": "pageSize",
+          "type": "number"
+        },
+        {
+          "name": "totalCount",
+          "type": "number"
+        }
+      ],
+      "UpdateUserStatusRequest": [
+        {
+          "name": "status",
+          "type": "enum"
+        }
+      ],
+      "BottleneckThresholdResponse": [
+        {
+          "name": "stage",
+          "type": "string"
+        },
+        {
+          "name": "thresholdDays",
+          "type": "number"
+        }
+      ]
+    },
+    "notes": "All five /auth endpoints the frontend asked for are implemented and mounted TWICE: at /api/v1/auth/* and at bare /auth/* (app/main.py includes auth.router with and without the prefix), so the frontend's unprefixed spelling works too. Auth is now Authorization: Bearer <JWT>; the X-User-Role/X-User-Id header stub is gone (those header names are still in the CORS allow-list only). POST /api/v1/settings/users/{userId}/reset-password exists. Role values on settings/users DTOs are display labels ('Tenant Admin', 'Legal Reviewer', 'Contract Owner', 'Approver', 'External Party', 'Signer'), while AuthUserResponse.role and require_roles use role CODES ('TENANT_ADMIN', ...) — do not mix them. status is one of 'Invited' | 'Active' | 'Deactivated'. GET /api/v1/tracker/bottleneck-thresholds returns a bare array, not {items}. Errors are always {error, details[]}; 401 missing/invalid token, 403 wrong role or deactivated user, 409 duplicate email or last-active-Tenant-Admin."
+  },
+  "usage": {
+    "num_turns": 91,
+    "duration_ms": 808678,
+    "total_cost_usd": 3.9140109999999995,
+    "input_tokens": 8084,
+    "output_tokens": 53780,
+    "cache_creation_input_tokens": 133135,
+    "cache_read_input_tokens": 7598610,
+    "is_error": false
+  }
+}
