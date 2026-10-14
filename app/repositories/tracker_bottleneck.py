@@ -76,6 +76,23 @@ def get_thresholds(db: Session, tenant_id: uuid.UUID) -> dict[str, int]:
     return thresholds
 
 
+def find_threshold(db: Session, tenant_id: uuid.UUID, stage: str) -> TenantBottleneckThreshold | None:
+    return (
+        db.query(TenantBottleneckThreshold)
+        .filter(
+            TenantBottleneckThreshold.tenant_id == tenant_id,
+            TenantBottleneckThreshold.stage == stage,
+        )
+        .first()
+    )
+
+
+def insert_threshold(db: Session, row: TenantBottleneckThreshold) -> TenantBottleneckThreshold:
+    db.add(row)
+    db.flush()
+    return row
+
+
 def get_user_names(db: Session, user_ids: set[uuid.UUID]) -> dict[uuid.UUID, str]:
     if not user_ids:
         return {}

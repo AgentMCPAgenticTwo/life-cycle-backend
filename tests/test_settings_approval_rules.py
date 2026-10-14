@@ -197,3 +197,85 @@ def test_get_scopes_rules_by_tenant(db_client, db_session):
     )
     assert response.status_code == 200
     assert response.json()["totalCount"] == 0
+
+
+def test_put_updates_rule(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    headers = _headers(TENANT_ADMIN, user_id)
+    rule_id = db_client.post("/api/v1/settings/approval-rules", json=_valid_payload(), headers=headers).json()["id"]
+
+    response = db_client.put(
+        f"/api/v1/settings/approval-rules/{rule_id}",
+        json=_valid_payload(contractType="Service", valueThreshold=75000, approverRole="Legal Reviewer"),
+        headers=headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == rule_id
+    assert body["contractType"] == "Service"
+    assert body["approverRole"] == "Legal Reviewer"
+    assert float(body["valueThreshold"]) == 75000
+
+
+def test_put_rejects_blank_fields(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    headers = _headers(TENANT_ADMIN, user_id)
+    rule_id = db_client.post("/api/v1/settings/approval-rules", json=_valid_payload(), headers=headers).json()["id"]
+
+    response = db_client.put(
+        f"/api/v1/settings/approval-rules/{rule_id}", json=_valid_payload(contractType=""), headers=headers
+    )
+    assert response.status_code == 400
+
+
+def test_put_rejects_duplicate_combination(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    headers = _headers(TENANT_ADMIN, user_id)
+    first = db_client.post("/api/v1/settings/approval-rules", json=_valid_payload(), headers=headers).json()["id"]
+    db_client.post("/api/v1/settings/approval-rules", json=_valid_payload(valueThreshold=90000), headers=headers)
+
+    response = db_client.put(
+        f"/api/v1/settings/approval-rules/{first}", json=_valid_payload(valueThreshold=90000), headers=headers
+    )
+    assert response.status_code == 409
+
+
+def test_put_unknown_rule_is_404(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    response = db_client.put(
+        f"/api/v1/settings/approval-rules/{uuid.uuid4()}",
+        json=_valid_payload(),
+        headers=_headers(TENANT_ADMIN, user_id),
+    )
+    assert response.status_code == 404
+
+
+def test_put_rejects_disallowed_role(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, APPROVER)
+    response = db_client.put(
+        f"/api/v1/settings/approval-rules/{uuid.uuid4()}",
+        json=_valid_payload(),
+        headers=_headers(APPROVER, user_id),
+    )
+    assert response.status_code == 403
+
+
+def test_delete_removes_rule_from_list(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    headers = _headers(TENANT_ADMIN, user_id)
+    rule_id = db_client.post("/api/v1/settings/approval-rules", json=_valid_payload(), headers=headers).json()["id"]
+
+    response = db_client.delete(f"/api/v1/settings/approval-rules/{rule_id}", headers=headers)
+    assert response.status_code == 204
+
+    listing = db_client.get("/api/v1/settings/approval-rules", headers=headers).json()
+    assert all(item["id"] != rule_id for item in listing["items"])
+    assert listing["totalCount"] == 0
+
+
+def test_delete_unknown_rule_is_404(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    response = db_client.delete(
+        f"/api/v1/settings/approval-rules/{uuid.uuid4()}", headers=_headers(TENANT_ADMIN, user_id)
+    )
+    assert response.status_code == 404
