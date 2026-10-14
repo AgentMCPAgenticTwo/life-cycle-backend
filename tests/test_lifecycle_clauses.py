@@ -11,6 +11,7 @@ from datetime import date
 
 from app.models.clause import Clause as LibraryClause
 from app.models.contract import Contract
+from app.models.lifecycle_clause import ContractClause
 from app.models.counterparty import Counterparty
 from app.models.tenant import Tenant
 from app.models.template import Template
@@ -280,13 +281,33 @@ def test_edit_clause_not_found_is_404(db_client, db_session):
 # ---- reject (UC4-BR-006 audit trail) --------------------------------------------------------
 
 
+def _add_optional_clause(db_session, contract_id: uuid.UUID, user_id: uuid.UUID) -> uuid.UUID:
+    """An extracted, non-mandatory clause -- the only kind UC3 allows to be rejected."""
+    clause = ContractClause(
+        id=uuid.uuid4(),
+        contract_id=contract_id,
+        clause_category="Marketing",
+        library_match_status="Standard",
+        risk_score="Low",
+        clause_text="Either party may issue a press release.",
+        status="AI-Suggested",
+        is_mandatory=False,
+        mandatory_flag_cleared=False,
+        version=1,
+        created_by=user_id,
+        updated_by=user_id,
+    )
+    db_session.add(clause)
+    db_session.commit()
+    return clause.id
+
+
 def test_reject_clause_logs_audit_entry(db_client, db_session):
     tenant_id, admin_id, owner_id, legal_id, contract_id = _setup(db_session)
-    _seed_mandatory_library_clause(db_session, tenant_id, admin_id, "Payment")
-    analysis = db_client.get(
+    db_client.get(
         f"/api/v1/lifecycle/contracts/{contract_id}/clause-analysis", headers=_headers(LEGAL_REVIEWER, legal_id)
-    ).json()
-    clause_id = analysis["clauses"][0]["clauseId"]
+    )
+    clause_id = str(_add_optional_clause(db_session, contract_id, legal_id))
 
     resp = db_client.post(
         f"/api/v1/lifecycle/contracts/{contract_id}/clauses/{clause_id}/reject",
@@ -304,6 +325,72 @@ def test_reject_clause_logs_audit_entry(db_client, db_session):
     assert body["totalCount"] == 1
     assert body["items"][0]["actionType"] == "Reject"
     assert body["items"][0]["clauseId"] == clause_id
+
+
+def test_reject_mandatory_clause_is_blocked(db_client, db_session):
+    """UC3: a mandatory clause cannot be removed from the contract, whatever the UI allows."""
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup(db_session)
+    _seed_mandatory_library_clause(db_session, tenant_id, admin_id, "Payment")
+    analysis = db_client.get(
+        f"/api/v1/lifecycle/contracts/{contract_id}/clause-analysis", headers=_headers(LEGAL_REVIEWER, legal_id)
+    ).json()
+    clause = analysis["clauses"][0]
+    assert clause["isMandatory"] is True
+
+    resp = db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/clauses/{clause['clauseId']}/reject",
+        json={"reason": "Not applicable"},
+        headers=_headers(LEGAL_REVIEWER, legal_id),
+    )
+    assert resp.status_code == 409
+    assert resp.json()["error"] == "This clause is mandatory and cannot be removed from the contract."
+
+    # The clause is untouched -- not rejected, not version-bumped.
+    after = db_client.get(
+        f"/api/v1/lifecycle/contracts/{contract_id}/clause-analysis", headers=_headers(LEGAL_REVIEWER, legal_id)
+    ).json()["clauses"][0]
+    assert after["status"] == clause["status"]
+    assert after["version"] == clause["version"]
+
+
+def test_audit_log_entries_cannot_be_modified_or_deleted(db_client, db_session):
+    """UC11: the clause audit trail is append-only at the API and at the persistence layer."""
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup(db_session)
+    db_client.get(
+        f"/api/v1/lifecycle/contracts/{contract_id}/clause-analysis", headers=_headers(LEGAL_REVIEWER, legal_id)
+    )
+    clause_id = str(_add_optional_clause(db_session, contract_id, legal_id))
+    db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/clauses/{clause_id}/reject",
+        json={"reason": "Not applicable"},
+        headers=_headers(LEGAL_REVIEWER, legal_id),
+    )
+    entry_id = db_client.get(
+        f"/api/v1/lifecycle/contracts/{contract_id}/audit-log", headers=_headers(LEGAL_REVIEWER, legal_id)
+    ).json()["items"][0]["id"]
+
+    headers = _headers(LEGAL_REVIEWER, legal_id)
+    base = f"/api/v1/lifecycle/contracts/{contract_id}/audit-log/{entry_id}"
+    for resp in (
+        db_client.put(base, json={}, headers=headers),
+        db_client.patch(base, json={}, headers=headers),
+        db_client.delete(base, headers=headers),
+    ):
+        assert resp.status_code == 403
+        assert resp.json()["error"] == "Audit log entries cannot be modified or deleted."
+
+    # And the same rule holds below the HTTP layer, for any caller holding the row.
+    from app.errors import ImmutableResourceError
+    from app.models.lifecycle_clause import ClauseAuditLog
+
+    row = db_session.query(ClauseAuditLog).first()
+    row.after_text = "tampered"
+    try:
+        db_session.flush()
+        raise AssertionError("expected the flush to be blocked")
+    except ImmutableResourceError as exc:
+        assert exc.detail == "Audit log entries cannot be modified or deleted."
+    db_session.rollback()
 
 
 # ---- metadata relabelling (UC4-BR-007) ------------------------------------------------------

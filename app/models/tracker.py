@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.models.immutable import enforce_append_only
 from app.models.mixins import SoftDeleteMixin, TimestampMixin
 
 
@@ -156,3 +157,7 @@ class TenantAuditLog(Base, TimestampMixin):
     log_action: Mapped[str] = mapped_column(String(100), nullable=False)
     log_entity: Mapped[str] = mapped_column(String(100), nullable=False)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+# UC11-BR-011: the tenant audit log is immutable -- inserts only.
+enforce_append_only(TenantAuditLog)

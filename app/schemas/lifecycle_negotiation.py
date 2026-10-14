@@ -84,6 +84,10 @@ class NegotiationTrackerResponse(BaseModel):
 class SubmitReviewRequest(BaseModel):
     commentText: str | None = None
     redlineText: str | None = None
+    # UC5: the version the reviewer had open when they started redlining. Optional because
+    # the frontend contract does not list it -- when it is absent there is nothing to
+    # compare against and the submission is treated as being on the latest version.
+    expectedVersion: int | None = None
 
 
 class SubmitReviewResponse(BaseModel):

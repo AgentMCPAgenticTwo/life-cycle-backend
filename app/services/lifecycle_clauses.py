@@ -37,6 +37,7 @@ _SUPPORTED_FORMATS = {"PDF", "DOCX"}
 _RISK_RANK = {"Low": 1, "Medium": 2, "High": 3}
 _DISCLAIMER = "AI suggestion only — verify before relying on this answer."
 _MANDATORY_FLAG_LABEL = "Mandatory clause missing"
+_MANDATORY_REJECT_MESSAGE = "This clause is mandatory and cannot be removed from the contract."
 
 _METADATA_FIELD_MAP = {
     "parties": "parties_label",
@@ -389,6 +390,13 @@ def reject_clause(
 ) -> ClauseResponse:
     _get_contract_or_404(db, tenant_id, contract_id)
     clause = _get_clause_or_404(db, contract_id, clause_id)
+
+    # UC3: a mandatory clause can never be rejected out of the contract. The UI hides the
+    # control, but the rule has to hold here too -- the API is reachable without it.
+    if clause.is_mandatory:
+        raise ConflictError(
+            _MANDATORY_REJECT_MESSAGE, details=[_MANDATORY_REJECT_MESSAGE]
+        )
 
     before_status = clause.status
     user_uuid = uuid.UUID(user.user_id)
