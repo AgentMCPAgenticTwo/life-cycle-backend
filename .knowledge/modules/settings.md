@@ -4,11 +4,11 @@ title: settings
 description: Tenant-admin-only settings surface — user management, approval rules, integrations, notification toggles, and the read-only audit log.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/settings_users.py
 tags: [backend, lifecycle-uc10-uc11, settings, admin]
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:52:08Z }
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
+    resource: codebase-memory-mcp project life-cycle-backend @ d70a013fb2897dd0acd338eafeb0932179ffaaf5
     title: Codebase knowledge graph
 status: stable
 ---
@@ -25,7 +25,8 @@ where every route has a single-role allow-list.
 
 * `GET/POST /settings/users`, `POST /settings/users/{userId}/reset-password`,
   `PATCH /settings/users/{userId}/status`
-* `GET/POST /settings/approval-rules`
+* `GET/POST /settings/approval-rules`, `PUT /settings/approval-rules/{ruleId}`,
+  `DELETE /settings/approval-rules/{ruleId}` (204)
 * `GET /settings/integrations`, `POST .../connect`, `POST .../disconnect`
 * `GET /settings/notifications`, `PUT /settings/notifications/{eventName}`
 * `GET /settings/audit-log` -> `AuditLogEntryResponse` (paged, `AuditLogQueryParams`)
@@ -60,6 +61,16 @@ unit, distinct from the tracker tabs (cluster 1) even though both come from the 
   `Signature Reminder` — were appended for the automatic notifications in
   [Scheduled Notifications](/modules/scheduled-notifications.md); because the seeder is guarded
   per name, adding them touched no existing tenant row.
+* Approval rules are editable and removable, not append-only. `update_rule` and `delete_rule`
+  in `app/services/settings_approval_rules.py` re-run `_validate` and the UC11-BR-004 duplicate
+  check — whose uniqueness key is **Contract Type + Value Threshold only**, Approver Role is not
+  part of it (`approval_rules_repo.find_by_type_and_threshold`, with `exclude_id` on edit so a
+  rule does not collide with itself). `delete_rule` is a **soft** delete (`deleted_at`/
+  `deleted_by`): approvals already in progress keep the routing they were given. Every one of
+  create/update/delete writes a `tenant_audit_log` row through `_log` with
+  `log_entity = "Approval Rule"` and `log_action` of `Created`/`Updated`/`Deleted`; the update
+  entry records `before -> after` via `_describe`. A missing or other-tenant `ruleId` is a 404
+  from `_get_rule`.
 * `POST /settings/integrations/{integrationName}/connect` masks credentials in the response
   (`maskedCredential`) and persists `credential_ciphertext` separately from the masked display
   value (`tenant_integrations.credential_masked_display`).

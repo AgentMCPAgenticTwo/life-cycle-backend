@@ -14,6 +14,7 @@ from app.schemas.settings_approval_rules import (
     ApprovalRuleListResponse,
     ApprovalRuleResponse,
     CreateApprovalRuleRequest,
+    UpdateApprovalRuleRequest,
 )
 from app.services import settings_approval_rules as approval_rules_service
 
@@ -41,3 +42,25 @@ def create_approval_rule(
     result = approval_rules_service.create_rule(db, tenant_id, user, payload)
     response.headers["Location"] = f"/api/v1/settings/approval-rules/{result.id}"
     return result
+
+
+@router.put("/{ruleId}", response_model=ApprovalRuleResponse)
+def update_approval_rule(
+    ruleId: uuid.UUID,
+    payload: UpdateApprovalRuleRequest,
+    user: CurrentUser = Depends(require_roles("TENANT_ADMIN")),
+    tenant_id: uuid.UUID = Depends(current_tenant_id),
+    db: Session = Depends(get_db),
+) -> ApprovalRuleResponse:
+    return approval_rules_service.update_rule(db, tenant_id, user, ruleId, payload)
+
+
+@router.delete("/{ruleId}", status_code=204)
+def delete_approval_rule(
+    ruleId: uuid.UUID,
+    user: CurrentUser = Depends(require_roles("TENANT_ADMIN")),
+    tenant_id: uuid.UUID = Depends(current_tenant_id),
+    db: Session = Depends(get_db),
+) -> Response:
+    approval_rules_service.delete_rule(db, tenant_id, user, ruleId)
+    return Response(status_code=204)

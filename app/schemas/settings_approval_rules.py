@@ -36,3 +36,8 @@ class CreateApprovalRuleRequest(BaseModel):
     contractType: str | None = None
     valueThreshold: Decimal | None = None
     approverRole: str | None = None
+
+
+class UpdateApprovalRuleRequest(CreateApprovalRuleRequest):
+    """Editing a rule carries the same three fields, and the same validation, as creating
+    one (UC11-AF-003, UC11-FV-002, UC11-BR-004)."""

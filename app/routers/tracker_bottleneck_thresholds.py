@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.auth import CurrentUser, current_tenant_id, require_roles
 from app.db import get_db
-from app.schemas.tracker_bottleneck_thresholds import BottleneckThresholdResponse
+from app.schemas.tracker_bottleneck_thresholds import (
+    BottleneckThresholdResponse,
+    UpdateBottleneckThresholdRequest,
+)
 from app.services import tracker_bottleneck_thresholds as thresholds_service
 
 router = APIRouter(prefix="/tracker", tags=["tracker"])
@@ -22,3 +25,14 @@ def get_bottleneck_thresholds(
     db: Session = Depends(get_db),
 ) -> list[BottleneckThresholdResponse]:
     return thresholds_service.get_bottleneck_thresholds(db, tenant_id)
+
+
+@router.put("/bottleneck-thresholds", response_model=list[BottleneckThresholdResponse])
+def update_bottleneck_thresholds(
+    payload: list[UpdateBottleneckThresholdRequest],
+    user: CurrentUser = Depends(require_roles("TENANT_ADMIN")),
+    tenant_id: uuid.UUID = Depends(current_tenant_id),
+    db: Session = Depends(get_db),
+) -> list[BottleneckThresholdResponse]:
+    """Body and response are a bare JSON array of `{stage, thresholdDays}`, not an envelope."""
+    return thresholds_service.update_bottleneck_thresholds(db, tenant_id, user, payload)

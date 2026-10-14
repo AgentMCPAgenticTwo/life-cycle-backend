@@ -5,10 +5,10 @@ description: Management tracker with four reporting tabs (ownership, cycle-time,
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/tracker_ownership.py
 tags: [backend, lifecycle-uc10-uc11, tracker, reporting]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:30:03Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:52:08Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ 086ad0dd7cfe1a9581dd2f87de143759ef781634
+    resource: codebase-memory-mcp project life-cycle-backend @ d70a013fb2897dd0acd338eafeb0932179ffaaf5
     title: Codebase knowledge graph
 status: stable
 ---
@@ -32,6 +32,27 @@ export reuses the other five tabs' repositories). Models live in `app/models/tra
 * `GET /tracker/exports/{fileId}` -> the file bytes (not a DTO)
 * `PUT /tracker/turnaround/{contractId}/estimated-override` -> `TurnaroundRowResponse`
 * `GET /tracker/bottleneck-thresholds` (TENANT_ADMIN only) -> `BottleneckThresholdResponse`
+* `PUT /tracker/bottleneck-thresholds` (TENANT_ADMIN only) -> `BottleneckThresholdResponse`
+
+# Bottleneck thresholds
+
+Both threshold endpoints take and return a **bare JSON array** of `{stage, thresholdDays}`,
+not a paged envelope. `get_bottleneck_thresholds` in
+`app/services/tracker_bottleneck_thresholds.py` always emits one row per stage in `STAGE_ORDER`
+(`Drafting`, `Negotiation`, `Approval`, `Signature`), falling back to
+`tracker_bottleneck.DEFAULT_THRESHOLDS` where the tenant has no `tenant_bottleneck_thresholds`
+row.
+
+`update_bottleneck_thresholds` takes `list[UpdateBottleneckThresholdRequest]` and validates the
+**whole array before writing anything**, so one bad row leaves the configuration untouched:
+an unknown or empty stage fails with `STAGE_MESSAGE`, and `_coerce_days` rejects zero,
+negatives, fractions, booleans and non-numbers with `THRESHOLD_DAYS_MESSAGE` (400) rather than
+clamping — a clamped threshold would mis-flag every contract in the stage. It then upserts per
+stage via `repo.find_threshold` / `repo.insert_threshold`, appends one `tenant_audit_log` row
+(`log_entity = "Bottleneck Threshold"`, `log_action = "Updated"`, details listing each
+`stage: old -> new`) only when something actually changed, and re-reads through
+`get_bottleneck_thresholds` for the response. The Bottleneck tab derives `stuckFlag` from these
+rows at request time rather than from a stored flag, so edits take effect on its next call.
 
 # Export
 

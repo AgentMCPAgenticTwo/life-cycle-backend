@@ -102,3 +102,67 @@ def test_thresholds_are_tenant_scoped(db_client, db_session):
     response_b = db_client.get("/api/v1/tracker/bottleneck-thresholds", headers=_headers(TENANT_ADMIN, user_b))
     by_stage_b = {row["stage"]: row["thresholdDays"] for row in response_b.json()}
     assert by_stage_b["Signature"] == 3
+
+
+def test_put_saves_thresholds_and_returns_array(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    headers = _headers(TENANT_ADMIN, user_id)
+
+    response = db_client.put(
+        "/api/v1/tracker/bottleneck-thresholds",
+        json=[
+            {"stage": "Drafting", "thresholdDays": 9},
+            {"stage": "Approval", "thresholdDays": 2},
+        ],
+        headers=headers,
+    )
+    assert response.status_code == 200
+    by_stage = {row["stage"]: row["thresholdDays"] for row in response.json()}
+    assert by_stage["Drafting"] == 9
+    assert by_stage["Approval"] == 2
+    assert by_stage["Negotiation"] == 5
+
+    reread = db_client.get("/api/v1/tracker/bottleneck-thresholds", headers=headers).json()
+    assert {row["stage"]: row["thresholdDays"] for row in reread}["Drafting"] == 9
+
+
+def test_put_rejects_non_positive_days(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    headers = _headers(TENANT_ADMIN, user_id)
+    response = db_client.put(
+        "/api/v1/tracker/bottleneck-thresholds",
+        json=[{"stage": "Drafting", "thresholdDays": 0}],
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+    unchanged = db_client.get("/api/v1/tracker/bottleneck-thresholds", headers=headers).json()
+    assert {row["stage"]: row["thresholdDays"] for row in unchanged}["Drafting"] == 5
+
+
+def test_put_rejects_unknown_stage(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, TENANT_ADMIN)
+    response = db_client.put(
+        "/api/v1/tracker/bottleneck-thresholds",
+        json=[{"stage": "Archiving", "thresholdDays": 4}],
+        headers=_headers(TENANT_ADMIN, user_id),
+    )
+    assert response.status_code == 400
+
+
+def test_put_rejects_disallowed_role(db_client, db_session):
+    _tenant_id, user_id = _seed_tenant_and_user(db_session, CONTRACT_OWNER)
+    response = db_client.put(
+        "/api/v1/tracker/bottleneck-thresholds",
+        json=[{"stage": "Drafting", "thresholdDays": 4}],
+        headers=_headers(CONTRACT_OWNER, user_id),
+    )
+    assert response.status_code == 403
+
+
+def test_put_requires_role_header(db_client):
+    response = db_client.put(
+        "/api/v1/tracker/bottleneck-thresholds",
+        json=[{"stage": "Drafting", "thresholdDays": 4}],
+    )
+    assert response.status_code == 401

@@ -23,14 +23,30 @@ def list_by_tenant(
 
 
 def find_by_type_and_threshold(
-    db: Session, tenant_id: uuid.UUID, contract_type: str, value_threshold: Decimal
+    db: Session,
+    tenant_id: uuid.UUID,
+    contract_type: str,
+    value_threshold: Decimal,
+    *,
+    exclude_id: uuid.UUID | None = None,
 ) -> ApprovalMatrixRule | None:
+    query = db.query(ApprovalMatrixRule).filter(
+        ApprovalMatrixRule.tenant_id == tenant_id,
+        ApprovalMatrixRule.contract_type == contract_type,
+        ApprovalMatrixRule.value_threshold == value_threshold,
+        ApprovalMatrixRule.deleted_at.is_(None),
+    )
+    if exclude_id is not None:
+        query = query.filter(ApprovalMatrixRule.id != exclude_id)
+    return query.first()
+
+
+def get_by_id(db: Session, tenant_id: uuid.UUID, rule_id: uuid.UUID) -> ApprovalMatrixRule | None:
     return (
         db.query(ApprovalMatrixRule)
         .filter(
+            ApprovalMatrixRule.id == rule_id,
             ApprovalMatrixRule.tenant_id == tenant_id,
-            ApprovalMatrixRule.contract_type == contract_type,
-            ApprovalMatrixRule.value_threshold == value_threshold,
             ApprovalMatrixRule.deleted_at.is_(None),
         )
         .first()

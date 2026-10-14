@@ -10,14 +10,16 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy.orm import Session
 
 from app.auth import CurrentUser
-from app.errors import ConflictError, ValidationFailedError
-from app.models.tracker import ApprovalMatrixRule
+from app.errors import ConflictError, NotFoundError, ValidationFailedError
+from app.models.tracker import ApprovalMatrixRule, TenantAuditLog
 from app.repositories import settings_approval_rules as approval_rules_repo
+from app.repositories import settings_audit_log as audit_log_repo
 from app.schemas.pagination import PageParams
 from app.schemas.settings_approval_rules import (
     ApprovalRuleListResponse,
     ApprovalRuleResponse,
     CreateApprovalRuleRequest,
+    UpdateApprovalRuleRequest,
 )
 
 REQUIRED_FIELDS_MESSAGE = "Please complete all required fields"
@@ -30,6 +32,27 @@ _APPROVER_ROLES = {"Approver", "Legal Reviewer", "Tenant Admin"}
 
 def _is_blank(value: str | None) -> bool:
     return value is None or not value.strip()
+
+
+def _describe(rule: ApprovalMatrixRule) -> str:
+    return f"{rule.contract_type} >= {rule.value_threshold} -> {rule.approver_role}"
+
+
+def _log(db: Session, tenant_id: uuid.UUID, user: CurrentUser, *, action: str, details: str) -> None:
+    user_uuid = uuid.UUID(user.user_id)
+    audit_log_repo.append(
+        db,
+        TenantAuditLog(
+            tenant_id=tenant_id,
+            log_date_time=datetime.now(timezone.utc),
+            log_user=user.role,
+            log_action=action,
+            log_entity="Approval Rule",
+            details=details,
+            created_by=user_uuid,
+            updated_by=user_uuid,
+        ),
+    )
 
 
 def _validate(payload: CreateApprovalRuleRequest) -> Decimal:
@@ -102,5 +125,60 @@ def create_rule(
         updated_at=now,
     )
     approval_rules_repo.insert(db, rule)
+    _log(db, tenant_id, user, action="Created", details=_describe(rule))
     db.commit()
     return _to_response(rule)
+
+
+def _get_rule(db: Session, tenant_id: uuid.UUID, rule_id: uuid.UUID) -> ApprovalMatrixRule:
+    rule = approval_rules_repo.get_by_id(db, tenant_id, rule_id)
+    if rule is None:
+        raise NotFoundError("approval rule not found")
+    return rule
+
+
+def update_rule(
+    db: Session,
+    tenant_id: uuid.UUID,
+    user: CurrentUser,
+    rule_id: uuid.UUID,
+    payload: UpdateApprovalRuleRequest,
+) -> ApprovalRuleResponse:
+    """UC11-BR-004 again on edit: blank fields and a duplicate Contract Type + Value
+    Threshold combination are both blocked. Approvals already in progress are untouched --
+    they routed off the matrix as it stood when they started, and nothing here rewrites
+    those approval rows.
+    """
+    rule = _get_rule(db, tenant_id, rule_id)
+    value_threshold = _validate(payload)
+
+    existing = approval_rules_repo.find_by_type_and_threshold(
+        db, tenant_id, payload.contractType, value_threshold, exclude_id=rule.id
+    )
+    if existing is not None:
+        raise ConflictError(DUPLICATE_RULE_MESSAGE, details=[DUPLICATE_RULE_MESSAGE])
+
+    previous = _describe(rule)
+    rule.contract_type = payload.contractType
+    rule.value_threshold = value_threshold
+    rule.approver_role = payload.approverRole
+    rule.updated_by = uuid.UUID(user.user_id)
+    rule.updated_at = datetime.now(timezone.utc)
+    _log(db, tenant_id, user, action="Updated", details=f"{previous} -> {_describe(rule)}")
+    db.commit()
+    return _to_response(rule)
+
+
+def delete_rule(db: Session, tenant_id: uuid.UUID, user: CurrentUser, rule_id: uuid.UUID) -> None:
+    """Soft delete: the rule stops matching new contracts, while approvals already in
+    progress keep the routing they were given.
+    """
+    rule = _get_rule(db, tenant_id, rule_id)
+    now = datetime.now(timezone.utc)
+    user_uuid = uuid.UUID(user.user_id)
+    rule.deleted_at = now
+    rule.deleted_by = user_uuid
+    rule.updated_at = now
+    rule.updated_by = user_uuid
+    _log(db, tenant_id, user, action="Deleted", details=_describe(rule))
+    db.commit()
