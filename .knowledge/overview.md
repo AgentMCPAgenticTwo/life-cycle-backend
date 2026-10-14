@@ -43,7 +43,8 @@ app/main.py                   FastAPI app wiring: CORS, exception handlers, rout
 app/auth.py                   bearer-token dependency (current_user, require_roles, current_tenant_id)
 app/security.py               password rules/bcrypt hashing, JWT and refresh-token primitives
 app/scripts/create_admin.py   CLI to create/reset the first TENANT_ADMIN
-app/config.py                 Settings read from the environment (PORT, DATABASE_URL, CORS_ORIGINS, JWT_SECRET, token TTLs, refresh-cookie settings)
+app/config.py                 Settings read from the environment (PORT, DATABASE_URL, CORS_ORIGINS, JWT_SECRET, token TTLs, refresh-cookie settings, SMTP_*)
+app/services/notifications.py the one email/in-app notification dispatcher, called by other services after they commit
 app/db.py                     SQLAlchemy Base/engine/SessionLocal/get_db
 app/errors.py                 NotFoundError/ForbiddenError/ConflictError/ValidationFailedError -> shared error body
 app/models/<area>.py          15 files: ORM models, grouped by feature area, not 1:1 with resources
@@ -51,8 +52,8 @@ app/routers/<resource>.py     ~25 files, one APIRouter per resource; thin HTTP b
 app/services/<resource>.py    ~25 files; business rules
 app/repositories/<resource>.py ~23 files; data access only
 app/schemas/<resource>.py     ~26 files; Pydantic request/response DTOs
-alembic/versions/             51 migrations, 0001-0051, one table per migration, applied at startup
-tests/                        32 files, one per resource/concern, pytest
+alembic/versions/             52 migrations, 0001-0052, one table per migration, applied at startup
+tests/                        33 files, one per resource/concern, pytest
 ```
 
 # Entry points

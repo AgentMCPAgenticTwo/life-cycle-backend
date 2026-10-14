@@ -12,8 +12,12 @@ EVENT_NAMES = (
     "Contract Sent for Approval",
     "Contract Approved",
     "Contract Rejected",
+    "Contract Sent Back",
+    "Contract Ready for Signature",
     "Contract Sent for Signature",
+    "Contract Signature Declined",
     "Contract Signed",
+    "New User Invited",
     "Contract Expiring Soon",
     "Contract Renewed",
 )

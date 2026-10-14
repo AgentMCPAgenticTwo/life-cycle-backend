@@ -1,7 +1,7 @@
 ---
 type: Module
 title: tests
-description: 32 pytest files, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.
+description: 33 pytest files, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/tests
 tags: [backend, tests, pytest]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
@@ -19,6 +19,11 @@ every resource named in [modules/index.md](/modules/index.md) (e.g. `test_contra
 `test_approvals.py`, `test_tracker_ownership.py`, `test_settings_users.py`) plus cross-cutting
 `test_auth.py`, `test_errors.py`, `test_health.py`, `test_pagination.py`, `test_persistence.py`.
 
+`tests/test_notifications.py` is the one test file with no router behind it: it calls
+`app.services.notifications.dispatch` directly and asserts the toggle gating, the
+`TenantAuditLog` rows written for the in-app channel, and that a failing send does not raise.
+See [Notifications](/modules/notifications.md).
+
 # Authenticated requests
 
 `tests/conftest.py` exports `auth_headers(role, user_id, tenant_id=None)` — the one shared
@@ -27,8 +32,11 @@ helper, added when bearer auth replaced the header stub. It mints a real JWT wit
 an endpoint enforces is read from the seeded `users` row, not from this argument, so a test must
 seed that user with the role it passes. `tests/test_auth.py` covers the login/refresh/logout/
 me/change-password flow itself; see [Auth](/modules/auth.md). The schema under test is built from
-`Base.metadata` (SQLite `StaticPool`), not from Alembic — which is why the missing auth migration
-noted in [Migrations](/modules/migrations.md) does not fail the suite.
+`Base.metadata` (SQLite `StaticPool`), not from Alembic. `test_persistence.py` is what ties the
+two together — `test_migration_chain_matches_contract_order_exactly` walks the revision chain
+and `test_migration_upgrade_sql_generates_offline_without_a_database` renders the DDL in
+`--sql` mode, so the auth revision noted in [Migrations](/modules/migrations.md) is checked
+without a live Postgres.
 
 # Shared fixture patterns (graph clusters)
 

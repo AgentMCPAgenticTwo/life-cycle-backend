@@ -27,6 +27,7 @@ from app.schemas.settings_users import (
     UpdateUserStatusRequest,
 )
 from app.security import PASSWORD_RULE_MESSAGE, generate_password, hash_password, password_violations
+from app.services import notifications
 from app.services.auth import role_code_for
 
 REQUIRED_FIELDS_MESSAGE = "Please complete all required fields"
@@ -197,6 +198,22 @@ def create_user(db: Session, tenant_id: uuid.UUID, user: CurrentUser, payload: C
     )
     _log(db, tenant_id, user, action="Created", entity_label="User", details=f"Created user {row.email}")
     db.commit()
+    # The invite goes out through the one notification service. The temporary password is
+    # handed over by the admin, never mailed, so it stays out of the message body.
+    notifications.dispatch(
+        db,
+        tenant_id,
+        notifications.EVENT_USER_INVITED,
+        recipients=[row.email],
+        subject="You have been invited to the contract lifecycle application",
+        body=(
+            f"Hello {row.name}, an account has been created for you with the role "
+            f"{row.role}. Your administrator will share your temporary password, which you "
+            "must change at first login."
+        ),
+        entity="User",
+        actor_id=actor_uuid,
+    )
     return CreateUserResponse(**_to_response(row).model_dump(), temporaryPassword=password)
 
 

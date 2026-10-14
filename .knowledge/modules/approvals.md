@@ -34,6 +34,9 @@ Service (`app/services/approvals.py`): 21 functions — the largest service file
 Business rules live in `_resolve_approver_for_step`, `_get_or_create_step_instance`,
 `_active_delegation_for`, and the big `submit_action`/`submit_delegation` functions
 (each 100+ lines); `_write_audit_log` centralizes audit-trail writes for this resource.
+`_ACTION_EVENTS` maps each wire action (`Approve`/`Reject`/`SendBack`) to a notification event,
+and `_notify_action` fires it — plus the ready-for-signature event when the final step clears —
+through [Notifications](/modules/notifications.md), after `submit_action` has committed.
 See [Architecture > Layering](/architecture.md#layering) for the evidence this confirms the
 CLAUDE.md layering rule.
 

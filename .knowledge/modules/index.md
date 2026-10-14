@@ -3,6 +3,7 @@
 # Cross-cutting
 
 * [App Core](/modules/app-core.md) - Cross-cutting FastAPI app wiring shared by every resource module — entry point, bearer auth, settings, DB session, shared error types and model mixins.
+* [Notifications](/modules/notifications.md) - The single outbound-notification service — every email and in-app alert in the app goes through `dispatch`, gated by the tenant's Settings > Notifications toggles.
 * [Auth](/modules/auth.md) - Real login — JWT access tokens, rotating httpOnly-cookie refresh tokens, bcrypt password storage and the admin bootstrap script that replaced the X-User-Role/X-User-Id header stub.
 
 # uc123 batch
@@ -36,5 +37,5 @@
 
 # Infrastructure
 
-* [Migrations](/modules/migrations.md) - 51 Alembic migrations, one table per revision, applied automatically at app startup, never reordered or edited once merged.
-* [Tests](/modules/tests.md) - 32 pytest files, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.
+* [Migrations](/modules/migrations.md) - 52 Alembic migrations, one table per revision, applied automatically at app startup, never reordered or edited once merged.
+* [Tests](/modules/tests.md) - 33 pytest files, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.

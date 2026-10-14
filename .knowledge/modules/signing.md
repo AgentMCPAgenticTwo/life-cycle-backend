@@ -37,3 +37,13 @@ status: stable
 Signers are added to contracts that have cleared [Approvals](/modules/approvals.md); e-signature
 behavior (reminder cadence, OTP expiry) is configured via
 [E-signature Settings](/modules/esignature-settings.md).
+
+# Notifications
+
+Three of this module's actions emit events through
+[Notifications](/modules/notifications.md), each after its own commit:
+`signers.send_for_signature` and `signing_sessions.apply_signature` (to the next signer in
+order) send `Contract Sent for Signature`, `apply_signature` also sends `Contract Signed` once
+the last signer completes, and `signing_sessions.decline_signature` sends
+`Contract Signature Declined`. Delivery failures are swallowed there, so an unreachable mail
+server cannot roll back a recorded signature.
