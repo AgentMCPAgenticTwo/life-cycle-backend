@@ -13,13 +13,13 @@ comes back 401 while the API itself is fine.
 import uuid
 from dataclasses import dataclass
 
-from fastapi import Depends, HTTPException, Security
+from fastapi import Depends, HTTPException, Query, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.user import User
-from app.security import decode_access_token
+from app.security import decode_access_token, decode_file_token
 
 bearer_scheme = HTTPBearer(scheme_name="BearerAuth", auto_error=False)
 
@@ -47,6 +47,10 @@ def current_user(
         user_uuid = uuid.UUID(str(claims["sub"]))
     except (ValueError, TypeError):
         raise HTTPException(status_code=401, detail="invalid or expired access token")
+    return _load_current_user(db, user_uuid)
+
+
+def _load_current_user(db: Session, user_uuid: uuid.UUID) -> CurrentUser:
     row = db.query(User).filter(User.id == user_uuid, User.deleted_at.is_(None)).first()
     if row is None:
         raise HTTPException(status_code=401, detail="invalid or expired access token")
@@ -60,6 +64,31 @@ def current_user(
         email=row.email,
         must_change_password=bool(row.must_change_password),
     )
+
+
+def file_access_user(
+    request: Request,
+    token: str | None = Query(
+        None,
+        description="Short-lived file token from the `fileUrl` of a download endpoint. "
+        "Only needed when the caller cannot send an Authorization header.",
+    ),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> CurrentUser:
+    """Authenticates a raw-bytes download. The browser opens these URLs directly (window.open
+    / `<a download>`) and cannot attach a bearer header, so a signed `token` bound to this
+    exact path is accepted as well -- never an unauthenticated public link."""
+    if token:
+        claims = decode_file_token(token, request.url.path)
+        if claims is None or not claims.get("sub"):
+            raise HTTPException(status_code=401, detail="invalid or expired file token")
+        try:
+            user_uuid = uuid.UUID(str(claims["sub"]))
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=401, detail="invalid or expired file token")
+        return _load_current_user(db, user_uuid)
+    return current_user(credentials, db)
 
 
 def require_roles(*allowed: str):
@@ -78,6 +107,14 @@ def require_roles(*allowed: str):
         return user
 
     return _check
+
+
+def file_access_tenant_id(user: CurrentUser = Depends(file_access_user)) -> uuid.UUID:
+    """`current_tenant_id` for the byte-serving download endpoints -- it reads the tenant off
+    the already-resolved caller, so a file-token request does not need a bearer header."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=401, detail="invalid or expired access token")
+    return user.tenant_id
 
 
 def current_tenant_id(

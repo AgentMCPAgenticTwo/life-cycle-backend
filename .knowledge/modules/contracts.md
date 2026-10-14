@@ -5,9 +5,10 @@ description: Contract listing, detail and creation including third-party-paper i
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/contracts.py
 tags: [backend, uc123, contracts]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ f6503176d1f18e22902205491eb04e6059b7ca03
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -50,9 +51,20 @@ This resource is the sample used to confirm CLAUDE.md's layering rule holds in p
   `_validate_template_and_paper_selection`, `_resolve_counterparty`, `_validate_contract_owner`,
   `_validate_dates`, `_validate_notice_period` run before `create_contract` persists anything.
   `_to_list_item`/`_to_response` are the explicit (no-mapper-library) DTO mapping functions.
-* Repository (`app/repositories/contracts.py`): 10 pure-query functions — `get_by_id`,
+* Repository (`app/repositories/contracts.py`): pure-query functions — `get_by_id`,
   `list_by_tenant`, `insert_contract`, `get_user`, `get_counterparty`, `insert_counterparty`,
-  `get_template`, `get_uploaded_file`, `get_current_task_for_assignee`.
+  `get_template`, `get_uploaded_file`, `get_current_task_for_assignee`,
+  `is_workflow_participant`.
+
+# Workflow participants may open their contracts
+
+`_has_permitted_access` first looks for a `contract_tasks` row assigning the caller this
+contract's pending step. Failing that, a `LEGAL_REVIEWER`/`APPROVER` is still permitted when
+`is_workflow_participant` finds them on the contract's negotiation routing
+(`negotiation_reviewers`) or on one of its approval steps / delegations
+(`approval_step_instances`, `approval_delegations`) — otherwise a reviewer lost access to a
+contract the moment their step advanced. The same query backs
+[Contract Lifecycle](/modules/contract-lifecycle.md)'s `_assert_viewable`.
 
 # Relationships
 

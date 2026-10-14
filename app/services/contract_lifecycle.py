@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.auth import CurrentUser
+from app.config import settings
 from app.errors import ConflictError, ForbiddenError, NotFoundError, ValidationFailedError
 from app.models.contract import Contract
 from app.models.contract_lifecycle import (
@@ -46,6 +47,8 @@ from app.schemas.contract_lifecycle import (
     UpdateObligationRequest,
 )
 from app.schemas.pagination import PageParams
+from app.security import create_file_token
+from app.services import contract_documents
 
 # UC8-BR-006: "the system's supported upload size from UC2" is never given a literal number
 # anywhere in this task's contract or stories -- this constant is a judgement call (25 MiB),
@@ -171,7 +174,36 @@ def download_document(
     # UC8-BR-006: oversized documents are blocked from download with 'File unavailable'.
     if doc.file_size_bytes > OVERSIZED_FILE_BYTES:
         return DocumentDownloadResponse(success=False, errorMessage="File unavailable")
-    return DocumentDownloadResponse(success=True, fileUrl=doc.storage_path)
+    if contract_documents.read_document_bytes(doc.storage_path) is None:
+        # The row exists but no bytes were ever stored behind it -- same outcome as AF-005.
+        return DocumentDownloadResponse(
+            success=False,
+            errorMessage="This document could not be retrieved. Please contact your administrator.",
+        )
+    # fileUrl must be an absolute URL on THIS API that serves the raw bytes: the browser
+    # follows it directly, so a relative path would resolve against the SPA origin and a
+    # header-authenticated URL could not be opened at all. Hence the signed file token.
+    path = f"/api/v1/contracts/{contract.id}/document/file"
+    token = create_file_token(uuid.UUID(user.user_id), tenant_id, path)
+    return DocumentDownloadResponse(success=True, fileUrl=f"{settings.api_base_url}{path}?token={token}")
+
+
+def get_document_file(
+    db: Session, tenant_id: uuid.UUID, user: CurrentUser, contract_id: uuid.UUID
+) -> tuple[bytes, str, str]:
+    """`(content, content_type, file_name)` for the bytes behind a download `fileUrl`."""
+    contract = _get_contract_or_404(db, tenant_id, contract_id)
+    _assert_viewable(db, user, contract)
+    doc = repo.get_current_document(db, contract.id)
+    if doc is None or doc.is_corrupted_or_missing or doc.file_size_bytes > OVERSIZED_FILE_BYTES:
+        raise NotFoundError("document not found")
+    content = contract_documents.read_document_bytes(doc.storage_path)
+    if content is None:
+        raise NotFoundError("document not found")
+    content_type = contract_documents.CONTENT_TYPES.get(
+        doc.file_type.upper(), "application/octet-stream"
+    )
+    return content, content_type, doc.file_name
 
 
 # --------------------------------------------------------------------------- Versions tab ---

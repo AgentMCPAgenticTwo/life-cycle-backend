@@ -1,13 +1,14 @@
 ---
 type: Module
 title: migrations
-description: 52 Alembic migrations, one table per revision, applied automatically at app startup, never reordered or edited once merged.
+description: 53 Alembic migrations, one table per revision (plus one data-only fix-up), applied automatically at app startup, never reordered or edited once merged.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/alembic/versions
 tags: [backend, migrations, alembic, postgresql]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -15,7 +16,7 @@ status: stable
 # Structure
 
 `alembic/versions/0001_create_tenants.py` through
-`0052_add_user_credentials_and_refresh_tokens.py`, applied in
+`0053_unify_contract_status_flow.py`, applied in
 order by `app.main._run_migrations` (see [App Core](/modules/app-core.md)) at every startup via
 `command.upgrade(cfg, "head")`. Each file creates exactly one table (confirmed by reading
 `0042_create_contract_lifecycle_stage_history.py`, which only calls `op.create_table` once plus
@@ -31,6 +32,7 @@ one `op.create_index`).
 | 0031-0041 | life-cycle-uc8-uc9 | contract lifecycle alterations, contract_assignments, contract_documents, contract_versions, folder_tags, contract_folder_tags, activity_log_entries, obligations, renewal_alerts, contract_lifecycle_actions, obligation_audit_log |
 | 0042-0051 | lifecycle-uc10-uc11 | contract_lifecycle_stage_history, contract_owners, contract_turnaround_metrics, turnaround_override_log, tenant_bottleneck_thresholds, tenant_users, approval_matrix_rules, tenant_integrations, tenant_notification_settings, tenant_audit_log |
 | 0052 | auth correction | `users` credential columns, refresh_tokens |
+| 0053 | status-flow correction | no DDL — data-only rewrite of `contracts.status`, `approvals.status`, `negotiation_routings.negotiation_status` |
 
 # Convention: additive only
 
@@ -52,6 +54,16 @@ that gap: it `op.add_column`s the four `users` columns, creates `refresh_tokens`
 repo that alters a table created by an earlier batch (`users`, from `0002_create_users.py`) —
 done additively, as a new revision, rather than by editing `0002`. See
 [Auth](/modules/auth.md) and [Conventions](/conventions.md).
+
+# 0053 is the repo's first data-only revision
+
+`0053_unify_contract_status_flow.py` (revision `UnifyContractStatusFlow`, `down_revision =
+"AddUserCredentialsAndRefreshTokens"`) creates and alters nothing: it is six `op.execute`
+`UPDATE`s that bring existing rows onto the unified status vocabulary described in
+[Contract Status](/modules/contract-status.md). Its `downgrade` is deliberately a no-op —
+two old values fold into one going forward, and the application still reads the old spellings.
+A migration that only moves data is still a new numbered revision, never an edit to an earlier
+one.
 
 # Seeding happens in app code, not in migrations
 

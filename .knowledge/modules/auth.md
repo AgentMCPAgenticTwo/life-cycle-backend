@@ -5,9 +5,10 @@ description: Real login — JWT access tokens, rotating httpOnly-cookie refresh 
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/auth.py
 tags: [backend, auth, jwt, security]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T08:07:59Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -53,6 +54,26 @@ because the frontend contract spells the auth routes without the `/api/v1` base 
   (`revoke_all_for_user`) and issues one replacement.
 * The caller's **role is read from the `users` row on every request**, not from token claims, so
   deactivation or a role change takes effect on the next request rather than the next login.
+
+# File tokens — the one exception to "bearer only"
+
+A `fileUrl` is opened by the browser itself (`window.open`, `<a download>`), which cannot attach
+an `Authorization` header. Rather than make those URLs public, the byte-serving endpoints accept
+a second credential:
+
+* `app.security.create_file_token(user_id, tenant_id, resource)` signs a JWT with the same
+  `jwt_secret`/`jwt_algorithm`, `purpose: "file"`, the `resource` path it is pinned to, and a TTL
+  of `settings.file_token_ttl_minutes` (`FILE_TOKEN_TTL_MINUTES`, default 15).
+  `decode_file_token(token, resource)` returns the claims only when both `purpose` and
+  `resource` match, so a token cannot be replayed against another file.
+* `app.auth.file_access_user` takes an optional `token` query parameter; with one it decodes and
+  loads the user through `_load_current_user` (factored out of `current_user`), otherwise it
+  falls back to `current_user` and the bearer header. `file_access_tenant_id` reads the tenant
+  off that already-resolved caller.
+* Because these are not `require_roles` dependencies, the two routers using them re-check the
+  role in the handler and raise 403 themselves — see
+  [Contract Lifecycle](/modules/contract-lifecycle.md) (`GET .../document/file`) and
+  [Tracker](/modules/tracker.md) (`GET /tracker/exports/{fileId}`).
 
 # Passwords
 

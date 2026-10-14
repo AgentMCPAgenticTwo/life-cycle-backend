@@ -29,6 +29,7 @@ from app.models.uploaded_file import UploadedFile
 from app.repositories import files as files_repo
 from app.repositories import tracker_bottleneck as repo
 from app.schemas.tracker_export import FORMATS, TABS, TrackerExportRequest, TrackerExportResponse
+from app.security import create_file_token
 from app.services import export_files
 
 PERIOD_REQUIRED_MESSAGE = "Period selection is required."
@@ -232,7 +233,12 @@ def _persist_export(
         ),
     )
     db.commit()
-    return f"/api/v1/tracker/exports/{file_id}"
+    # An absolute URL on THIS API, carrying a short-lived file token: the frontend opens the
+    # fileUrl in a new tab, so a relative path would resolve against the SPA origin (a blank
+    # screen) and a header-authenticated URL could not be opened at all.
+    path = f"/api/v1/tracker/exports/{file_id}"
+    token = create_file_token(user_uuid, tenant_id, path)
+    return f"{settings.api_base_url}{path}?token={token}"
 
 
 def get_export_file(

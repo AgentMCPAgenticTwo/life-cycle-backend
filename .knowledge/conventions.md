@@ -5,9 +5,10 @@ description: Bearer-token auth, layering, persistence, error-shape and id conven
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app
 tags: [backend, conventions, auth, persistence]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -31,6 +32,29 @@ Real login replaced the former `X-User-Role`/`X-User-Id` header stub; see
   "bad input".
 * Roles are passed as `*allowed: str` into `require_roles(...)` per call site, sourced from each
   endpoint's own contract — confirmed no hard-coded role list spans modules it shouldn't.
+* **Byte-serving download endpoints are the one exception**: `app.auth.file_access_user` accepts
+  either the bearer header or a short-lived signed `token` query parameter pinned to that exact
+  path, because the browser opens a `fileUrl` directly and cannot set headers. Those two routes
+  re-check the caller's role in the handler, since they cannot use `require_roles`. They are
+  never unauthenticated. See [Auth](/modules/auth.md#file-tokens--the-one-exception-to-bearer-only).
+
+# Contract status (verified in `app/services/contract_status.py`)
+
+One vocabulary, one writer. `Draft -> In Negotiation -> Pending Approval -> Pending Signature ->
+Executed`, plus `Rejected` and `Signature Declined`; every change goes through
+`contract_status.transition`, which also appends the Activity Log row, and no service assigns
+`Contract.status` directly except the two legacy-normalising spots noted in
+[Contract Status](/modules/contract-status.md). Signer-level states (`Sent`, `Viewed`, `Signed`,
+`Declined`) are never contract statuses. Values are stored as their display strings, matching
+the "store enum-like values as their string names" rule.
+
+# File URLs (verified in `app/config.py`, `app/security.py` and the two byte endpoints)
+
+Any `fileUrl` returned to the frontend is an **absolute** URL on this API, built from
+`settings.api_base_url` and carrying a `create_file_token` JWT; a relative path would resolve
+against the SPA origin and return the app shell instead of the file. Bytes live on disk under
+`settings.document_storage_dir` / `settings.export_storage_dir` — no object-storage client is
+declared in this repo's manifest.
 
 # Layering (verified by sampling `contracts` and `approvals`)
 

@@ -5,6 +5,7 @@
 * [App Core](/modules/app-core.md) - Cross-cutting FastAPI app wiring shared by every resource module — entry point, bearer auth, settings, DB session, shared error types and model mixins.
 * [Notifications](/modules/notifications.md) - The single outbound-notification service — every email and in-app alert in the app goes through `dispatch`, gated by the tenant's Settings > Notifications toggles.
 * [Scheduled Notifications](/modules/scheduled-notifications.md) - The time-driven half of notifications — an in-process sweep that fires UC5 reviewer reminders, UC7 signature reminders and UC9 renewal alerts because a date passed rather than because an endpoint was called.
+* [Contract Status](/modules/contract-status.md) - The one contract status flow — the shared `contracts.status` vocabulary, the `transition` helper that logs every change to the Activity Log, and the legacy-value readers.
 * [Auth](/modules/auth.md) - Real login — JWT access tokens, rotating httpOnly-cookie refresh tokens, bcrypt password storage and the admin bootstrap script that replaced the X-User-Role/X-User-Id header stub.
 
 # uc123 batch
@@ -40,5 +41,5 @@
 
 # Infrastructure
 
-* [Migrations](/modules/migrations.md) - 52 Alembic migrations, one table per revision, applied automatically at app startup, never reordered or edited once merged.
+* [Migrations](/modules/migrations.md) - 53 Alembic migrations, one table per revision (plus one data-only fix-up), applied automatically at app startup, never reordered or edited once merged.
 * [Tests](/modules/tests.md) - 34 `test_*.py` files plus `conftest.py`, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.

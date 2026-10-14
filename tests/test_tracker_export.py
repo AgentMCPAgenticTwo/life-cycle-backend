@@ -59,6 +59,12 @@ def _headers(role: str, user_id: uuid.UUID) -> dict:
     return auth_headers(role, user_id)
 
 
+def _download_path(file_url: str) -> str:
+    """`fileUrl` is absolute (the browser opens it directly); the test client wants the path."""
+    assert file_url.startswith(settings.api_base_url)
+    return file_url[len(settings.api_base_url) :]
+
+
 def _seed_contract(
     db_session,
     tenant_id: uuid.UUID,
@@ -227,10 +233,11 @@ def test_happy_path_bottleneck_export_excel(db_client, db_session):
     body = response.json()
     assert body["success"] is True
     assert body["failureMessage"] is None
-    assert body["fileUrl"].startswith("/api/v1/tracker/exports/")
+    assert body["fileUrl"].startswith(f"{settings.api_base_url}/api/v1/tracker/exports/")
 
-    # The URL serves a real .xlsx (a zip of SpreadsheetML parts), not a placeholder.
-    download = db_client.get(body["fileUrl"], headers=_headers(TENANT_ADMIN, user_id))
+    # The URL serves a real .xlsx (a zip of SpreadsheetML parts), not a placeholder. The
+    # browser opens it directly, so it authenticates on its own token -- no headers sent.
+    download = db_client.get(_download_path(body["fileUrl"]))
     assert download.status_code == 200
     assert download.headers["content-type"].startswith(
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -251,10 +258,10 @@ def test_happy_path_turnaround_export_pdf(db_client, db_session):
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True
-    assert body["fileUrl"].startswith("/api/v1/tracker/exports/")
+    assert body["fileUrl"].startswith(f"{settings.api_base_url}/api/v1/tracker/exports/")
 
     # The URL serves a real PDF whose text stream carries the Turnaround tab's columns.
-    download = db_client.get(body["fileUrl"], headers=_headers(TENANT_ADMIN, user_id))
+    download = db_client.get(_download_path(body["fileUrl"]))
     assert download.status_code == 200
     assert download.headers["content-type"].startswith("application/pdf")
     assert download.content.startswith(b"%PDF-")

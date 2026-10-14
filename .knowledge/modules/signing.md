@@ -5,9 +5,10 @@ description: Contract signer management and the OTP-based signing-session flow (
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/signers.py
 tags: [backend, uc6-uc7-combined, signing, esignature]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ a01dca2cd1cf0d1b42a73a36cc3fce4dadcc0c75
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -27,6 +28,18 @@ status: stable
 * `GET /signing-sessions/{sessionId}`, `POST .../otp/verify`, `POST .../otp/resend`,
   `POST .../sign`, `POST .../decline`
 * `GET /contracts/{contractId}/audit-certificate`
+
+# Contract status vs signer status
+
+Send for Signature is available only while the contract is `Pending Signature`
+(`contract_status.is_pending_signature`, which also accepts the legacy `Ready For Signature` /
+`Sent` rows), and **sending does not change the contract status** — `Sent`, `Viewed`, `Signed`
+and `Declined` are per-signer values. `_already_sent` (any signer past `Pending`) blocks a second
+send and clears `sendForSignatureEnabled`; the two 409 texts are `_SEND_PRECONDITION_MESSAGE`
+and `_ALREADY_SENT_MESSAGE`. `decline_signature` writes
+`contract_status.SIGNATURE_DECLINED` (spaced), and the session responses now echo
+`contract.status` verbatim instead of a hard-coded `Sent`/`SignatureDeclined`. See
+[Contract Status](/modules/contract-status.md).
 
 # Hotspot
 

@@ -5,9 +5,10 @@ description: Layered FastAPI architecture with a single authorization chokepoint
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app
 tags: [backend, architecture, fastapi]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ f6503176d1f18e22902205491eb04e6059b7ca03
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -55,6 +56,24 @@ changing the dependency's signature, so no router was touched; see [Auth](/modul
 resolve a tenant scope, and is itself the join point every tenant-scoped resource relies on
 instead of re-querying `users`. See [Conventions](/conventions.md) for the status-code contract
 this enforces.
+
+`require_roles` is the chokepoint for every endpoint **except** the two that serve raw file
+bytes (`GET /contracts/{contractId}/document/file`, `GET /tracker/exports/{fileId}`). Those
+depend on `app.auth.file_access_user`, which accepts a signed single-resource file token when
+the browser cannot send a header, and re-check the role inside the handler so the 403 case is
+preserved. See [Auth](/modules/auth.md).
+
+# Cross-module workflow services
+
+Three services are shared across batch boundaries rather than owned by one module, and are the
+places a cross-cutting change lands: `app/services/notifications.py`
+([Notifications](/modules/notifications.md)), `app/services/scheduled_notifications.py`
+([Scheduled Notifications](/modules/scheduled-notifications.md)) and
+`app/services/contract_status.py` ([Contract Status](/modules/contract-status.md)). The last one
+made the workflow a single chain across three batches: `lifecycle_negotiation.mark_agreed`
+(uc4-uc5) calls `approvals.start_approval` (uc6-uc7) in-process, and a final approval moves the
+contract to `Pending Signature`, which is the precondition `signers.send_for_signature` checks.
+Each of those edges crosses a cluster boundary, so a status-vocabulary change touches all three.
 
 # Module clusters (from graph community detection)
 

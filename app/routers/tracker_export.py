@@ -4,21 +4,29 @@ for the exact path, roles and DTOs.
 """
 import uuid
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from app.auth import CurrentUser, current_tenant_id, require_roles
+from app.auth import (
+    CurrentUser,
+    current_tenant_id,
+    file_access_tenant_id,
+    file_access_user,
+    require_roles,
+)
 from app.db import get_db
 from app.schemas.tracker_export import TrackerExportRequest, TrackerExportResponse
 from app.services import tracker_export as export_service
 
 router = APIRouter(prefix="/tracker", tags=["tracker"])
 
+_EXPORT_ROLES = ("TENANT_ADMIN", "CONTRACT_OWNER", "LEGAL_REVIEWER", "APPROVER")
+
 
 @router.post("/export", response_model=TrackerExportResponse)
 def export_tracker_tab(
     payload: TrackerExportRequest,
-    user: CurrentUser = Depends(require_roles("TENANT_ADMIN", "CONTRACT_OWNER", "LEGAL_REVIEWER", "APPROVER")),
+    user: CurrentUser = Depends(require_roles(*_EXPORT_ROLES)),
     tenant_id: uuid.UUID = Depends(current_tenant_id),
     db: Session = Depends(get_db),
 ) -> TrackerExportResponse:
@@ -28,12 +36,17 @@ def export_tracker_tab(
 @router.get("/exports/{fileId}")
 def download_export_file(
     fileId: uuid.UUID,
-    user: CurrentUser = Depends(require_roles("TENANT_ADMIN", "CONTRACT_OWNER", "LEGAL_REVIEWER", "APPROVER")),
-    tenant_id: uuid.UUID = Depends(current_tenant_id),
+    user: CurrentUser = Depends(file_access_user),
+    tenant_id: uuid.UUID = Depends(file_access_tenant_id),
     db: Session = Depends(get_db),
 ) -> Response:
     """Serves the bytes behind a `TrackerExportResponse.fileUrl`. Not a tab DTO, so it
-    returns the file itself rather than a JSON body."""
+    returns the file itself rather than a JSON body. Authenticated by the bearer token when
+    the caller can send one, otherwise by the signed `token` the fileUrl carries."""
+    if user.role not in _EXPORT_ROLES:
+        raise HTTPException(
+            status_code=403, detail=f"role {user.role} is not permitted for this endpoint"
+        )
     content, content_type, file_name = export_service.get_export_file(db, tenant_id, fileId)
     return Response(
         content=content,

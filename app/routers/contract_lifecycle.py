@@ -8,10 +8,16 @@ see this task's `blockers`.
 """
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from app.auth import CurrentUser, current_tenant_id, require_roles
+from app.auth import (
+    CurrentUser,
+    current_tenant_id,
+    file_access_tenant_id,
+    file_access_user,
+    require_roles,
+)
 from app.db import get_db
 from app.schemas.contract_lifecycle import (
     ActivityLogListResponse,
@@ -58,6 +64,28 @@ def download_document(
     db: Session = Depends(get_db),
 ) -> DocumentDownloadResponse:
     return service.download_document(db, tenant_id, user, contractId)
+
+
+@router.get("/{contractId}/document/file")
+def get_document_file(
+    contractId: uuid.UUID,
+    user: CurrentUser = Depends(file_access_user),
+    tenant_id: uuid.UUID = Depends(file_access_tenant_id),
+    db: Session = Depends(get_db),
+) -> Response:
+    """The raw bytes a `DocumentDownloadResponse.fileUrl` points at -- the browser follows
+    that URL directly, so this returns the file itself rather than a JSON body. Authenticated
+    by the bearer token when one is sent, otherwise by the signed `token` in the fileUrl."""
+    if user.role not in _ALL_ROLES:
+        raise HTTPException(
+            status_code=403, detail=f"role {user.role} is not permitted for this endpoint"
+        )
+    content, content_type, file_name = service.get_document_file(db, tenant_id, user, contractId)
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
+    )
 
 
 @router.get("/{contractId}/versions", response_model=ContractVersionListResponse)
