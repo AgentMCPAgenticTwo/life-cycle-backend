@@ -26,6 +26,7 @@ from app.models.contract_lifecycle import (
 )
 from app.models.user import User
 from app.repositories import contract_lifecycle as repo
+from app.repositories import contracts as contracts_repo
 from app.schemas.contract_lifecycle import (
     ActivityLogEntryResponse,
     ActivityLogListResponse,
@@ -98,6 +99,9 @@ def _assert_viewable(db: Session, user: CurrentUser, contract: Contract) -> None
         raise ForbiddenError(_NO_PERMISSION_MESSAGE)
     if user.role in ("LEGAL_REVIEWER", "APPROVER"):
         if repo.get_assignment(db, contract.id, user_id, user.role) is not None:
+            return
+        # Also linked through the negotiation / approval workflow.
+        if contracts_repo.is_workflow_participant(db, contract.id, user_id):
             return
         raise ForbiddenError(_NO_PERMISSION_MESSAGE)
     raise ForbiddenError(_NO_PERMISSION_MESSAGE)

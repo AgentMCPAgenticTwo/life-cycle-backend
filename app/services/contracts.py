@@ -144,7 +144,13 @@ def _has_permitted_access(db: Session, user: CurrentUser, contract: Contract) ->
     # LEGAL_REVIEWER / APPROVER / SIGNER: permitted only while a `contract_tasks` row
     # currently assigns them this contract's pending step (UC1-AF-006's Approver example).
     task = contracts_repo.get_current_task_for_assignee(db, contract.id, user_uuid)
-    return task is not None
+    if task is not None:
+        return True
+    # A Legal Reviewer / Approver linked to the contract's negotiation or approval workflow
+    # can open the contracts they work on.
+    if user.role in ("LEGAL_REVIEWER", "APPROVER"):
+        return contracts_repo.is_workflow_participant(db, contract.id, user_uuid)
+    return False
 
 
 def get_contract_detail(

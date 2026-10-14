@@ -819,3 +819,24 @@ def test_add_comment_tied_to_current_version(db_client, db_session):
     assert resp.status_code == 200
     assert resp.json()["versionNumber"] == 1
     assert resp.json()["commentText"] == "Please clarify clause 2."
+
+
+# ---- workflow participants can open their contracts ------------------------------------------
+
+
+def test_linked_reviewer_and_approver_can_open_the_contract(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    (approver_id,) = _seed_approval_rule(db_session, tenant_id)
+    unlinked_legal = _seed_user(db_session, tenant_id, LEGAL_REVIEWER)
+    _route(db_client, contract_id, owner_id, [legal_id])
+
+    for path in (f"/api/v1/contracts/{contract_id}", f"/api/v1/contracts/{contract_id}/versions"):
+        assert db_client.get(path, headers=_headers(LEGAL_REVIEWER, legal_id)).status_code == 200
+        assert db_client.get(path, headers=_headers(LEGAL_REVIEWER, unlinked_legal)).status_code == 403
+        # Not yet on an approval step.
+        assert db_client.get(path, headers=_headers(APPROVER, approver_id)).status_code == 403
+
+    assert _review_and_mark_agreed(db_client, contract_id, legal_id).status_code == 200
+    resp = db_client.get(f"/api/v1/contracts/{contract_id}", headers=_headers(APPROVER, approver_id))
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "Pending Approval"

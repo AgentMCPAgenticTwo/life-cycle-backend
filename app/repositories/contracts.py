@@ -8,8 +8,10 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from app.models.approval import Approval, ApprovalDelegation, ApprovalStepInstance
 from app.models.contract import Contract, ContractTask
 from app.models.counterparty import Counterparty
+from app.models.lifecycle_negotiation import NegotiationReviewer, NegotiationRouting
 from app.models.template import Template
 from app.models.uploaded_file import UploadedFile
 from app.models.user import User
@@ -124,6 +126,34 @@ def get_uploaded_file(db: Session, tenant_id: uuid.UUID, file_id: uuid.UUID) -> 
         )
         .first()
     )
+
+
+def is_workflow_participant(db: Session, contract_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    """True when the user is linked to this contract's workflow: an internal reviewer on its
+    negotiation routing, or the approver / a delegate on any of its approval steps."""
+    reviewer = (
+        db.query(NegotiationReviewer.id)
+        .join(NegotiationRouting, NegotiationRouting.id == NegotiationReviewer.negotiation_routing_id)
+        .filter(NegotiationRouting.contract_id == contract_id, NegotiationReviewer.reviewer_id == user_id)
+        .first()
+    )
+    if reviewer is not None:
+        return True
+    approver = (
+        db.query(ApprovalStepInstance.id)
+        .join(Approval, Approval.id == ApprovalStepInstance.approval_id)
+        .filter(Approval.contract_id == contract_id, ApprovalStepInstance.approver_user_id == user_id)
+        .first()
+    )
+    if approver is not None:
+        return True
+    delegate = (
+        db.query(ApprovalDelegation.id)
+        .join(Approval, Approval.id == ApprovalDelegation.approval_id)
+        .filter(Approval.contract_id == contract_id, ApprovalDelegation.delegate_to_user_id == user_id)
+        .first()
+    )
+    return delegate is not None
 
 
 def get_current_task_for_assignee(
