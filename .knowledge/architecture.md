@@ -4,10 +4,10 @@ title: life-cycle-backend architecture
 description: Layered FastAPI architecture with a single authorization chokepoint and five incrementally-added use-case modules sharing one app skeleton.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app
 tags: [backend, architecture, fastapi]
-generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
+generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
+    resource: codebase-memory-mcp project life-cycle-backend @ f6503176d1f18e22902205491eb04e6059b7ca03
     title: Codebase knowledge graph
 status: stable
 ---
@@ -28,6 +28,13 @@ Confirmed by sampling `contracts` and `approvals` (router -> service -> reposito
   `get_by_id`, `list_by_tenant`, `insert_contract`, `get_counterparty`, etc. No business rules;
   `_SORTABLE_COLUMNS` is the only non-query logic, and it's query-shaping (sort allow-list), not
   a business rule.
+
+Two services have no router above them and are reached only from another service:
+`app/services/contract_documents.py` (called by `create_contract`, see
+[Contract Documents](/modules/contract-documents.md)) and `app/services/notifications.py`. They
+still obey the rule — they own rules and delegate every query to a repository, including
+[Contract Lifecycle](/modules/contract-lifecycle.md)'s `insert_document`/
+`insert_contract_version`, rather than opening their own.
 
 The same router -> service -> repository split holds for `approvals`
 (`app/routers/approvals.py` -> `app/services/approvals.py`, 21 functions including
