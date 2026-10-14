@@ -2,6 +2,7 @@
 type: Module
 title: notifications
 description: The single outbound-notification service — every email and in-app alert in the app goes through `dispatch`, gated by the tenant's Settings > Notifications toggles.
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/services/notifications.py
 tags: [backend, notifications, smtp, uc6, uc7, uc11]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T04:36:49Z }
@@ -27,7 +28,9 @@ from HTTP directly. The toggles it reads are edited through [Settings](/modules/
 # Events
 
 `EVENT_APPROVED`, `EVENT_REJECTED`, `EVENT_SENT_BACK`, `EVENT_READY_FOR_SIGNATURE`,
-`EVENT_SENT_FOR_SIGNATURE`, `EVENT_SIGNATURE_DECLINED`, `EVENT_EXECUTED`, `EVENT_USER_INVITED`.
+`EVENT_SENT_FOR_SIGNATURE`, `EVENT_SIGNATURE_DECLINED`, `EVENT_EXECUTED`, `EVENT_USER_INVITED`,
+and the automatic/time-driven set `EVENT_SENT_TO_COUNTERPARTY`, `EVENT_REVIEW_REMINDER`,
+`EVENT_SIGNATURE_REMINDER`, `EVENT_EXPIRING_SOON`.
 Each constant's value must appear verbatim in
 `app.repositories.settings_notifications.EVENT_NAMES`, or `_toggles` misses the row and silently
 falls back to the both-channels-On default.
@@ -41,6 +44,9 @@ falls back to the both-channels-On default.
 | `app.services.signing_sessions.apply_signature` | executed, and sent-for-signature to the next signer |
 | `app.services.signing_sessions.decline_signature` | signature declined |
 | `app.services.settings_users.create_user` | new user invited |
+| `app.services.lifecycle_negotiation._issue_external_link` | contract sent to counterparty — carries the secure link token and the OTP |
+| `app.services.lifecycle_negotiation.send_reminder` | review reminder (the manual Send Reminder click) |
+| `app.services.scheduled_notifications` | review reminder, signature reminder, expiring soon — see [Scheduled Notifications](/modules/scheduled-notifications.md) |
 
 # Rules that hold for every event
 
@@ -63,5 +69,6 @@ falls back to the both-channels-On default.
 
 Depends on [App Core](/modules/app-core.md) for `settings`, and on
 [Settings](/modules/settings.md) for the toggle rows and the audit-log repository. Triggered by
-[Approvals](/modules/approvals.md), [Signing](/modules/signing.md) and
-[Settings](/modules/settings.md).
+[Approvals](/modules/approvals.md), [Signing](/modules/signing.md),
+[Settings](/modules/settings.md), [Lifecycle Negotiation](/modules/lifecycle-negotiation.md)
+and [Scheduled Notifications](/modules/scheduled-notifications.md).

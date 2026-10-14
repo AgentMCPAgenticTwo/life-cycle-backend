@@ -1,10 +1,11 @@
 ---
 type: Module
 title: tests
-description: 33 `test_*.py` files plus `conftest.py`, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.
+description: 34 `test_*.py` files plus `conftest.py`, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/tests
 tags: [backend, tests, pytest]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
 sources:
   - id: cbm-graph
     resource: codebase-memory-mcp project life-cycle-backend @ f6503176d1f18e22902205491eb04e6059b7ca03
@@ -14,7 +15,7 @@ status: stable
 
 # Structure
 
-`tests/conftest.py` plus 33 `test_<resource>.py` files, mostly one per router module, covering
+`tests/conftest.py` plus 34 `test_<resource>.py` files, mostly one per router module, covering
 every resource named in [modules/index.md](/modules/index.md) (e.g. `test_contracts.py`,
 `test_approvals.py`, `test_tracker_ownership.py`, `test_settings_users.py`) plus cross-cutting
 `test_auth.py`, `test_errors.py`, `test_health.py`, `test_pagination.py`, `test_persistence.py`.
@@ -28,7 +29,9 @@ Two further files have no router of their own: `tests/test_contract_documents.py
 `app.services.contract_documents` (template merge and third-party-paper Version 1 — see
 [Contract Documents](/modules/contract-documents.md)), and
 `tests/test_lifecycle_uc5_recheck.py` covers the post-submission risk re-check in
-[Lifecycle Clauses](/modules/lifecycle-clauses.md).
+[Lifecycle Clauses](/modules/lifecycle-clauses.md). `tests/test_scheduled_notifications.py`
+drives `run_reviewer_reminders`/`run_signature_reminders`/`run_renewal_alerts` over a session
+with no HTTP request at all — see [Scheduled Notifications](/modules/scheduled-notifications.md).
 
 # Authenticated requests
 

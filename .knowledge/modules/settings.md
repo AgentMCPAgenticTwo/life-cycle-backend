@@ -4,6 +4,7 @@ title: settings
 description: Tenant-admin-only settings surface — user management, approval rules, integrations, notification toggles, and the read-only audit log.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/settings_users.py
 tags: [backend, lifecycle-uc10-uc11, settings, admin]
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
 sources:
   - id: cbm-graph
@@ -52,10 +53,13 @@ unit, distinct from the tracker tabs (cluster 1) even though both come from the 
   `app.services.notifications.dispatch`, after its own commit. See
   [Notifications](/modules/notifications.md).
 * `GET /settings/notifications` calls `app.repositories.settings_notifications.ensure_seeded`,
-  the repo's only idempotent seeder: it inserts any of the eleven `EVENT_NAMES` rows the tenant
-  is missing with both toggles On (UC11-BR-007), skipping names already present, so it is safe
-  on every request. `list_by_tenant` then returns them in `EVENT_NAMES` order rather than
-  insertion order.
+  the repo's only idempotent seeder: it inserts any of the fourteen `EVENT_NAMES` rows the
+  tenant is missing with both toggles On (UC11-BR-007), skipping names already present, so it is
+  safe on every request. `list_by_tenant` then returns them in `EVENT_NAMES` order rather than
+  insertion order. The newest three names — `Contract Sent to Counterparty`, `Review Reminder`,
+  `Signature Reminder` — were appended for the automatic notifications in
+  [Scheduled Notifications](/modules/scheduled-notifications.md); because the seeder is guarded
+  per name, adding them touched no existing tenant row.
 * `POST /settings/integrations/{integrationName}/connect` masks credentials in the response
   (`maskedCredential`) and persists `credential_ciphertext` separately from the masked display
   value (`tenant_integrations.credential_masked_display`).

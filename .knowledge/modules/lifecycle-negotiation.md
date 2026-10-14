@@ -5,6 +5,7 @@ description: Contract metadata editing, ask-AI, negotiation routing/reviews, ext
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/lifecycle_negotiation.py
 tags: [backend, lifecycle-uc4-uc5, negotiation]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
 sources:
   - id: cbm-graph
     resource: codebase-memory-mcp project life-cycle-backend @ f6503176d1f18e22902205491eb04e6059b7ca03
@@ -47,6 +48,22 @@ before the casing was corrected readable in `get_tracker`.
 `app.services.lifecycle_clauses.apply_external_redlines` *before* snapshotting the new version,
 so Compare Versions shows the real diff and the re-check knows which clauses to re-score. See
 [Lifecycle Clauses](/modules/lifecycle-clauses.md).
+
+# Auto-send to counterparty and the OTP
+
+`GenerateExternalLinkResponse` no longer carries an `otp` field. The OTP is hashed into
+`otp_hash` and emailed by `_issue_external_link` through
+[Notifications](/modules/notifications.md) (`EVENT_SENT_TO_COUNTERPARTY`), so UC5-BR-016 holds:
+it reaches the External Party's inbox and nothing else. `_generate_otp` is the seam a test
+patches, since no response exposes the value.
+
+`_issue_external_link` is shared by two paths: the explicit `POST .../negotiation/external-link`,
+and `submit_review`, which calls it automatically the moment `internal_review_complete` holds
+(every reviewer `Submitted` — the last one under Sequential routing, all of them under
+Parallel). The link is committed before the mail attempt. `send_reminder` likewise emails the
+overdue reviewer (`EVENT_REVIEW_REMINDER`); the daily automatic variant lives in
+[Scheduled Notifications](/modules/scheduled-notifications.md), which reads
+`repo.list_overdue_routings` and `repo.list_reminders_since` from this module's repository.
 
 # Hotspot
 

@@ -4,6 +4,7 @@ queries only -- the routing/versioning/status-transition rules live in
 `app.services.lifecycle_negotiation`.
 """
 import uuid
+from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
@@ -124,3 +125,30 @@ def insert_reminder(db: Session, reminder: NegotiationReminder) -> NegotiationRe
     db.add(reminder)
     db.flush()
     return reminder
+
+
+def list_overdue_routings(db: Session, today: date) -> list[NegotiationRouting]:
+    """Routings whose Due Date has passed and that are still open. 'Agreed' is excluded here
+    rather than in the service so the automatic-reminder sweep never loads a closed
+    negotiation at all (UC5: reminders stop when the contract is marked Agreed)."""
+    return (
+        db.query(NegotiationRouting)
+        .filter(
+            NegotiationRouting.due_date < today,
+            NegotiationRouting.negotiation_status != "Agreed",
+        )
+        .all()
+    )
+
+
+def list_reminders_since(
+    db: Session, routing_id: uuid.UUID, since: datetime
+) -> list[NegotiationReminder]:
+    return (
+        db.query(NegotiationReminder)
+        .filter(
+            NegotiationReminder.negotiation_routing_id == routing_id,
+            NegotiationReminder.sent_at >= since,
+        )
+        .all()
+    )

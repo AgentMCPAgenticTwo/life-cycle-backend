@@ -3,8 +3,9 @@
 Wires the things that are invisible until integration fails: CORS (before anything else),
 the header-auth stub, migrations-at-startup, and one shared error body.
 """
+import asyncio
 import os
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from alembic import command
@@ -44,6 +45,7 @@ from app.routers import (
     tracker_ownership,
     tracker_turnaround,
 )
+from app.services import scheduled_notifications
 
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
 
@@ -63,7 +65,20 @@ def _run_migrations() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _run_migrations()
-    yield
+    # UC5/UC7/UC9 reminders and renewal alerts fire because a date passed, not because anyone
+    # called an endpoint. There is no scheduler dependency in this repository, so the sweep
+    # runs in-process; set NOTIFICATION_SWEEP_INTERVAL_SECONDS=0 to turn it off and drive
+    # `scheduled_notifications.run_all` from outside instead.
+    sweep: asyncio.Task | None = None
+    if settings.database_url and settings.notification_sweep_interval_seconds > 0:
+        sweep = asyncio.create_task(scheduled_notifications.sweep_loop())
+    try:
+        yield
+    finally:
+        if sweep is not None:
+            sweep.cancel()
+            with suppress(asyncio.CancelledError):
+                await sweep
 
 
 app = FastAPI(title="API", version="1.0", lifespan=lifespan)

@@ -5,6 +5,7 @@ description: Cross-cutting FastAPI app wiring shared by every resource module �
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app
 tags: [backend, core, auth, errors, config]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
 sources:
   - id: cbm-graph
     resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
@@ -16,7 +17,7 @@ status: stable
 
 | File | Role |
 |---|---|
-| `app/main.py` | FastAPI app, CORS middleware, 3 exception handlers, `/health`, all `app.include_router(...)` calls, startup migrations |
+| `app/main.py` | FastAPI app, CORS middleware, 3 exception handlers, `/health`, all `app.include_router(...)` calls, startup migrations, the background notification sweep |
 | `app/auth.py` | `bearer_scheme`, `CurrentUser`, `current_user`, `require_roles`, `current_tenant_id` |
 | `app/security.py` | password rules/hashing and JWT + refresh-token primitives — see [Auth](/modules/auth.md) |
 | `app/config.py` | `Settings` (PORT, DATABASE_URL, CORS_ORIGINS, JWT_SECRET, access/refresh TTLs, refresh-cookie name/secure flag, and the `SMTP_*` block read by [Notifications](/modules/notifications.md)), `settings` singleton |
@@ -28,6 +29,12 @@ status: stable
 "log the message, do not send" — so the app and the test suite run with no mail relay
 configured. `smtp_username`/`smtp_password`/`smtp_from`/`smtp_use_tls`/`smtp_timeout_seconds`
 are read from the environment alongside it; none are hard-coded.
+
+`Settings.notification_sweep_interval_seconds` (`NOTIFICATION_SWEEP_INTERVAL_SECONDS`, default
+3600) controls the in-process sweep that `lifespan` starts as an `asyncio` task after
+`_run_migrations` and cancels on shutdown. It starts only when `DATABASE_URL` is set and the
+interval is above zero — set it to `0` to drive
+[Scheduled Notifications](/modules/scheduled-notifications.md)'s `run_all` from outside instead.
 
 # Key symbols
 

@@ -99,12 +99,9 @@ class GenerateExternalLinkResponse(BaseModel):
     linkToken: str
     expiresAt: datetime
     status: str
-    # Added field, not in context.json's GenerateExternalLinkResponse -- see this task's
-    # `blockers`. There is no email-sending infrastructure anywhere in this codebase, so the
-    # OTP that UC5-BR-016 requires to reach the External Party's inbox has no delivery
-    # channel; it is returned here instead so the external verify/submit flow is reachable
-    # at all without a real mail server.
-    otp: str | None = None
+    # The OTP is deliberately NOT a field here. UC5-BR-016 requires it to reach the External
+    # Party's inbox only; it is emailed by `app.services.notifications` and never returned by
+    # the API or rendered on screen.
 
 
 class VerifyOtpRequest(BaseModel):

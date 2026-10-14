@@ -47,6 +47,12 @@ Call `app.services.notifications.dispatch` **after** your own `db.commit()`, pas
 `app.repositories.settings_notifications.EVENT_NAMES`, or the toggle lookup misses the row. See
 [Notifications](/modules/notifications.md).
 
+If the notification should fire because a date passed rather than because an endpoint was
+called, add a sweep function to `app/services/scheduled_notifications.py` and call it from
+`run_all` — do not add a scheduler dependency. Give it a once-only or per-day guard (a row, or a
+"nothing sent since" query), because the loop may run many times a day. See
+[Scheduled Notifications](/modules/scheduled-notifications.md).
+
 # Add a role check
 
 All authorization goes through `app.auth.require_roles(*allowed)` as a FastAPI `Depends` on the

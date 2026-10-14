@@ -20,6 +20,12 @@ EVENT_NAMES = (
     "New User Invited",
     "Contract Expiring Soon",
     "Contract Renewed",
+    # UC5/UC7 automatic notifications (app.services.scheduled_notifications). `ensure_seeded`
+    # is guarded per name, so adding rows here simply makes the new events show up with both
+    # toggles On on the next GET -- no existing tenant row is touched.
+    "Contract Sent to Counterparty",
+    "Review Reminder",
+    "Signature Reminder",
 )
 
 
