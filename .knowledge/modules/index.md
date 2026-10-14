@@ -15,6 +15,7 @@
 * [Templates / Clauses](/modules/templates-clauses.md) - Reusable contract template and clause library with versioning, activation lifecycle, and the version-history endpoints shared by both resources.
 * [Counterparties](/modules/counterparties.md) - Counterparty directory used by contract creation and dashboard filters.
 * [Files](/modules/files.md) - Uploaded-file persistence backing third-party-paper intake and contract document retrieval; service/repository only, no dedicated router.
+* [Export Files](/modules/export-files.md) - Dependency-free XLSX and PDF byte builders that turn a title plus header/data rows into a downloadable file for the tracker export.
 
 # lifecycle-uc4-uc5 batch
 

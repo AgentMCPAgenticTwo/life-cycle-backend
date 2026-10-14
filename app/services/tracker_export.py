@@ -9,20 +9,27 @@ reused from the `Bottleneck` and `CycleTime` tab services, and the three export-
   fixed "Export failed. Please try again." message, leaving the caller's on-screen view (which
   this stateless endpoint never touches) unchanged.
 
-No Excel/PDF generation library is available in this repo and CLAUDE.md forbids adding one, so
---  consistent with this codebase's existing "file" DTOs (see `app.services.signers`'
-`AuditCertificateResponse.file_url`, which is a synthesized path, not a real generated file --
-this writes no bytes and returns a deterministic mock `fileUrl` instead.
+The export is a real file (UC10): the rows of the requested tab, for the requested Period/
+Date Range and filters, written as a genuine `.xlsx` or `.pdf` by the standard-library
+writers in `app.services.export_files` (CLAUDE.md forbids adding a generation library). The
+bytes land in `settings.export_storage_dir`, the metadata in `uploaded_files`, and `fileUrl`
+points at `GET /api/v1/tracker/exports/{fileId}`, which streams them back.
 """
+import os
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
 from app.auth import CurrentUser
-from app.errors import ValidationFailedError
+from app.config import settings
+from app.errors import NotFoundError, ValidationFailedError
+from app.models.uploaded_file import UploadedFile
+from app.repositories import files as files_repo
 from app.repositories import tracker_bottleneck as repo
 from app.schemas.tracker_export import FORMATS, TABS, TrackerExportRequest, TrackerExportResponse
+from app.services import export_files
 
 PERIOD_REQUIRED_MESSAGE = "Period selection is required."
 PERIOD_INVALID_MESSAGE = "Period must be one of: Daily, Weekly, Monthly."
@@ -33,8 +40,33 @@ DATE_ORDER_MESSAGE = "Date Range From must be earlier than Date Range To."
 
 NO_CONTRACT_DATA_MESSAGE = "No contract data available to display."
 EXPORT_FAILED_MESSAGE = "Export failed. Please try again."
+NO_ROWS_PLACEHOLDER = "No records found for the selected period and filters."
 
-_EXTENSIONS = {"Excel": "xlsx", "PDF": "pdf"}
+# Column headers per tab, in the order the tab's own table shows them.
+_TAB_HEADERS = {
+    "Ownership": [
+        "Owner Name",
+        "Contracts Owned",
+        "In Draft",
+        "In Negotiation",
+        "In Approval",
+        "In Signature",
+        "Completed",
+        "Average Cycle Time (days)",
+    ],
+    "CycleTime": ["Stage", "Owner Name", "Contract Type", "Contracts Owned", "Average Cycle Time (days)"],
+    "Bottleneck": ["Contract Name", "Owner Name", "Current Stage", "Days In Current Stage", "Stuck Flag"],
+    "Turnaround": [
+        "Contract Name",
+        "Contract Type",
+        "Estimated Turnaround (days)",
+        "Estimated Turnaround Source",
+        "Actual Turnaround (days)",
+        "Variance (days)",
+        "Variance Color",
+        "Excluded From Averages",
+    ],
+}
 
 # Same role-scoping rule as the other tabs (UC10-BR-005/009/010/011): Tenant Admin sees
 # everything, the other three roles are limited to contracts naming them in `contract_owners`.
@@ -136,68 +168,169 @@ def export_tracker_tab(
         return TrackerExportResponse(success=False, fileUrl=None, failureMessage=NO_CONTRACT_DATA_MESSAGE)
 
     try:
-        # UC10-AF-003: Period/filters narrowing to zero rows does not fail the export -- it
-        # still produces a file (this codebase has no byte-generation backend to vary the
-        # file's content by, so the only observable difference is the fixed success response;
-        # see this task's `blockers`).
-        _ = _tab_has_rows(db, tenant_id, user, payload)
+        # UC10-AF-003: Period/filters narrowing to zero rows does not fail the export -- the
+        # file is still produced, carrying the "no records" line instead of data rows.
+        rows = _tab_rows(db, tenant_id, user, payload)
+        content = export_files.build_file(
+            payload.format,
+            _export_title(payload),
+            _TAB_HEADERS[payload.tab],
+            rows or [[NO_ROWS_PLACEHOLDER]],
+        )
+        file_url = _persist_export(db, tenant_id, user, payload, content)
     except ValidationFailedError:
         raise
     except Exception:
         # UC10-AF-004: an unexpected failure while building the export.
+        db.rollback()
         return TrackerExportResponse(success=False, fileUrl=None, failureMessage=EXPORT_FAILED_MESSAGE)
 
-    extension = _EXTENSIONS[payload.format]
-    file_url = f"/files/tracker-exports/{uuid.uuid4()}.{extension}"
     return TrackerExportResponse(success=True, fileUrl=file_url, failureMessage=None)
 
 
-def _tab_has_rows(db: Session, tenant_id: uuid.UUID, user: CurrentUser, payload: TrackerExportRequest) -> bool:
-    """Dispatches to each tab's own row-producing logic so export honors the same filters,
-    role scoping and Period/Date-Range precedence as the tab the user is looking at.
+def _export_title(payload: TrackerExportRequest) -> str:
+    scope = payload.period or ""
+    if payload.dateRangeFrom and payload.dateRangeTo:
+        scope = f"{payload.dateRangeFrom} to {payload.dateRangeTo}"
+    parts = [f"{payload.tab} Tracker Export", scope]
+    if payload.contractTypeFilter:
+        parts.append(f"Contract Type: {payload.contractTypeFilter}")
+    if payload.ownerFilter:
+        parts.append(f"Owner: {payload.ownerFilter}")
+    return " -- ".join(part for part in parts if part)
 
-    `Bottleneck` and `CycleTime` reuse their real tab services end to end. `Ownership` and
-    `Turnaround` have no dedicated tab service in this codebase yet (separate tasks own those
-    endpoints), so this computes just enough -- entitled contracts within the resolved window
-    and filters -- to know whether the export has any rows; see this task's `blockers`.
-    """
-    if payload.tab == "Bottleneck":
-        from app.services import tracker_bottleneck as bottleneck_service
 
-        response = bottleneck_service.get_bottleneck_tab(db, tenant_id, user, _ParamsShim(payload))
-        return not response.isEmpty
+def _persist_export(
+    db: Session,
+    tenant_id: uuid.UUID,
+    user: CurrentUser,
+    payload: TrackerExportRequest,
+    content: bytes,
+) -> str:
+    """Writes the generated bytes to `settings.export_storage_dir` and records them in
+    `uploaded_files` so the download endpoint can find them by id."""
+    file_id = uuid.uuid4()
+    extension = export_files.EXTENSIONS[payload.format]
+    directory = settings.export_storage_dir
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, f"{file_id}.{extension}")
+    with open(path, "wb") as handle:
+        handle.write(content)
+
+    user_uuid = uuid.UUID(user.user_id)
+    files_repo.insert_uploaded_file(
+        db,
+        UploadedFile(
+            id=file_id,
+            tenant_id=tenant_id,
+            file_name=f"{payload.tab}-tracker-export.{extension}",
+            file_size=len(content),
+            file_format=extension.upper(),
+            storage_url=path,
+            created_by=user_uuid,
+            updated_by=user_uuid,
+        ),
+    )
+    db.commit()
+    return f"/api/v1/tracker/exports/{file_id}"
+
+
+def get_export_file(
+    db: Session, tenant_id: uuid.UUID, file_id: uuid.UUID
+) -> tuple[bytes, str, str]:
+    """Returns `(content, content_type, file_name)` for a previously generated export."""
+    record = files_repo.get_uploaded_file(db, tenant_id, file_id)
+    if record is None or not os.path.isfile(record.storage_url):
+        raise NotFoundError("export file not found")
+    with open(record.storage_url, "rb") as handle:
+        content = handle.read()
+    content_type = (
+        export_files.CONTENT_TYPES["Excel"]
+        if record.file_format.upper() == "XLSX"
+        else export_files.CONTENT_TYPES["PDF"]
+    )
+    return content, content_type, record.file_name
+
+
+def _cell(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, (Decimal, float)):
+        return f"{float(value):g}"
+    return str(value)
+
+
+def _tab_rows(
+    db: Session, tenant_id: uuid.UUID, user: CurrentUser, payload: TrackerExportRequest
+) -> list[list[str]]:
+    """Dispatches to each tab's own service so the exported file carries exactly the rows the
+    tab shows -- same filters, same role scoping, same Period/Date-Range precedence. An empty
+    tab (any of the UC10-AF-001/003/005 empty states) yields no rows, not a failure."""
+    shim = _ParamsShim(payload)
+
+    if payload.tab == "Ownership":
+        from app.services import tracker_ownership as ownership_service
+
+        response = ownership_service.get_ownership_tab(db, tenant_id, user, shim)
+        return [
+            [
+                _cell(row.ownerName),
+                _cell(row.contractsOwned),
+                _cell(row.inDraftCount),
+                _cell(row.inNegotiationCount),
+                _cell(row.inApprovalCount),
+                _cell(row.inSignatureCount),
+                _cell(row.completedCount),
+                _cell(row.averageCycleTime),
+            ]
+            for row in response.rows
+        ]
 
     if payload.tab == "CycleTime":
         from app.services import tracker_cycle_time as cycle_time_service
 
-        response = cycle_time_service.get_cycle_time_tab(db, tenant_id, user, _ParamsShim(payload))
-        return not response.isEmpty
+        response = cycle_time_service.get_cycle_time_tab(db, tenant_id, user, shim)
+        return [
+            [
+                _cell(row.stage),
+                _cell(row.ownerName),
+                _cell(row.contractType),
+                _cell(row.contractsOwned),
+                _cell(row.averageCycleTime),
+            ]
+            for row in response.rows
+        ]
 
-    # Ownership / Turnaround: both are contract-level (not stage-level) views, so the window
-    # is resolved against each contract's own `created_at` as the closest available proxy for
-    # "when this contract entered the tenant's tracked population" -- see this task's `blockers`.
-    window_start, window_end = _validate_and_resolve_window(payload)
-    entitled_ids = _entitled_contract_ids(db, tenant_id, user)
-    contracts = repo.list_tenant_contracts(db, tenant_id)
-    if entitled_ids is not None:
-        contracts = [c for c in contracts if c.id in entitled_ids]
+    if payload.tab == "Bottleneck":
+        from app.services import tracker_bottleneck as bottleneck_service
 
-    type_filter = (payload.contractTypeFilter or "").strip()
-    owner_filter = (payload.ownerFilter or "").strip()
-    owner_ids = {c.contract_owner_id for c in contracts if c.contract_owner_id} | {
-        c.owner_id for c in contracts if c.owner_id
-    }
-    owner_names = repo.get_user_names(db, owner_ids)
+        response = bottleneck_service.get_bottleneck_tab(db, tenant_id, user, shim)
+        return [
+            [
+                _cell(row.contractName),
+                _cell(row.ownerName),
+                _cell(row.currentStage),
+                _cell(row.daysInCurrentStage),
+                _cell(row.stuckFlag),
+            ]
+            for row in response.rows
+        ]
 
-    for contract in contracts:
-        created_at = _as_aware(contract.created_at)
-        if not (window_start <= created_at <= window_end):
-            continue
-        if type_filter and type_filter.lower() != "all" and contract.contract_type.lower() != type_filter.lower():
-            continue
-        if owner_filter and owner_filter.lower() != "all":
-            owner_name = owner_names.get(contract.contract_owner_id) or owner_names.get(contract.owner_id)
-            if not owner_name or owner_filter.lower() not in owner_name.lower():
-                continue
-        return True
-    return False
+    from app.services import tracker_turnaround as turnaround_service
+
+    response = turnaround_service.get_turnaround_tab(db, tenant_id, user, shim)
+    return [
+        [
+            _cell(row.contractName),
+            _cell(row.contractType),
+            "" if row.estimatedTurnaroundNotSet else _cell(row.estimatedTurnaround),
+            _cell(row.estimatedTurnaroundSource),
+            _cell(row.actualTurnaround),
+            _cell(row.variance),
+            _cell(row.varianceColor),
+            _cell(row.excludedFromAverages),
+        ]
+        for row in response.rows
+    ]

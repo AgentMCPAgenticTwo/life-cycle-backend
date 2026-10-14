@@ -19,6 +19,10 @@ class Settings:
     refresh_token_ttl_days: int = int(os.environ.get("REFRESH_TOKEN_TTL_DAYS", "7"))
     refresh_cookie_name: str = os.environ.get("REFRESH_COOKIE_NAME", "refreshToken")
     refresh_cookie_secure: bool = os.environ.get("REFRESH_COOKIE_SECURE", "false").lower() == "true"
+    # Where `app.services.tracker_export` writes the generated Excel/PDF export files (UC10).
+    # They are served back through GET /api/v1/tracker/exports/{fileId}; a plain directory,
+    # because no object-storage client is declared in this repo's manifest.
+    export_storage_dir: str = os.environ.get("EXPORT_STORAGE_DIR", "var/exports")
     # Outbound mail for app.services.notifications. With no SMTP_HOST the service logs the
     # message instead of sending it, so the app runs without a mail relay. Credentials come
     # from the environment -- never hard-code them.
