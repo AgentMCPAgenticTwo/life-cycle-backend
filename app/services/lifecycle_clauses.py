@@ -227,14 +227,17 @@ def _build_analysis_response(db: Session, user: CurrentUser, contract) -> Clause
     metadata = repo.get_metadata(db, contract.id)
     overall = _overall_risk(clauses)
     any_missing_mandatory = any(_mandatory_flag(c) for c in clauses)
+    # UC5: a re-analysis that failed after an external redline leaves the contract reporting
+    # 'Failed' until a retry succeeds -- the version itself is already saved either way.
+    failed = pending_reanalysis_failure(db, contract.id) is not None
     return ClauseAnalysisResponse(
         contractId=contract.id,
         fileFormatSupported=True,
-        analysisStatus="Completed",
+        analysisStatus="Failed" if failed else "Completed",
         clauses=[_clause_to_response(c) for c in clauses],
         overallContractRiskScore=overall,
         metadata=_metadata_to_response(metadata),
-        proceedToNegotiationEnabled=not any_missing_mandatory,
+        proceedToNegotiationEnabled=not any_missing_mandatory and not failed,
         askAiEnabled=user.role != "TENANT_ADMIN",
     )
 
@@ -252,8 +255,14 @@ def get_clause_analysis(
 def retry_extraction(
     db: Session, tenant_id: uuid.UUID, user: CurrentUser, contract_id: uuid.UUID
 ) -> ClauseAnalysisResponse:
-    # UC4-AF-002: re-attempt extraction. This sandbox has no real AI pipeline that can fail,
-    # so retry is idempotent with the initial extraction -- see `_ensure_extraction`.
+    # UC4-AF-002: re-attempt extraction -- idempotent with the initial extraction (see
+    # `_ensure_extraction`). UC5: when the outstanding failure is a re-analysis of the
+    # clauses a counterparty changed, retry re-scores exactly those clauses again.
+    contract = _get_contract_or_404(db, tenant_id, contract_id)
+    failure = pending_reanalysis_failure(db, contract.id)
+    if failure is not None:
+        user_uuid = uuid.UUID(user.user_id) if user.user_id else contract.contract_owner_id
+        reanalyze_clauses(db, contract.id, user_uuid, _clause_ids_from_failure(failure))
     return get_clause_analysis(db, tenant_id, user, contract_id)
 
 
@@ -576,6 +585,194 @@ def snapshot_clauses(db: Session, contract_id: uuid.UUID) -> list[dict]:
         {"clauseId": str(c.id), "clauseCategory": c.clause_category, "clauseText": c.clause_text}
         for c in repo.list_clauses(db, contract_id)
     ]
+
+
+# --- UC5: risk re-check after external changes ----------------------------------------
+# No real AI pipeline exists in this sandbox, so re-scoring is a deterministic keyword pass
+# over the clause text. What matters for UC5 is the surrounding behaviour: only the clauses
+# the counterparty actually changed are re-scored, the overall contract score follows from
+# them, and a failure leaves the saved version intact with a retryable 'Failed' status.
+
+_HIGH_RISK_TERMS = (
+    "unlimited liability",
+    "indemnif",
+    "uncapped",
+    "terminate at will",
+    "sole discretion",
+    "no liability cap",
+    "waive",
+)
+_MEDIUM_RISK_TERMS = (
+    "may terminate",
+    "best efforts",
+    "reasonable",
+    "penalty",
+    "late fee",
+    "renew automatically",
+)
+
+
+def _score_clause_text(text: str) -> tuple[str, str]:
+    lowered = (text or "").lower()
+    hit = next((term for term in _HIGH_RISK_TERMS if term in lowered), None)
+    if hit is not None:
+        return "High", f"Re-scored after counterparty changes: the revised text introduces '{hit}'."
+    hit = next((term for term in _MEDIUM_RISK_TERMS if term in lowered), None)
+    if hit is not None:
+        return "Medium", f"Re-scored after counterparty changes: the revised text contains '{hit}'."
+    return "Low", "Re-scored after counterparty changes: no elevated-risk language detected."
+
+
+def apply_external_redlines(
+    db: Session,
+    contract_id: uuid.UUID,
+    user_id: uuid.UUID,
+    redlines: list[tuple[uuid.UUID, str]],
+    redline_text: str | None,
+) -> list[uuid.UUID]:
+    """Applies a counterparty's submission to this contract's clauses and returns the ids of
+    the clauses it changed -- the input to the UC5 re-check.
+
+    Two shapes are accepted. A structured submission (`clauseId`/`clauseText` pairs) replaces
+    the named clauses' text. A plain redline document, which is all the external submit
+    contract guarantees, cannot say which clause is which, so a clause counts as changed when
+    its current text no longer appears verbatim in the returned document.
+    """
+    now = _now()
+    changed: list[uuid.UUID] = []
+
+    if redlines:
+        for clause_id, new_text in redlines:
+            clause = repo.get_clause(db, contract_id, clause_id)
+            if clause is None or clause.clause_text == new_text:
+                continue
+            before = clause.clause_text
+            clause.clause_text = new_text
+            clause.version += 1
+            clause.updated_at = now
+            clause.updated_by = user_id
+            _write_audit(
+                db,
+                contract_id=contract_id,
+                clause_id=clause.id,
+                user_id=user_id,
+                action_type="External Redline",
+                field_name="clauseText",
+                before_text=before,
+                after_text=new_text,
+                now=now,
+            )
+            changed.append(clause.id)
+        return changed
+
+    document = (redline_text or "").strip()
+    if not document:
+        return changed
+    for clause in repo.list_clauses(db, contract_id):
+        if clause.clause_text and clause.clause_text.strip() not in document:
+            changed.append(clause.id)
+    return changed
+
+
+_REANALYSIS_ACTION = "Re-analysis"
+_REANALYSIS_FAILED_ACTION = "Re-analysis Failed"
+_ANALYSIS_STATUS_FIELD = "analysisStatus"
+
+
+def pending_reanalysis_failure(db: Session, contract_id: uuid.UUID) -> ClauseAuditLog | None:
+    """The outstanding re-analysis failure for this contract, if the most recent re-analysis
+    attempt failed and has not since been retried successfully."""
+    entry = repo.get_latest_audit_entry(
+        db,
+        contract_id,
+        action_types=[_REANALYSIS_ACTION, _REANALYSIS_FAILED_ACTION],
+        field_name=_ANALYSIS_STATUS_FIELD,
+    )
+    if entry is not None and entry.action_type == _REANALYSIS_FAILED_ACTION:
+        return entry
+    return None
+
+
+def _clause_ids_from_failure(entry: ClauseAuditLog) -> list[uuid.UUID]:
+    ids: list[uuid.UUID] = []
+    for raw in (entry.after_text or "").split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            ids.append(uuid.UUID(raw))
+        except ValueError:
+            continue
+    return ids
+
+
+def _record_reanalysis_failure(
+    db: Session, contract_id: uuid.UUID, user_id: uuid.UUID, clause_ids: list[uuid.UUID]
+) -> None:
+    now = _now()
+    _write_audit(
+        db,
+        contract_id=contract_id,
+        clause_id=None,
+        user_id=user_id,
+        action_type=_REANALYSIS_FAILED_ACTION,
+        field_name=_ANALYSIS_STATUS_FIELD,
+        before_text=None,
+        # The clauses still awaiting a score, so Retry re-analyses exactly those.
+        after_text=",".join(str(cid) for cid in clause_ids),
+        now=now,
+    )
+    db.commit()
+
+
+def reanalyze_clauses(
+    db: Session, contract_id: uuid.UUID, user_id: uuid.UUID, clause_ids: list[uuid.UUID]
+) -> bool:
+    """Re-scores the given clauses and records the outcome. Returns False when the pass
+    failed -- the caller's already-saved version stays saved and the contract reports
+    `analysisStatus: 'Failed'` until a retry succeeds."""
+    if not clause_ids:
+        return True
+    try:
+        now = _now()
+        for clause_id in clause_ids:
+            clause = repo.get_clause(db, contract_id, clause_id)
+            if clause is None:
+                continue
+            before = clause.risk_score
+            risk, explanation = _score_clause_text(clause.clause_text)
+            clause.risk_score = risk
+            clause.ai_explanation = explanation
+            clause.updated_at = now
+            clause.updated_by = user_id
+            _write_audit(
+                db,
+                contract_id=contract_id,
+                clause_id=clause.id,
+                user_id=user_id,
+                action_type=_REANALYSIS_ACTION,
+                field_name="riskScore",
+                before_text=before,
+                after_text=risk,
+                now=now,
+            )
+        _write_audit(
+            db,
+            contract_id=contract_id,
+            clause_id=None,
+            user_id=user_id,
+            action_type=_REANALYSIS_ACTION,
+            field_name=_ANALYSIS_STATUS_FIELD,
+            before_text=None,
+            after_text="Completed",
+            now=now,
+        )
+        db.commit()
+        return True
+    except Exception:  # noqa: BLE001 -- UC5: any AI failure must not lose the saved version
+        db.rollback()
+        _record_reanalysis_failure(db, contract_id, user_id, clause_ids)
+        return False
 
 
 def get_audit_log(

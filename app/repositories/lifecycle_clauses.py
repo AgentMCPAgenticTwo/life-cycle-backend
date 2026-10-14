@@ -66,6 +66,22 @@ def list_audit_log(
     return rows, total
 
 
+def get_latest_audit_entry(
+    db: Session,
+    contract_id: uuid.UUID,
+    *,
+    action_types: list[str],
+    field_name: str | None = None,
+) -> ClauseAuditLog | None:
+    query = db.query(ClauseAuditLog).filter(
+        ClauseAuditLog.contract_id == contract_id,
+        ClauseAuditLog.action_type.in_(action_types),
+    )
+    if field_name is not None:
+        query = query.filter(ClauseAuditLog.field_name == field_name)
+    return query.order_by(ClauseAuditLog.occurred_at.desc(), ClauseAuditLog.created_at.desc()).first()
+
+
 def insert_ask_ai_interaction(db: Session, interaction: AskAiInteraction) -> AskAiInteraction:
     db.add(interaction)
     db.flush()

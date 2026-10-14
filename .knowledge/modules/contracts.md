@@ -4,10 +4,10 @@ title: contracts
 description: Contract listing, detail and creation including third-party-paper intake, the base resource most other modules extend.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/contracts.py
 tags: [backend, uc123, contracts]
-generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
+generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ a01dca2cd1cf0d1b42a73a36cc3fce4dadcc0c75
+    resource: codebase-memory-mcp project life-cycle-backend @ f6503176d1f18e22902205491eb04e6059b7ca03
     title: Codebase knowledge graph
 status: stable
 ---
@@ -24,6 +24,20 @@ status: stable
 * `GET /contracts/{id}` -> `ContractResponse`
 * `POST /contracts` -> `ContractResponse` (`CreateContractRequest`)
 * `POST /contracts/third-party-paper` -> `FileUploadResponse` (`UploadThirdPartyPaperRequest`)
+
+# Creation also generates Version 1 (UC2-BR-014/015)
+
+`create_contract` calls `app.services.contract_documents.generate_version_one` before
+`db.commit()`, so the contract and its Version 1 document are saved in one transaction. Two
+additive fields on `ContractResponse` carry the result, both optional so a client that does not
+read them is unaffected:
+
+| Field | Meaning |
+|---|---|
+| `documentVersionNumber` | The version the save produced — always `1` on create. |
+| `message` | `contract_documents.CREATED_MESSAGE`, UC2's confirmation text. |
+
+See [Contract Documents](/modules/contract-documents.md) for the merge/third-party-paper split.
 
 # Layering (reference sample for the whole repo)
 
@@ -43,6 +57,8 @@ This resource is the sample used to confirm CLAUDE.md's layering rule holds in p
 # Relationships
 
 * Read by [Dashboard/Lookups](/modules/dashboard-lookups.md) for dashboard queries.
+* Depends on [Contract Documents](/modules/contract-documents.md) for the Version 1 document
+  written during `create_contract`.
 * Extended by [Contract Lifecycle](/modules/contract-lifecycle.md) (document/versions/
   obligations/renewal) and [Lifecycle Negotiation](/modules/lifecycle-negotiation.md) without
   modifying this module's own files, per CLAUDE.md's "add alongside, don't rewrite" rule.

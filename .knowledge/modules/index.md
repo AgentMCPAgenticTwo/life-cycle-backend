@@ -10,6 +10,7 @@
 
 * [Dashboard / Lookups](/modules/dashboard-lookups.md) - Dashboard summary/tasks/high-risk-contracts/filters and the shared users/counterparties/contracts lookup queries that back them, from the uc123 batch.
 * [Contracts](/modules/contracts.md) - Contract listing, detail and creation including third-party-paper intake, the base resource most other modules extend.
+* [Contract Documents](/modules/contract-documents.md) - UC2 Version 1 document generation — merges a template body or adopts the uploaded third-party paper when a contract is saved; service only, no router.
 * [Templates / Clauses](/modules/templates-clauses.md) - Reusable contract template and clause library with versioning, activation lifecycle, and the version-history endpoints shared by both resources.
 * [Counterparties](/modules/counterparties.md) - Counterparty directory used by contract creation and dashboard filters.
 * [Files](/modules/files.md) - Uploaded-file persistence backing third-party-paper intake and contract document retrieval; service/repository only, no dedicated router.
@@ -38,4 +39,4 @@
 # Infrastructure
 
 * [Migrations](/modules/migrations.md) - 52 Alembic migrations, one table per revision, applied automatically at app startup, never reordered or edited once merged.
-* [Tests](/modules/tests.md) - 33 pytest files, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.
+* [Tests](/modules/tests.md) - 33 `test_*.py` files plus `conftest.py`, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.

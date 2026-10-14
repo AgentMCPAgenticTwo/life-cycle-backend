@@ -123,9 +123,20 @@ class VerifyOtpResponse(BaseModel):
     negotiationData: NegotiationExternalViewResponse | None = None
 
 
+class ClauseRedlineRequest(BaseModel):
+    clauseId: uuid.UUID
+    clauseText: str
+
+
 class ExternalSubmitRequest(BaseModel):
     commentText: str | None = None
     redlineText: str
+    # Added field, not in the frontend's ExternalSubmitRequest -- optional, so a caller that
+    # sends only `redlineText` still works. UC5's risk re-check must re-score only the
+    # clauses the counterparty changed; a flat redline document cannot say which clause is
+    # which, so when this list is present it carries the changed clauses explicitly and the
+    # new version's snapshot (and therefore Compare Versions) shows the real diff.
+    clauseRedlines: list[ClauseRedlineRequest] | None = None
 
 
 class ExternalSubmitResponse(BaseModel):

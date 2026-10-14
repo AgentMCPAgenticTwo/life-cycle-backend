@@ -23,6 +23,7 @@ from app.schemas.contract import (
     CreateContractRequest,
 )
 from app.schemas.pagination import PageParams
+from app.services import contract_documents
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -318,6 +319,14 @@ def create_contract(
         updated_by=user_uuid,
     )
     contracts_repo.insert_contract(db, contract)
+    # UC2-BR-014/015: saving the contract also produces its Version 1 document -- merged from
+    # the Template, or the uploaded Third Party Paper taken as-is -- in the same transaction.
+    version_number = contract_documents.generate_version_one(
+        db, tenant_id, user_uuid, contract, counterparty, owner
+    )
     db.commit()
     db.refresh(contract)
-    return _to_response(db, contract)
+    response = _to_response(db, contract)
+    response.documentVersionNumber = version_number
+    response.message = contract_documents.CREATED_MESSAGE
+    return response

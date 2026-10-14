@@ -107,6 +107,12 @@ class ContractResponse(BaseModel):
     riskScore: int | None = None
     createdAt: datetime
     updatedAt: datetime
+    # UC2 document generation: the frontend's ContractResponse carries only id/contractName/
+    # status, so these two fields are additive and ignored by a client that does not read
+    # them. `documentVersionNumber` is the version the save produced (always 1 on create);
+    # `message` is UC2's confirmation text.
+    documentVersionNumber: int | None = None
+    message: str | None = None
 
 
 class CreateContractRequest(BaseModel):
