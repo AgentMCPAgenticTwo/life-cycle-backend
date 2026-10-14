@@ -5,10 +5,10 @@ description: Contract metadata editing, ask-AI, negotiation routing/reviews, ext
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/lifecycle_negotiation.py
 tags: [backend, lifecycle-uc4-uc5, negotiation]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ f6503176d1f18e22902205491eb04e6059b7ca03
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -64,6 +64,28 @@ Parallel). The link is committed before the mail attempt. `send_reminder` likewi
 overdue reviewer (`EVENT_REVIEW_REMINDER`); the daily automatic variant lives in
 [Scheduled Notifications](/modules/scheduled-notifications.md), which reads
 `repo.list_overdue_routings` and `repo.list_reminders_since` from this module's repository.
+
+# Routing, Mark as Agreed and the approval request
+
+`create_routing` moves the contract to `In Negotiation` through
+`app.services.contract_status.transition` — see [Contract Status](/modules/contract-status.md).
+It accepts two cases:
+
+* **First routing** — the contract must be `Draft` with a completed AI clause-analysis pass
+  (UC5-BR-023) and have no routing yet; `repo.insert_routing` creates one at version 1.
+* **Re-send after a Send Back** (`resend_after_send_back`: already `In Negotiation` with a
+  routing whose `negotiation_status` is `NEGOTIATION_SENT_BACK`) — the existing routing is
+  reused so the version history continues: `repo.delete_reviewers` clears the old reviewer list,
+  the routing fields are rewritten, `negotiation_status` returns to `With Internal` and
+  `current_version_number` is incremented.
+
+`mark_agreed` makes agreement and the approval request one unit: it calls
+`app.services.approvals.start_approval` **before** committing, so a contract with no matching
+approval rule stays `In Negotiation` and un-Agreed (the `ConflictError` surfaces as 409). On
+success the routing becomes `Agreed`, the contract moves to `Pending Approval`, and
+`approvals.notify_step_approver` emails Step 1's approver after the commit. `NEGOTIATION_AGREED`
+and `NEGOTIATION_SENT_BACK` are re-exported from `contract_status` so both modules agree on the
+spelling.
 
 # Hotspot
 

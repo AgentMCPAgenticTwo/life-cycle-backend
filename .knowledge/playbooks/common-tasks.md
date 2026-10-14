@@ -5,9 +5,10 @@ description: Where to go in life-cycle-backend to add an endpoint, a migration, 
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app
 tags: [backend, playbook]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ 700de34973c81dd98062f0bef469b620e6fc976b
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -33,8 +34,9 @@ status: stable
    `TimestampMixin` and (if soft-deletable) `SoftDeleteMixin` from `app/models/mixins.py` — see
    [App Core](/modules/app-core.md).
 2. Add a new Alembic revision under `alembic/versions/`, numbered after the highest existing
-   revision (currently `0052_add_user_credentials_and_refresh_tokens.py`). **Never edit or
-   reorder an existing migration** — see [Migrations](/modules/migrations.md).
+   revision (currently `0053_unify_contract_status_flow.py`). **Never edit or
+   reorder an existing migration** — see [Migrations](/modules/migrations.md). A revision that
+   only rewrites existing rows is still a new numbered revision; `0053` is the pattern.
 3. If the table needs reference/lookup seed data, write an idempotent insert (existence check
    first). Copy `app.repositories.settings_notifications.ensure_seeded`, the repo's only
    seeder — it reads the existing names once and skips the ones already present, so it is safe
@@ -52,6 +54,28 @@ called, add a sweep function to `app/services/scheduled_notifications.py` and ca
 `run_all` — do not add a scheduler dependency. Give it a once-only or per-day guard (a row, or a
 "nothing sent since" query), because the loop may run many times a day. See
 [Scheduled Notifications](/modules/scheduled-notifications.md).
+
+# Move a contract to another status
+
+Never assign `Contract.status` in a service. Call
+`app.services.contract_status.transition(db, contract, NEW_STATUS, actor_id, reason)` with one
+of that module's constants — it writes the status and the Activity Log entry together and does
+not commit, so it joins your own transaction. Add a new status by adding a constant there, and
+by extending `ContractStatus` in `app/schemas/contract.py` and
+`app.repositories.tracker_bottleneck.STATUS_TO_STAGE`, or the contract disappears from the
+Bottleneck tab. Existing rows are moved by a new data-only migration, not by editing one. See
+[Contract Status](/modules/contract-status.md).
+
+# Return a downloadable file
+
+1. Write the bytes under `settings.document_storage_dir` (or `export_storage_dir`) — there is no
+   blob store, and a metadata row with no file behind it is what broke the document download.
+2. Return `fileUrl` as `f"{settings.api_base_url}{path}?token={create_file_token(user_id,
+   tenant_id, path)}"` — absolute, and pinned to that path.
+3. Serve the bytes from a second endpoint that depends on `file_access_user` /
+   `file_access_tenant_id` instead of `require_roles`, and check the role inside the handler.
+   Copy `GET /contracts/{contractId}/document/file` in
+   [Contract Lifecycle](/modules/contract-lifecycle.md).
 
 # Add a role check
 

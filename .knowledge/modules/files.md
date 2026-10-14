@@ -5,10 +5,10 @@ description: Uploaded-file persistence backing third-party-paper intake and cont
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/services/files.py
 tags: [backend, files, uploads]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:30:03Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ 086ad0dd7cfe1a9581dd2f87de143759ef781634
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -22,6 +22,15 @@ No `app/routers/files.py` exists — file upload/download is exposed through
 [Contracts](/modules/contracts.md)' `POST /contracts/third-party-paper` and
 [Contract Lifecycle](/modules/contract-lifecycle.md)'s `GET /contracts/{contractId}/document`
 and `.../document/download` endpoints, which call into this service/repository pair.
+
+# Uploaded bytes are kept on disk
+
+`upload_third_party_paper` decodes the base64 payload and writes it to `upload_file_path(file_id,
+file_format)` — `{settings.document_storage_dir}/uploads/{file_id}.{ext}` — before inserting the
+`uploaded_files` row. Without the bytes, a contract created from third-party paper had a document
+row with nothing behind it and the download failed;
+[Contract Documents](/modules/contract-documents.md)' `_read_upload` reads them back when it
+generates Version 1.
 
 # Repository
 

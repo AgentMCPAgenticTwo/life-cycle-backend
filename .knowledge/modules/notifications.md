@@ -2,7 +2,7 @@
 type: Module
 title: notifications
 description: The single outbound-notification service — every email and in-app alert in the app goes through `dispatch`, gated by the tenant's Settings > Notifications toggles.
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/services/notifications.py
 tags: [backend, notifications, smtp, uc6, uc7, uc11]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T04:36:49Z }
@@ -27,7 +27,7 @@ from HTTP directly. The toggles it reads are edited through [Settings](/modules/
 
 # Events
 
-`EVENT_APPROVED`, `EVENT_REJECTED`, `EVENT_SENT_BACK`, `EVENT_READY_FOR_SIGNATURE`,
+`EVENT_SENT_FOR_APPROVAL`, `EVENT_APPROVED`, `EVENT_REJECTED`, `EVENT_SENT_BACK`, `EVENT_READY_FOR_SIGNATURE`,
 `EVENT_SENT_FOR_SIGNATURE`, `EVENT_SIGNATURE_DECLINED`, `EVENT_EXECUTED`, `EVENT_USER_INVITED`,
 and the automatic/time-driven set `EVENT_SENT_TO_COUNTERPARTY`, `EVENT_REVIEW_REMINDER`,
 `EVENT_SIGNATURE_REMINDER`, `EVENT_EXPIRING_SOON`.
@@ -39,6 +39,7 @@ falls back to the both-channels-On default.
 
 | Caller | Events |
 |---|---|
+| `app.services.approvals.notify_step_approver` (from `mark_agreed` and from `submit_action` when an Approve advances a step) | sent for approval, to the current step's approver |
 | `app.services.approvals._notify_action` (from `submit_action`) | approved / rejected / sent back, plus ready-for-signature when the last step clears |
 | `app.services.signers.send_for_signature` | sent for signature |
 | `app.services.signing_sessions.apply_signature` | executed, and sent-for-signature to the next signer |

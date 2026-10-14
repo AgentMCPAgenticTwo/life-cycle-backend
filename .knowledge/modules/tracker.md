@@ -5,10 +5,10 @@ description: Management tracker with four reporting tabs (ownership, cycle-time,
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/tracker_ownership.py
 tags: [backend, lifecycle-uc10-uc11, tracker, reporting]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:52:08Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ d70a013fb2897dd0acd338eafeb0932179ffaaf5
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -68,13 +68,19 @@ rows at request time rather than from a stored flag, so edits take effect on its
    (UC10-AF-003). `_TAB_HEADERS` holds the column headers per tab and `_cell` formats values.
 4. `export_files.build_file` renders the bytes — see [Export Files](/modules/export-files.md).
 5. `_persist_export` writes them under `settings.export_storage_dir`, inserts an
-   `uploaded_files` row via [Files](/modules/files.md)' `insert_uploaded_file`, and returns
-   `/api/v1/tracker/exports/{fileId}` as `fileUrl`.
+   `uploaded_files` row via [Files](/modules/files.md)' `insert_uploaded_file`, and returns an
+   **absolute** `fileUrl`: `{settings.api_base_url}/api/v1/tracker/exports/{fileId}?token=…`.
+   The token is a short-lived `app.security.create_file_token` JWT pinned to that path, because
+   the frontend opens the URL in a new tab and can attach neither the SPA origin nor the
+   `Authorization` header — see [Auth](/modules/auth.md).
 
 Any other failure rolls back and returns `success: false` with `EXPORT_FAILED_MESSAGE`
 (UC10-AF-004) instead of a 500. `get_export_file` serves the download by id, 404ing when the
 `uploaded_files` row or the file on disk is missing; `_SCOPED_ROLES` and
-`_entitled_contract_ids` keep both endpoints tenant- and owner-scoped.
+`_entitled_contract_ids` keep both endpoints tenant- and owner-scoped. `GET
+/tracker/exports/{fileId}` authenticates with `file_access_user`/`file_access_tenant_id` rather
+than `require_roles`, so its router checks the caller's role against `_EXPORT_ROLES` itself and
+raises 403.
 
 All four tab GETs share `TrackerQueryParams` (period/contractTypeFilter/ownerFilter/
 dateRangeFrom/dateRangeTo/page/pageSize) and the `{rows, isEmpty, emptyStateMessage, totalCount,
@@ -92,6 +98,11 @@ services form one cohesive unit distinct from [Settings](/modules/settings.md) (
 `turnaround_override_log`, `tenant_bottleneck_thresholds` (migrations 0042-0046).
 
 # Relationships
+
+`app.repositories.tracker_bottleneck.STATUS_TO_STAGE` maps every contract status — including
+the unified `Pending Signature` alongside the legacy `Ready For Signature`/`Sent` — onto the
+four reporting stages; a status missing from it would drop the contract off the Bottleneck tab.
+See [Contract Status](/modules/contract-status.md).
 
 Reads stage/owner data written by [Contract Lifecycle](/modules/contract-lifecycle.md) actions
 (stage transitions, ownership assignment) to compute cycle time and bottleneck flags. The

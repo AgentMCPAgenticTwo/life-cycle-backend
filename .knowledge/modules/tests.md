@@ -5,10 +5,10 @@ description: 34 `test_*.py` files plus `conftest.py`, one per resource/concern, 
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/tests
 tags: [backend, tests, pytest]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ f6503176d1f18e22902205491eb04e6059b7ca03
+    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
     title: Codebase knowledge graph
 status: stable
 ---
@@ -46,6 +46,14 @@ two together — `test_migration_chain_matches_contract_order_exactly` walks the
 and `test_migration_upgrade_sql_generates_offline_without_a_database` renders the DDL in
 `--sql` mode, so the auth revision noted in [Migrations](/modules/migrations.md) is checked
 without a live Postgres.
+
+# Files written during a test
+
+`tests/conftest.py` also defines the autouse `_document_storage` fixture: it points
+`settings.document_storage_dir` at a per-test `tmp_path` for the duration of each test and
+restores it afterwards, so the document and upload bytes written by
+[Contract Documents](/modules/contract-documents.md) and [Files](/modules/files.md) never land
+in the repo's `var/`. Tracker exports still use `settings.export_storage_dir`.
 
 # Shared fixture patterns (graph clusters)
 
