@@ -6,14 +6,17 @@ UC7-FV-002), decline halting routing (UC7-AF-002, UC7-BR-008/018), auto-expiry a
 019, UC7-FV-003), and the role/auth matrix (UC7-BR-011/014).
 """
 import hashlib
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from app.config import settings
 from app.models.contract import Contract
 from app.models.counterparty import Counterparty
 from app.models.esignature import Signer
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.services import notifications
 from tests.conftest import auth_headers
 
 SIGNER = "SIGNER"
@@ -344,6 +347,32 @@ def test_resend_otp_after_expiry_resets_status_to_sent(db_session, db_client):
     body = resp.json()
     assert body["signerStatus"] == "Sent"
     assert body["linkExpired"] is False
+
+
+def test_resend_otp_emails_the_fresh_link_and_otp(db_session, db_client, monkeypatch):
+    """Rotating the credentials is useless unless they are mailed: the message must carry the
+    portal URL and the new one-time password."""
+    sent: list[tuple[list[str], str, str]] = []
+    monkeypatch.setattr(
+        notifications,
+        "_send_email",
+        lambda recipients, subject, body: sent.append((recipients, subject, body)),
+    )
+    tenant, owner, _, contract = _setup(db_session)
+    s1 = _seed_signer(db_session, contract.id, 1, status="Sent")
+    db_session.commit()
+    resp = db_client.post(
+        f"/api/v1/signing-sessions/{s1.id}/otp/resend", headers=_headers(SIGNER, _actor(db_session, SIGNER))
+    )
+    assert resp.status_code == 200
+    assert len(sent) == 1
+    recipients, _subject, body = sent[0]
+    assert recipients == [s1.signer_email]
+    db_session.refresh(s1)
+    assert f"{settings.app_base_url}/sign/{s1.id}" in body
+    otp = re.search(r"One-time password: (\d{6})", body)
+    assert otp is not None
+    assert hashlib.sha256(otp.group(1).encode("utf-8")).hexdigest() == s1.otp_hash
 
 
 def test_resend_otp_by_contract_owner_non_owner_403(db_session, db_client):

@@ -5,10 +5,10 @@ description: The time-driven half of notifications — an in-process sweep that 
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/services/scheduled_notifications.py
 tags: [backend, notifications, scheduler, uc5, uc7, uc9]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T06:05:54Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-15T05:15:24Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
+    resource: codebase-memory-mcp project life-cycle-backend @ 24c451af17fc14c47102e38019b754771e026556
     title: Codebase knowledge graph
 status: stable
 ---
@@ -35,6 +35,12 @@ gate each channel — see [Notifications](/modules/notifications.md).
 | `run_reviewer_reminders` | UC5 | one email per day to the overdue reviewer and the Contract Owner | the review is submitted, or `negotiation_status` is `Agreed` (excluded in `list_overdue_routings`) |
 | `run_signature_reminders` | UC7 | every X days, X from the signer's Reminder Frequency, then the tenant e-signature setting, then `DEFAULT_SIGNATURE_REMINDER_DAYS` (3) | the signer signs/declines, or the contract status is in `SIGNING_CLOSED_STATUSES` (which lists both `Signature Declined` and the legacy `SignatureDeclined`, so a row migration 0053 has not reached still stops the reminders — see [Contract Status](/modules/contract-status.md)) |
 | `run_renewal_alerts` | UC9 | 90/60/30 days before the End Date and before the Notice Period deadline (`ALERT_BASIS_END_DATE` / `ALERT_BASIS_NOTICE`) | each (contract, threshold, basis) fires exactly once — the `renewal_alerts` row is the guard |
+
+`run_signature_reminders`' body includes the signer's portal link,
+`{settings.app_base_url}/sign/{signer.id}` — a reminder that only said "open your signing link"
+gave the recipient nothing to click. It deliberately does **not** repeat the one-time password
+(the row stores only its hash by then), and tells the signer to ask the contract owner for a
+resend instead; that resend is [Signing](/modules/signing.md)'s `resend_otp`.
 
 `run_all` calls all three over one `Session` and is the entry point for both the background
 loop and any external scheduler. It is pure business logic over a session, so a test calls it

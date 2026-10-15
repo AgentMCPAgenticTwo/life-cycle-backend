@@ -5,10 +5,10 @@ description: Contract signer management and the OTP-based signing-session flow (
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/signers.py
 tags: [backend, uc6-uc7-combined, signing, esignature]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-15T05:15:24Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
+    resource: codebase-memory-mcp project life-cycle-backend @ 24c451af17fc14c47102e38019b754771e026556
     title: Codebase knowledge graph
 status: stable
 ---
@@ -53,10 +53,23 @@ behavior (reminder cadence, OTP expiry) is configured via
 
 # Notifications
 
-Three of this module's actions emit events through
+Four of this module's actions emit events through
 [Notifications](/modules/notifications.md), each after its own commit:
-`signers.send_for_signature` and `signing_sessions.apply_signature` (to the next signer in
-order) send `Contract Sent for Signature`, `apply_signature` also sends `Contract Signed` once
+`signers.send_for_signature`, `signing_sessions.resend_otp` and
+`signing_sessions.apply_signature` (to the next signer in order) send
+`Contract Sent for Signature`, `apply_signature` also sends `Contract Signed` once
 the last signer completes, and `signing_sessions.decline_signature` sends
 `Contract Signature Declined`. Delivery failures are swallowed there, so an unreachable mail
 server cannot roll back a recorded signature.
+
+All three sent-for-signature mails share one body, `notifications.signing_invite_body`, which
+carries the `/sign/{sessionId}` link, the `link_token`, the one-time password and the expiry.
+Two consequences follow from the OTP being per-signer and existing in plaintext only in memory:
+
+* `send_for_signature` sends **one mail per first-order signer** (holding each generated code in
+  a local `otp_codes` map) rather than one message addressed to all of them — a shared message
+  would have handed every signer somebody else's credentials.
+* `resend_otp` now mails the refreshed link and code; it previously rotated both silently
+  (UC7-BR-020), leaving the signer with credentials they had no way to learn.
+* `apply_signature` keeps the next signer's generated code in `next_otp_code` across the commit
+  so it can go into the mail it sends afterwards.

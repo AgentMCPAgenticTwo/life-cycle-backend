@@ -269,6 +269,30 @@ def resend_otp(db: Session, user: CurrentUser, session_id: uuid.UUID) -> Signing
     db.commit()
     db.refresh(signer)
 
+    # UC7-BR-020: the refreshed link and OTP are only useful to the signer once they are
+    # actually mailed out -- resend previously rotated the credentials silently.
+    notifications.dispatch(
+        db,
+        contract.tenant_id,
+        notifications.EVENT_SENT_FOR_SIGNATURE,
+        recipients=[signer.signer_email],
+        subject=f"Please sign {contract.contract_name}",
+        body=notifications.signing_invite_body(
+            signer_name=signer.signer_name,
+            contract_name=contract.contract_name,
+            session_id=signer.id,
+            link_token=signer.link_token,
+            otp_code=otp_code,
+            expires_at=signer.link_expires_at,
+            lead_in=(
+                f"A new signing link for {contract.contract_name} has been issued. Open the "
+                "link and enter the one-time password below to continue."
+            ),
+        ),
+        entity="Signer",
+        actor_id=signer.updated_by,
+    )
+
     prior_signed = _prior_signers_all_signed(db, signer)
     return _build_session_response(signer, contract, prior_signed)
 
@@ -310,6 +334,8 @@ def apply_signature(
     rows = repo.list_by_contract(db, contract.id)
     other_rows = [s for s in rows if s.id != signer.id]
     next_signer_id: uuid.UUID | None = None
+    # Plaintext only lives here; the row keeps nothing but the hash.
+    next_otp_code: str | None = None
 
     if all(s.signer_status == "Signed" for s in other_rows):
         # UC7-BR-007/019: Executed fires automatically on the last signature -- never on
@@ -323,8 +349,8 @@ def apply_signature(
         )
         if remaining:
             nxt = remaining[0]
-            otp_code = f"{secrets.randbelow(1_000_000):06d}"
-            nxt.otp_hash = hashlib.sha256(otp_code.encode("utf-8")).hexdigest()
+            next_otp_code = f"{secrets.randbelow(1_000_000):06d}"
+            nxt.otp_hash = hashlib.sha256(next_otp_code.encode("utf-8")).hexdigest()
             nxt.otp_attempts = 0
             nxt.otp_locked_until = None
             nxt.link_token = secrets.token_urlsafe(32)
@@ -357,9 +383,17 @@ def apply_signature(
             notifications.EVENT_SENT_FOR_SIGNATURE,
             recipients=[nxt.signer_email],
             subject=f"Please sign {contract.contract_name}",
-            body=(
-                f"It is now your turn to sign {contract.contract_name}. Open your signing "
-                "link and enter the one-time password sent to you to continue."
+            body=notifications.signing_invite_body(
+                signer_name=nxt.signer_name,
+                contract_name=contract.contract_name,
+                session_id=nxt.id,
+                link_token=nxt.link_token,
+                otp_code=next_otp_code or "",
+                expires_at=nxt.link_expires_at,
+                lead_in=(
+                    f"It is now your turn to sign {contract.contract_name}. Open your signing "
+                    "link and enter the one-time password below to continue."
+                ),
             ),
             entity="Signer",
             actor_id=actor_id,

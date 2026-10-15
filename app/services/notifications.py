@@ -50,6 +50,32 @@ EVENT_SIGNATURE_REMINDER = "Signature Reminder"
 EVENT_EXPIRING_SOON = "Contract Expiring Soon"
 
 
+def signing_invite_body(
+    *,
+    signer_name: str,
+    contract_name: str,
+    session_id: uuid.UUID,
+    link_token: str,
+    otp_code: str,
+    expires_at: datetime,
+    lead_in: str,
+) -> str:
+    """The one body used by every "here is your signing link" mail (first send, next signer in
+    the order, resend). It mirrors the counterparty review mail in
+    `app.services.lifecycle_negotiation`: a clickable URL, the secure link reference, the
+    one-time password and the expiry. Without the URL and the OTP in the message there is
+    nothing for the signer to open or type."""
+    url = f"{settings.app_base_url}/sign/{session_id}"
+    return (
+        f"{signer_name},\n\n"
+        f"{lead_in}\n\n"
+        f"Signing link: {url}\n"
+        f"Secure link reference: {link_token}\n"
+        f"One-time password: {otp_code}\n\n"
+        f"The link expires at {expires_at:%Y-%m-%d %H:%M} UTC."
+    )
+
+
 def _toggles(db: Session, tenant_id: uuid.UUID, event_name: str) -> tuple[bool, bool]:
     """(email, in-app) for this tenant's event. An event the tenant has never saved is On on
     both channels (UC11-BR-007), the same default `ensure_seeded` writes."""
@@ -64,7 +90,14 @@ def _send_email(recipients: list[str], subject: str, body: str) -> None:
     default in development and in tests) the message is logged instead of sent -- there is no
     mail provider dependency in this repository."""
     if not settings.smtp_host:
-        logger.info("notification email (no SMTP_HOST configured) to=%s subject=%s", recipients, subject)
+        # The body carries the clickable link and the one-time password, so it has to be in
+        # the log line: with no relay configured this log IS the inbox.
+        logger.info(
+            "notification email (no SMTP_HOST configured) to=%s subject=%s\n%s",
+            recipients,
+            subject,
+            body,
+        )
         return
 
     message = EmailMessage()
