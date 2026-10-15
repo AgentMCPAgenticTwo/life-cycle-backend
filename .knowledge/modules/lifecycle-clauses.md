@@ -5,9 +5,10 @@ description: AI-assisted clause analysis, suggestion acceptance, manual editing 
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/lifecycle_clauses.py
 tags: [backend, lifecycle-uc4-uc5, clauses]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-15T05:59:28Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ f6503176d1f18e22902205491eb04e6059b7ca03
+    resource: codebase-memory-mcp project life-cycle-backend @ f6d064f5cca1e68e91dc3418c66298f233273401
     title: Codebase knowledge graph
 status: stable
 ---
@@ -46,6 +47,22 @@ clause changed when its current text no longer appears verbatim in the document.
 leaves the saved version intact with a retryable `Failed` status rather than rolling back.
 `app/repositories/lifecycle_clauses.py` adds `get_latest_audit_entry` (newest
 `ClauseAuditLog` row for an action-type set and optional `field_name`) to support this.
+
+# Proceed to Negotiation once the contract is already routed
+
+Both `_build_analysis_response` and `proceed_to_negotiation` ask
+`app.repositories.lifecycle_negotiation.get_routing_by_contract` whether a routing exists — this
+module's only dependency on the negotiation repository.
+
+| Without a routing | With a routing |
+|---|---|
+| `proceedToNegotiationEnabled` is false while any clause carries the Missing-Mandatory flag (UC4-BR-005/AF-006) | the flag no longer blocks: the screen stores no "already proceeded" state, so a false here would strand the Legal Reviewer on a reload with no way back into a negotiation they are already in |
+| `proceed_to_negotiation` raises `ConflictError` (409) on a mandatory flag | calling it again is idempotent and reports where the negotiation stands — `negotiationStatus` from `routing.negotiation_status`, `routedAt` from `routing.created_at`, instead of the fixed `Ready for Negotiation`/`null` |
+
+A `pending_reanalysis_failure` still disables the button in both cases — unlike a mandatory
+flag, a retry can clear it. Covered by
+`test_already_routed_contract_still_offers_proceed_to_negotiation` in
+`tests/test_lifecycle_negotiation.py`.
 
 # Relationships
 

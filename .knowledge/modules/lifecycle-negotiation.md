@@ -5,10 +5,10 @@ description: Contract metadata editing, ask-AI, negotiation routing/reviews, ext
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/lifecycle_negotiation.py
 tags: [backend, lifecycle-uc4-uc5, negotiation]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-15T05:59:28Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
+    resource: codebase-memory-mcp project life-cycle-backend @ f6d064f5cca1e68e91dc3418c66298f233273401
     title: Codebase knowledge graph
 status: stable
 ---
@@ -56,6 +56,12 @@ so Compare Versions shows the real diff and the re-check knows which clauses to 
 [Notifications](/modules/notifications.md) (`EVENT_SENT_TO_COUNTERPARTY`), so UC5-BR-016 holds:
 it reaches the External Party's inbox and nothing else. `_generate_otp` is the seam a test
 patches, since no response exposes the value.
+
+The mail body is built by `notifications.external_review_invite_body`, not inline here, and
+leads with the clickable `/negotiation/external/{linkToken}` URL — the secure link reference on
+its own gave the counterparty nothing to open. `tests/test_lifecycle_negotiation.py`'s
+`test_counterparty_invite_mail_carries_the_review_url` asserts the URL, the reference and the
+OTP all appear in the no-SMTP log line.
 
 `_issue_external_link` is shared by two paths: the explicit `POST .../negotiation/external-link`,
 and `submit_review`, which calls it automatically the moment `internal_review_complete` holds
