@@ -5,13 +5,17 @@ Signer List lock after the first signature, Send for Signature's precondition/pr
 behavior, and the audit certificate's Executed-only gate -- see TASK.md's stories
 UC7-AF-004..006, UC7-BR-002/004/005/009/010/012..015/019, UC7-FV-001/005, UC7-GC-001, UC7-MF-001.
 """
+import hashlib
+import re
 import uuid
 
+from app.config import settings
 from app.models.contract import Contract
 from app.models.counterparty import Counterparty
 from app.models.esignature import EsignatureSettings, Signer
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.services import notifications
 from tests.conftest import auth_headers
 
 CONTRACT_OWNER = "CONTRACT_OWNER"
@@ -453,6 +457,35 @@ def test_send_for_signature_happy_path_keeps_contract_pending_signature(db_sessi
     assert by_order[2]["signerStatus"] == "Pending"
     db_session.refresh(contract)
     assert contract.status == "Pending Signature"
+
+
+def test_send_for_signature_emails_clickable_link_and_otp(db_session, db_client, monkeypatch):
+    """The signer's mail must carry the portal URL, the link reference, the OTP and the
+    expiry -- without them there is nothing to click and nothing to type."""
+    sent: list[tuple[list[str], str, str]] = []
+    monkeypatch.setattr(
+        notifications,
+        "_send_email",
+        lambda recipients, subject, body: sent.append((recipients, subject, body)),
+    )
+    tenant, owner, _, _, _, contract = _setup(db_session)
+    signer = _seed_signer(db_session, contract.id, order=1)
+    db_session.commit()
+    resp = db_client.post(
+        f"/api/v1/contracts/{contract.id}/signers/send", json={}, headers=_headers(CONTRACT_OWNER, owner.id)
+    )
+    assert resp.status_code == 200
+    assert len(sent) == 1
+    recipients, _subject, body = sent[0]
+    assert recipients == [signer.signer_email]
+    db_session.refresh(signer)
+    assert f"{settings.app_base_url}/sign/{signer.id}" in body
+    assert f"Secure link reference: {signer.link_token}" in body
+    otp = re.search(r"One-time password: (\d{6})", body)
+    assert otp is not None
+    # Only the hash is stored, and it must match the code that was mailed.
+    assert hashlib.sha256(otp.group(1).encode("utf-8")).hexdigest() == signer.otp_hash
+    assert "The link expires at" in body
 
 
 def test_send_for_signature_cannot_be_sent_twice(db_session, db_client):

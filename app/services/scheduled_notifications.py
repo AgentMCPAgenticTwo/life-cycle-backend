@@ -202,8 +202,10 @@ def run_signature_reminders(db: Session, now: datetime | None = None) -> int:
             subject=f"Reminder: please sign {contract.contract_name}",
             body=(
                 f"{signer.signer_name},\n\n"
-                f"{contract.contract_name} is still waiting for your signature. Open your "
-                "signing link and enter the one-time password sent to you to continue."
+                f"{contract.contract_name} is still waiting for your signature.\n\n"
+                f"Signing link: {settings.app_base_url}/sign/{signer.id}\n\n"
+                "Enter the one-time password already sent to you to continue. If you no "
+                "longer have it, ask the contract owner to resend the link."
             ),
             entity="Signer",
             actor_id=SYSTEM_ACTOR_ID,

@@ -324,9 +324,13 @@ def send_for_signature(
 
     first_order = min(s.signing_order for s in rows)
     now = datetime.now(timezone.utc)
+    # The plaintext OTP exists only here -- only its hash is stored -- so it is held per signer
+    # until the mails go out below.
+    otp_codes: dict[uuid.UUID, str] = {}
     for s in rows:
         if s.signing_order == first_order:
             otp_code = f"{secrets.randbelow(1_000_000):06d}"
+            otp_codes[s.id] = otp_code
             s.otp_hash = hashlib.sha256(otp_code.encode("utf-8")).hexdigest()
             s.otp_attempts = 0
             s.otp_locked_until = None
@@ -344,19 +348,32 @@ def send_for_signature(
 
     # UC7: the first signer in the order is the one holding a live link right now -- the
     # shared notification service mails it to them, gated on Settings > Notifications.
-    notifications.dispatch(
-        db,
-        tenant_id,
-        notifications.EVENT_SENT_FOR_SIGNATURE,
-        recipients=[s.signer_email for s in rows if s.signing_order == first_order],
-        subject=f"Please sign {contract.contract_name}",
-        body=(
-            f"You have been asked to sign {contract.contract_name}. Open your signing link "
-            "and enter the one-time password sent to you to continue."
-        ),
-        entity="Signer",
-        actor_id=actor_id,
-    )
+    # One mail per signer: the link reference and the one-time password are per-signer
+    # credentials, so they cannot share a single message.
+    for s in rows:
+        if s.signing_order != first_order:
+            continue
+        notifications.dispatch(
+            db,
+            tenant_id,
+            notifications.EVENT_SENT_FOR_SIGNATURE,
+            recipients=[s.signer_email],
+            subject=f"Please sign {contract.contract_name}",
+            body=notifications.signing_invite_body(
+                signer_name=s.signer_name,
+                contract_name=contract.contract_name,
+                session_id=s.id,
+                link_token=s.link_token,
+                otp_code=otp_codes[s.id],
+                expires_at=s.link_expires_at,
+                lead_in=(
+                    f"You have been asked to sign {contract.contract_name}. Open your signing "
+                    "link and enter the one-time password below to continue."
+                ),
+            ),
+            entity="Signer",
+            actor_id=actor_id,
+        )
 
     return SendForSignatureResponse(
         contractId=contract.id,

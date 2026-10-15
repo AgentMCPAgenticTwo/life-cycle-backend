@@ -32,6 +32,14 @@ class Settings:
     api_base_url: str = os.environ.get(
         "API_BASE_URL", f"http://localhost:{os.environ.get('PORT', '5199')}"
     ).rstrip("/")
+    # Absolute, browser-reachable base URL of the SPA. Emailed links (the signing portal at
+    # `/sign/{sessionId}`) are built from it: without it the recipient gets a path with no
+    # host and nothing to click. Defaults to the first configured CORS origin.
+    app_base_url: str = os.environ.get(
+        "APP_BASE_URL",
+        (os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")[0].strip()
+         or "http://localhost:5173"),
+    ).rstrip("/")
     # A `fileUrl` is opened directly by the browser (window.open / <a download>), which cannot
     # carry the Authorization header, so the URL carries a short-lived signed file token
     # instead. The byte endpoints still accept a bearer token when one is sent.

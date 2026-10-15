@@ -1,0 +1,1008 @@
+{
+  "trace_id": "92a2ebacae78",
+  "branch": "api-correction/92a2ebacae78",
+  "maintenance_branch": "api-correction/92a2ebacae78",
+  "status": "SUCCESS",
+  "summary": "All five signing-session DTOs already matched the shared contract field-for-field (`sessionId`, `signerStatus`, `isCurrentTurn`, `otpVerified`, `documentUrl`, `signaturePadAvailable`, `nextSignerId`, …) and `sign` already returns `signerStatus: \"Signed\"` regardless of `isCurrentTurn`, so no renames were needed. The real gap was the one you described: the signer email had no link and no OTP, so there was nothing to click or type.\n\nWhat I changed:\n\n- **`app/config.py`** — added `app_base_url` (env `APP_BASE_URL`, defaulting to the first CORS origin, i.e. `http://localhost:5173`), the SPA origin emailed links are built from.\n- **`app/services/notifications.py`** — added `signing_invite_body(...)`, the single body shared by every \"here is your signing link\" mail. It mirrors the counterparty-review mail format you quoted: a clickable `{app_base_url}/sign/{sessionId}` URL, `Secure link reference:`, `One-time password:` and the expiry line. Also made `_send_email` log the body, not just the subject — with no `SMTP_HOST` that log *is* the inbox, so the OTP was previously unreadable in the backend terminal.\n- **`app/services/signers.py`** (`send_for_signature`) — holds each first-order signer's plaintext OTP and now sends **one mail per signer** (link token and OTP are per-signer credentials, so a shared message was wrong) using the new body.\n- **`app/services/signing_sessions.py`** — `apply_signature` sends the next signer their actual new link + OTP; `resend_otp` now **sends a mail at all** (it previously rotated link/OTP silently, so \"resend\" delivered nothing).\n- **`app/services/scheduled_notifications.py`** — the signature reminder now carries the clickable portal URL (it can't carry the OTP: only the hash is stored) and tells the signer to ask for a resend if they no longer have the code.\n- **Tests** — two new ones asserting the mail contains the URL, link reference, expiry, and an OTP whose SHA-256 matches the stored `otp_hash`, for both first send and resend. `python -m compileall app` clean; `pytest -q` 531 passed.\n\nInterpretation I took (the smaller one): the request is about the *email content* for the signing flow, not a rework of the signing endpoints. Rendering the link as a clickable anchor and the `/sign/<sessionId>` route itself live in the frontend repo; I only supply the absolute URL in the message body.",
+  "files_changed": [
+    "app/config.py",
+    "app/services/notifications.py",
+    "app/services/scheduled_notifications.py",
+    "app/services/signers.py",
+    "app/services/signing_sessions.py",
+    "tests/test_signers.py",
+    "tests/test_signing_sessions.py"
+  ],
+  "lines_changed": 198,
+  "blockers": [
+    "Not applied -- Rename/realign signing-session DTO fields to the shared contract: already true - SigningSessionResponse, VerifyOtp*, ApplySignature*, DeclineSignature* already match the contract field-for-field, and sign already returns signerStatus 'Signed' independently of isCurrentTurn",
+    "Not applied -- Rendering the signing link as a clickable element and the localhost:5173/sign/<sessionId> route/portal screens: belongs to the counterpart frontend repository; the backend only supplies the absolute URL in the email body",
+    "Not applied -- Including the OTP in the periodic signature reminder email: blocked - only the SHA-256 hash of the OTP is stored, so the plaintext cannot be re-sent; the reminder directs the signer to request a resend instead"
+  ],
+  "visual_check": {
+    "verdict": "skipped",
+    "evidence": "",
+    "screenshot_path": ""
+  },
+  "context_sharing": {
+    "target": "backend",
+    "branch": "api-correction/92a2ebacae78",
+    "base_path": "/api/v1",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/signing-sessions/{sessionId}",
+        "request_fields": [
+          {
+            "name": "sessionId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "sessionId",
+            "type": "string"
+          },
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signerId",
+            "type": "string"
+          },
+          {
+            "name": "signerName",
+            "type": "string"
+          },
+          {
+            "name": "signerEmail",
+            "type": "string"
+          },
+          {
+            "name": "signerStatus",
+            "type": "string"
+          },
+          {
+            "name": "isCurrentTurn",
+            "type": "boolean"
+          },
+          {
+            "name": "otpVerified",
+            "type": "boolean"
+          },
+          {
+            "name": "documentUrl",
+            "type": "string"
+          },
+          {
+            "name": "signaturePadAvailable",
+            "type": "boolean"
+          },
+          {
+            "name": "declineAvailable",
+            "type": "boolean"
+          },
+          {
+            "name": "reminderFrequencyDays",
+            "type": "number"
+          },
+          {
+            "name": "linkExpired",
+            "type": "boolean"
+          },
+          {
+            "name": "blockedMessage",
+            "type": "string"
+          }
+        ],
+        "purpose": "Load the signing session for the signing portal"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/signing-sessions/{sessionId}/otp/verify",
+        "request_fields": [
+          {
+            "name": "sessionId",
+            "type": "string"
+          },
+          {
+            "name": "otpCode",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "signerStatus",
+            "type": "string"
+          },
+          {
+            "name": "documentUrl",
+            "type": "string"
+          },
+          {
+            "name": "signaturePadAvailable",
+            "type": "boolean"
+          },
+          {
+            "name": "attemptsRemaining",
+            "type": "number"
+          },
+          {
+            "name": "lockedUntil",
+            "type": "date"
+          },
+          {
+            "name": "errorMessage",
+            "type": "string"
+          }
+        ],
+        "purpose": "Verify the 6-digit OTP and unlock the document viewer and signature pad"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/signing-sessions/{sessionId}/otp/resend",
+        "request_fields": [
+          {
+            "name": "sessionId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "sessionId",
+            "type": "string"
+          },
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signerId",
+            "type": "string"
+          },
+          {
+            "name": "signerName",
+            "type": "string"
+          },
+          {
+            "name": "signerEmail",
+            "type": "string"
+          },
+          {
+            "name": "signerStatus",
+            "type": "string"
+          },
+          {
+            "name": "isCurrentTurn",
+            "type": "boolean"
+          },
+          {
+            "name": "otpVerified",
+            "type": "boolean"
+          },
+          {
+            "name": "documentUrl",
+            "type": "string"
+          },
+          {
+            "name": "signaturePadAvailable",
+            "type": "boolean"
+          },
+          {
+            "name": "declineAvailable",
+            "type": "boolean"
+          },
+          {
+            "name": "reminderFrequencyDays",
+            "type": "number"
+          },
+          {
+            "name": "linkExpired",
+            "type": "boolean"
+          },
+          {
+            "name": "blockedMessage",
+            "type": "string"
+          }
+        ],
+        "purpose": "Rotate link/OTP, email the signer, and return the refreshed session"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/signing-sessions/{sessionId}/sign",
+        "request_fields": [
+          {
+            "name": "sessionId",
+            "type": "string"
+          },
+          {
+            "name": "signatureData",
+            "type": "string"
+          },
+          {
+            "name": "signatureType",
+            "type": "enum"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "signerId",
+            "type": "string"
+          },
+          {
+            "name": "signerStatus",
+            "type": "string"
+          },
+          {
+            "name": "contractStatus",
+            "type": "string"
+          },
+          {
+            "name": "nextSignerId",
+            "type": "string"
+          }
+        ],
+        "purpose": "Apply the signer's signature to the contract"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/signing-sessions/{sessionId}/decline",
+        "request_fields": [
+          {
+            "name": "sessionId",
+            "type": "string"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "signerId",
+            "type": "string"
+          },
+          {
+            "name": "signerStatus",
+            "type": "string"
+          },
+          {
+            "name": "contractStatus",
+            "type": "string"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ],
+        "purpose": "Record a decline to sign with a mandatory reason"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/contracts/{contractId}/signers",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signers",
+            "type": "array"
+          },
+          {
+            "name": "sendForSignatureEnabled",
+            "type": "boolean"
+          },
+          {
+            "name": "signingOrderLocked",
+            "type": "boolean"
+          }
+        ],
+        "purpose": "List signers for a contract"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/contracts/{contractId}/signers",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signerName",
+            "type": "string"
+          },
+          {
+            "name": "signerEmail",
+            "type": "string"
+          },
+          {
+            "name": "signerType",
+            "type": "enum"
+          },
+          {
+            "name": "signingOrder",
+            "type": "number"
+          },
+          {
+            "name": "signatureMethod",
+            "type": "enum"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signerName",
+            "type": "string"
+          },
+          {
+            "name": "signerEmail",
+            "type": "string"
+          },
+          {
+            "name": "signerType",
+            "type": "string"
+          },
+          {
+            "name": "signingOrder",
+            "type": "number"
+          },
+          {
+            "name": "signatureMethod",
+            "type": "string"
+          },
+          {
+            "name": "reminderFrequencyDays",
+            "type": "number"
+          },
+          {
+            "name": "signerStatus",
+            "type": "string"
+          },
+          {
+            "name": "otpVerifiedAt",
+            "type": "date"
+          },
+          {
+            "name": "signaturePadCompleted",
+            "type": "boolean"
+          },
+          {
+            "name": "ipAddress",
+            "type": "string"
+          },
+          {
+            "name": "signedAt",
+            "type": "date"
+          },
+          {
+            "name": "declineReason",
+            "type": "string"
+          },
+          {
+            "name": "linkExpiresAt",
+            "type": "date"
+          }
+        ],
+        "purpose": "Add a signer (201)"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/contracts/{contractId}/signers/{signerId}",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signerId",
+            "type": "string"
+          },
+          {
+            "name": "signerName",
+            "type": "string"
+          },
+          {
+            "name": "signerEmail",
+            "type": "string"
+          },
+          {
+            "name": "signerType",
+            "type": "enum"
+          },
+          {
+            "name": "signingOrder",
+            "type": "number"
+          },
+          {
+            "name": "signatureMethod",
+            "type": "enum"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signerName",
+            "type": "string"
+          },
+          {
+            "name": "signerEmail",
+            "type": "string"
+          },
+          {
+            "name": "signerType",
+            "type": "string"
+          },
+          {
+            "name": "signingOrder",
+            "type": "number"
+          },
+          {
+            "name": "signatureMethod",
+            "type": "string"
+          },
+          {
+            "name": "reminderFrequencyDays",
+            "type": "number"
+          },
+          {
+            "name": "signerStatus",
+            "type": "string"
+          },
+          {
+            "name": "otpVerifiedAt",
+            "type": "date"
+          },
+          {
+            "name": "signaturePadCompleted",
+            "type": "boolean"
+          },
+          {
+            "name": "ipAddress",
+            "type": "string"
+          },
+          {
+            "name": "signedAt",
+            "type": "date"
+          },
+          {
+            "name": "declineReason",
+            "type": "string"
+          },
+          {
+            "name": "linkExpiresAt",
+            "type": "date"
+          }
+        ],
+        "purpose": "Update a signer"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/contracts/{contractId}/signers/{signerId}",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signerId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signerName",
+            "type": "string"
+          },
+          {
+            "name": "signerEmail",
+            "type": "string"
+          },
+          {
+            "name": "signerType",
+            "type": "string"
+          },
+          {
+            "name": "signingOrder",
+            "type": "number"
+          },
+          {
+            "name": "signatureMethod",
+            "type": "string"
+          },
+          {
+            "name": "reminderFrequencyDays",
+            "type": "number"
+          },
+          {
+            "name": "signerStatus",
+            "type": "string"
+          },
+          {
+            "name": "otpVerifiedAt",
+            "type": "date"
+          },
+          {
+            "name": "signaturePadCompleted",
+            "type": "boolean"
+          },
+          {
+            "name": "ipAddress",
+            "type": "string"
+          },
+          {
+            "name": "signedAt",
+            "type": "date"
+          },
+          {
+            "name": "declineReason",
+            "type": "string"
+          },
+          {
+            "name": "linkExpiresAt",
+            "type": "date"
+          }
+        ],
+        "purpose": "Remove a signer, returning the removed row"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/contracts/{contractId}/signers/send",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "signatureMethod",
+            "type": "enum"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "contractStatus",
+            "type": "string"
+          },
+          {
+            "name": "signers",
+            "type": "array"
+          },
+          {
+            "name": "errorMessage",
+            "type": "string"
+          }
+        ],
+        "purpose": "Send the contract for signature to the first signer"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/contracts/{contractId}/audit-certificate",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "generatedAt",
+            "type": "date"
+          },
+          {
+            "name": "downloadUrl",
+            "type": "string"
+          },
+          {
+            "name": "signers",
+            "type": "array"
+          }
+        ],
+        "purpose": "Signature audit certificate for a contract"
+      }
+    ],
+    "types": {
+      "SigningSessionResponse": [
+        {
+          "name": "sessionId",
+          "type": "string"
+        },
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "signerId",
+          "type": "string"
+        },
+        {
+          "name": "signerName",
+          "type": "string"
+        },
+        {
+          "name": "signerEmail",
+          "type": "string"
+        },
+        {
+          "name": "signerStatus",
+          "type": "string"
+        },
+        {
+          "name": "isCurrentTurn",
+          "type": "boolean"
+        },
+        {
+          "name": "otpVerified",
+          "type": "boolean"
+        },
+        {
+          "name": "documentUrl",
+          "type": "string"
+        },
+        {
+          "name": "signaturePadAvailable",
+          "type": "boolean"
+        },
+        {
+          "name": "declineAvailable",
+          "type": "boolean"
+        },
+        {
+          "name": "reminderFrequencyDays",
+          "type": "number"
+        },
+        {
+          "name": "linkExpired",
+          "type": "boolean"
+        },
+        {
+          "name": "blockedMessage",
+          "type": "string"
+        }
+      ],
+      "VerifyOtpRequest": [
+        {
+          "name": "otpCode",
+          "type": "string"
+        }
+      ],
+      "VerifyOtpResponse": [
+        {
+          "name": "signerStatus",
+          "type": "string"
+        },
+        {
+          "name": "documentUrl",
+          "type": "string"
+        },
+        {
+          "name": "signaturePadAvailable",
+          "type": "boolean"
+        },
+        {
+          "name": "attemptsRemaining",
+          "type": "number"
+        },
+        {
+          "name": "lockedUntil",
+          "type": "date"
+        },
+        {
+          "name": "errorMessage",
+          "type": "string"
+        }
+      ],
+      "ApplySignatureRequest": [
+        {
+          "name": "signatureData",
+          "type": "string"
+        },
+        {
+          "name": "signatureType",
+          "type": "enum"
+        }
+      ],
+      "ApplySignatureResponse": [
+        {
+          "name": "signerId",
+          "type": "string"
+        },
+        {
+          "name": "signerStatus",
+          "type": "string"
+        },
+        {
+          "name": "contractStatus",
+          "type": "string"
+        },
+        {
+          "name": "nextSignerId",
+          "type": "string"
+        }
+      ],
+      "DeclineSignatureRequest": [
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ],
+      "DeclineSignatureResponse": [
+        {
+          "name": "signerId",
+          "type": "string"
+        },
+        {
+          "name": "signerStatus",
+          "type": "string"
+        },
+        {
+          "name": "contractStatus",
+          "type": "string"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ],
+      "SignerResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "signerName",
+          "type": "string"
+        },
+        {
+          "name": "signerEmail",
+          "type": "string"
+        },
+        {
+          "name": "signerType",
+          "type": "string"
+        },
+        {
+          "name": "signingOrder",
+          "type": "number"
+        },
+        {
+          "name": "signatureMethod",
+          "type": "string"
+        },
+        {
+          "name": "reminderFrequencyDays",
+          "type": "number"
+        },
+        {
+          "name": "signerStatus",
+          "type": "string"
+        },
+        {
+          "name": "otpVerifiedAt",
+          "type": "date"
+        },
+        {
+          "name": "signaturePadCompleted",
+          "type": "boolean"
+        },
+        {
+          "name": "ipAddress",
+          "type": "string"
+        },
+        {
+          "name": "signedAt",
+          "type": "date"
+        },
+        {
+          "name": "declineReason",
+          "type": "string"
+        },
+        {
+          "name": "linkExpiresAt",
+          "type": "date"
+        }
+      ],
+      "SignerListResponse": [
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "signers",
+          "type": "array"
+        },
+        {
+          "name": "sendForSignatureEnabled",
+          "type": "boolean"
+        },
+        {
+          "name": "signingOrderLocked",
+          "type": "boolean"
+        }
+      ],
+      "AddSignerRequest": [
+        {
+          "name": "signerName",
+          "type": "string"
+        },
+        {
+          "name": "signerEmail",
+          "type": "string"
+        },
+        {
+          "name": "signerType",
+          "type": "enum"
+        },
+        {
+          "name": "signingOrder",
+          "type": "number"
+        },
+        {
+          "name": "signatureMethod",
+          "type": "enum"
+        }
+      ],
+      "UpdateSignerRequest": [
+        {
+          "name": "signerName",
+          "type": "string"
+        },
+        {
+          "name": "signerEmail",
+          "type": "string"
+        },
+        {
+          "name": "signerType",
+          "type": "enum"
+        },
+        {
+          "name": "signingOrder",
+          "type": "number"
+        },
+        {
+          "name": "signatureMethod",
+          "type": "enum"
+        }
+      ],
+      "SendForSignatureRequest": [
+        {
+          "name": "signatureMethod",
+          "type": "enum"
+        }
+      ],
+      "SendForSignatureResponse": [
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "contractStatus",
+          "type": "string"
+        },
+        {
+          "name": "signers",
+          "type": "array"
+        },
+        {
+          "name": "errorMessage",
+          "type": "string"
+        }
+      ],
+      "AuditCertificateSignerEntry": [
+        {
+          "name": "signerName",
+          "type": "string"
+        },
+        {
+          "name": "signerEmail",
+          "type": "string"
+        },
+        {
+          "name": "signerType",
+          "type": "string"
+        },
+        {
+          "name": "signingOrder",
+          "type": "number"
+        },
+        {
+          "name": "signatureMethod",
+          "type": "string"
+        },
+        {
+          "name": "reminderFrequencyDays",
+          "type": "number"
+        },
+        {
+          "name": "signerStatus",
+          "type": "string"
+        },
+        {
+          "name": "ipAddress",
+          "type": "string"
+        },
+        {
+          "name": "signedAt",
+          "type": "date"
+        },
+        {
+          "name": "otpVerifiedAt",
+          "type": "date"
+        },
+        {
+          "name": "signaturePadCompleted",
+          "type": "boolean"
+        }
+      ],
+      "AuditCertificateResponse": [
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "generatedAt",
+          "type": "date"
+        },
+        {
+          "name": "downloadUrl",
+          "type": "string"
+        },
+        {
+          "name": "signers",
+          "type": "array"
+        }
+      ]
+    },
+    "notes": "All five signing-session endpoints the portal asked for exist. IMPORTANT: they require header X-User-Role: SIGNER (resend also accepts CONTRACT_OWNER) — a missing role header is 401 and any other role is 403, so the portal must send SIGNER, not one of the four contract roles. signerStatus is returned as a plain string: 'Sent'|'Viewed'|'Signed'|'Declined'|'Expired' ('Pending' signers 404 as 'signing session not found'); sign returns signerStatus 'Signed' and contractStatus 'Pending Signature' or 'Executed'; decline returns 'Declined' plus contractStatus 'Signature Declined'. documentUrl is a relative path '/files/contracts/{contractId}/document'. On an invalid OTP the response is 200 with errorMessage/attemptsRemaining/lockedUntil set, but expired link, declined contract, out-of-turn and lockout are 403, wrong-status is 409, and a non-6-digit otpCode or blank signatureData/reason is 400 with the shared {error, details} body. signatureType is accepted ('Draw'|'Type'|'Upload') but not persisted or echoed back."
+  },
+  "usage": {
+    "num_turns": 37,
+    "duration_ms": 342197,
+    "total_cost_usd": 1.4898566000000002,
+    "input_tokens": 3595,
+    "output_tokens": 12559,
+    "cache_creation_input_tokens": 59465,
+    "cache_read_input_tokens": 2231320,
+    "is_error": false
+  }
+}
