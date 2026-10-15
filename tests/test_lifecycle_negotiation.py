@@ -840,3 +840,54 @@ def test_linked_reviewer_and_approver_can_open_the_contract(db_client, db_sessio
     resp = db_client.get(f"/api/v1/contracts/{contract_id}", headers=_headers(APPROVER, approver_id))
     assert resp.status_code == 200
     assert resp.json()["status"] == "Pending Approval"
+
+
+# ---- the counterparty mail carries an openable link, like the signing mail -------------------
+
+
+def test_counterparty_invite_mail_carries_the_review_url(db_client, db_session, caplog):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    _route(db_client, contract_id, owner_id, [legal_id])
+    db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/reviews",
+        json={},
+        headers=_headers(LEGAL_REVIEWER, legal_id),
+    )
+
+    with caplog.at_level("INFO", logger="app.services.notifications"):
+        link_resp = db_client.post(
+            f"/api/v1/lifecycle/contracts/{contract_id}/negotiation/external-link",
+            headers=_headers(CONTRACT_OWNER, owner_id),
+        )
+    assert link_resp.status_code == 200
+    token = link_resp.json()["linkToken"]
+
+    # With no SMTP relay configured the log line IS the inbox.
+    body = "\n".join(r.getMessage() for r in caplog.records)
+    assert f"/negotiation/external/{token}" in body
+    assert f"Secure link reference: {token}" in body
+    assert f"One-time password: {FIXED_OTP}" in body
+
+
+# ---- an already-routed contract keeps its way through to Negotiation ------------------------
+
+
+def test_already_routed_contract_still_offers_proceed_to_negotiation(db_client, db_session):
+    tenant_id, admin_id, owner_id, legal_id, contract_id = _setup_analyzed_contract(db_client, db_session)
+    _route(db_client, contract_id, owner_id, [legal_id])
+
+    analysis = db_client.get(
+        f"/api/v1/lifecycle/contracts/{contract_id}/clause-analysis",
+        headers=_headers(LEGAL_REVIEWER, legal_id),
+    )
+    assert analysis.status_code == 200
+    assert analysis.json()["proceedToNegotiationEnabled"] is True
+
+    # Proceeding again is a no-op that reports where the negotiation actually stands.
+    proceed = db_client.post(
+        f"/api/v1/lifecycle/contracts/{contract_id}/proceed-to-negotiation",
+        headers=_headers(LEGAL_REVIEWER, legal_id),
+    )
+    assert proceed.status_code == 200
+    assert proceed.json()["negotiationStatus"] == "With Internal"
+    assert proceed.json()["routedAt"] is not None

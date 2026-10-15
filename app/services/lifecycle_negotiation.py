@@ -502,13 +502,12 @@ def _issue_external_link(
         notifications.EVENT_SENT_TO_COUNTERPARTY,
         recipients=[routing.external_party_email],
         subject=f"Please review {contract_name}",
-        body=(
-            f"{routing.external_party_name},\n\n"
-            f"Internal review of {contract_name} is complete and the contract has been sent "
-            "to you for review.\n\n"
-            f"Secure link reference: {link.link_token}\n"
-            f"One-time password: {otp}\n\n"
-            f"The link expires at {link.expires_at:%Y-%m-%d %H:%M} UTC."
+        body=notifications.external_review_invite_body(
+            external_party_name=routing.external_party_name,
+            contract_name=contract_name,
+            link_token=link.link_token,
+            otp_code=otp,
+            expires_at=link.expires_at,
         ),
         entity="Negotiation",
         actor_id=actor_id,

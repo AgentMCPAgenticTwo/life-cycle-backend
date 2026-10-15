@@ -18,6 +18,7 @@ from app.models.clause import Clause as LibraryClause
 from app.models.lifecycle_clause import AskAiInteraction, ClauseAuditLog, ContractClause, ContractMetadata
 from app.repositories import contracts as contracts_repo
 from app.repositories import lifecycle_clauses as repo
+from app.repositories import lifecycle_negotiation as negotiation_repo
 from app.schemas.lifecycle_clause import (
     AskAIRequest,
     AskAIResponse,
@@ -230,6 +231,12 @@ def _build_analysis_response(db: Session, user: CurrentUser, contract) -> Clause
     # UC5: a re-analysis that failed after an external redline leaves the contract reporting
     # 'Failed' until a retry succeeds -- the version itself is already saved either way.
     failed = pending_reanalysis_failure(db, contract.id) is not None
+    # A contract that has already been routed keeps the way through to Negotiation open: the
+    # screen stores no "already proceeded" flag, so if this came back false after a reload the
+    # Legal Reviewer would be left on a dead end with no button to reach the negotiation they
+    # are already in. Proceeding again is idempotent (see `proceed_to_negotiation`). A failed
+    # re-analysis still closes it -- that is a state a retry can clear.
+    already_routed = negotiation_repo.get_routing_by_contract(db, contract.id) is not None
     return ClauseAnalysisResponse(
         contractId=contract.id,
         fileFormatSupported=True,
@@ -237,7 +244,7 @@ def _build_analysis_response(db: Session, user: CurrentUser, contract) -> Clause
         clauses=[_clause_to_response(c) for c in clauses],
         overallContractRiskScore=overall,
         metadata=_metadata_to_response(metadata),
-        proceedToNegotiationEnabled=not any_missing_mandatory and not failed,
+        proceedToNegotiationEnabled=not failed and (already_routed or not any_missing_mandatory),
         askAiEnabled=user.role != "TENANT_ADMIN",
     )
 
@@ -542,9 +549,13 @@ def proceed_to_negotiation(
     contract = _get_contract_or_404(db, tenant_id, contract_id)
     clauses = repo.list_clauses(db, contract.id)
     metadata = repo.get_metadata(db, contract.id)
+    routing = negotiation_repo.get_routing_by_contract(db, contract.id)
 
-    # UC4-BR-005/AF-006: any clause still flagged Missing-Mandatory blocks the transition.
-    if any(_mandatory_flag(c) for c in clauses):
+    # UC4-BR-005/AF-006: any clause still flagged Missing-Mandatory blocks the transition --
+    # but only while the contract has not been routed yet. Once UC5 routing exists the
+    # transition has already happened, so calling this again is a no-op that reports where the
+    # negotiation actually stands rather than a 409 the reviewer cannot clear.
+    if routing is None and any(_mandatory_flag(c) for c in clauses):
         raise ConflictError(
             "This contract is missing one or more mandatory clauses. Resolve all red-flagged clauses before proceeding."
         )
@@ -553,8 +564,8 @@ def proceed_to_negotiation(
     # routing endpoint is the only thing that advances negotiation.
     return ProceedToNegotiationResponse(
         contractId=contract.id,
-        negotiationStatus="Ready for Negotiation",
-        routedAt=None,
+        negotiationStatus=routing.negotiation_status if routing is not None else "Ready for Negotiation",
+        routedAt=routing.created_at if routing is not None else None,
         clauses=[_clause_to_response(c) for c in clauses],
         overallContractRiskScore=_overall_risk(clauses),
         metadata=_metadata_to_response(metadata),

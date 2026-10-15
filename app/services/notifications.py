@@ -76,6 +76,30 @@ def signing_invite_body(
     )
 
 
+def external_review_invite_body(
+    *,
+    external_party_name: str,
+    contract_name: str,
+    link_token: str,
+    otp_code: str,
+    expires_at: datetime,
+) -> str:
+    """The counterparty's "please review this contract" mail, in the same shape as
+    `signing_invite_body`: a clickable URL first, then the secure link reference, the one-time
+    password and the expiry. The reference alone is not openable -- the recipient of a
+    "Sent to counterparty" mail needs the URL, exactly as a signer does."""
+    url = f"{settings.app_base_url}/negotiation/external/{link_token}"
+    return (
+        f"{external_party_name},\n\n"
+        f"Internal review of {contract_name} is complete and the contract has been sent "
+        "to you for review.\n\n"
+        f"Review link: {url}\n"
+        f"Secure link reference: {link_token}\n"
+        f"One-time password: {otp_code}\n\n"
+        f"The link expires at {expires_at:%Y-%m-%d %H:%M} UTC."
+    )
+
+
 def _toggles(db: Session, tenant_id: uuid.UUID, event_name: str) -> tuple[bool, bool]:
     """(email, in-app) for this tenant's event. An event the tenant has never saved is On on
     both channels (UC11-BR-007), the same default `ensure_seeded` writes."""
