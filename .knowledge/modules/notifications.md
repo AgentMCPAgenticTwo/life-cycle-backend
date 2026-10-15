@@ -2,13 +2,13 @@
 type: Module
 title: notifications
 description: The single outbound-notification service — every email and in-app alert in the app goes through `dispatch`, gated by the tenant's Settings > Notifications toggles.
-updated: { by: sage-maintenance/claude-code, at: 2026-10-15T05:15:24Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-15T05:59:28Z }
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/services/notifications.py
 tags: [backend, notifications, smtp, uc6, uc7, uc11]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T04:36:49Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ 24c451af17fc14c47102e38019b754771e026556
+    resource: codebase-memory-mcp project life-cycle-backend @ f6d064f5cca1e68e91dc3418c66298f233273401
     title: Codebase knowledge graph
 status: stable
 ---
@@ -17,7 +17,7 @@ status: stable
 
 | File | Role |
 |---|---|
-| `app/services/notifications.py` | `dispatch` plus the `EVENT_*` constants, `signing_invite_body`, `_toggles`, `_send_email`, `_append` |
+| `app/services/notifications.py` | `dispatch` plus the `EVENT_*` constants, `signing_invite_body`, `external_review_invite_body`, `_toggles`, `_send_email`, `_append` |
 | `app/config.py` | `Settings.smtp_host`/`smtp_port`/`smtp_username`/`smtp_password`/`smtp_from`/`smtp_use_tls`/`smtp_timeout_seconds`, `Settings.app_base_url` — see [App Core](/modules/app-core.md) |
 | `app/repositories/settings_notifications.py` | `EVENT_NAMES`, `ensure_seeded`, `get_by_name` — the toggle rows this service reads |
 | `tests/test_notifications.py` | toggle gating, in-app recording, failure isolation |
@@ -85,8 +85,18 @@ The body carries the clickable `{settings.app_base_url}/sign/{session_id}` URL, 
 reference (`link_token`), the one-time password and the link expiry — without the URL and the
 OTP there is nothing for the signer to open or type. The plaintext OTP exists only in the
 calling function (the row stores a SHA-256 hash), so each caller holds it just long enough to
-pass it here. It mirrors the counterparty-review mail in
-`app.services.lifecycle_negotiation`.
+pass it here.
+
+# `external_review_invite_body` — the counterparty's mail, same shape
+
+`external_review_invite_body(external_party_name, contract_name, link_token, otp_code,
+expires_at)` builds the `EVENT_SENT_TO_COUNTERPARTY` mail and lives here rather than inline in
+`app.services.lifecycle_negotiation._issue_external_link`, its only caller. It follows
+`signing_invite_body`'s order: the clickable
+`{settings.app_base_url}/negotiation/external/{link_token}` URL **first**, then the secure link
+reference, the one-time password and the expiry. The reference alone is not openable — the
+earlier body carried only the token, so the counterparty had nothing to click. See
+[Lifecycle Negotiation](/modules/lifecycle-negotiation.md).
 
 # Relationships
 
