@@ -1,14 +1,14 @@
 ---
 type: Module
 title: migrations
-description: 53 Alembic migrations, one table per revision (plus one data-only fix-up), applied automatically at app startup, never reordered or edited once merged.
+description: 54 Alembic migrations, one table per revision (plus one data-only fix-up), applied automatically at app startup, never reordered or edited once merged.
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/alembic/versions
 tags: [backend, migrations, alembic, postgresql]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-15T05:15:24Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
+    resource: codebase-memory-mcp project life-cycle-backend @ 24c451af17fc14c47102e38019b754771e026556
     title: Codebase knowledge graph
 status: stable
 ---
@@ -16,7 +16,7 @@ status: stable
 # Structure
 
 `alembic/versions/0001_create_tenants.py` through
-`0053_unify_contract_status_flow.py`, applied in
+`0054_archive_approval_matrix_configs.py`, applied in
 order by `app.main._run_migrations` (see [App Core](/modules/app-core.md)) at every startup via
 `command.upgrade(cfg, "head")`. Each file creates exactly one table (confirmed by reading
 `0042_create_contract_lifecycle_stage_history.py`, which only calls `op.create_table` once plus
@@ -33,6 +33,7 @@ one `op.create_index`).
 | 0042-0051 | lifecycle-uc10-uc11 | contract_lifecycle_stage_history, contract_owners, contract_turnaround_metrics, turnaround_override_log, tenant_bottleneck_thresholds, tenant_users, approval_matrix_rules, tenant_integrations, tenant_notification_settings, tenant_audit_log |
 | 0052 | auth correction | `users` credential columns, refresh_tokens |
 | 0053 | status-flow correction | no DDL — data-only rewrite of `contracts.status`, `approvals.status`, `negotiation_routings.negotiation_status` |
+| 0054 | approval-matrix correction | `approval_matrix_configs.archived_at` column |
 
 # Convention: additive only
 
@@ -64,6 +65,14 @@ done additively, as a new revision, rather than by editing `0002`. See
 two old values fold into one going forward, and the application still reads the old spellings.
 A migration that only moves data is still a new numbered revision, never an edit to an earlier
 one.
+
+# 0054 adds a column to an earlier batch's table
+
+`0054_archive_approval_matrix_configs.py` (revision `ArchiveApprovalMatrixConfigs`,
+`down_revision = "UnifyContractStatusFlow"`) is a single `op.add_column` putting `archived_at`
+on `approval_matrix_configs` (created by the `uc6-uc7-combined` batch), with a matching
+`op.drop_column` downgrade. Like `0052` it alters an earlier batch's table additively, as a new
+revision — see [Approval Matrix](/modules/approval-matrix.md) for why the column exists.
 
 # Seeding happens in app code, not in migrations
 

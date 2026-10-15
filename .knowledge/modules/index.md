@@ -41,5 +41,5 @@
 
 # Infrastructure
 
-* [Migrations](/modules/migrations.md) - 53 Alembic migrations, one table per revision (plus one data-only fix-up), applied automatically at app startup, never reordered or edited once merged.
+* [Migrations](/modules/migrations.md) - 54 Alembic migrations, one table per revision (plus one data-only fix-up), applied automatically at app startup, never reordered or edited once merged.
 * [Tests](/modules/tests.md) - 34 `test_*.py` files plus `conftest.py`, one per resource/concern, using the shared `auth_headers` helper plus per-file tenant/user seeding.

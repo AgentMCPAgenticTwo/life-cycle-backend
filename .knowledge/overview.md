@@ -45,7 +45,7 @@ app/auth.py                   bearer-token dependency (current_user, require_rol
 app/security.py               password rules/bcrypt hashing, JWT, refresh-token and file-token primitives
 app/services/contract_status.py the one contract status flow and the transition helper every workflow step calls
 app/scripts/create_admin.py   CLI to create/reset the first TENANT_ADMIN
-app/config.py                 Settings read from the environment (PORT, DATABASE_URL, CORS_ORIGINS, JWT_SECRET, token TTLs, refresh-cookie settings, SMTP_*, API_BASE_URL, storage dirs)
+app/config.py                 Settings read from the environment (PORT, DATABASE_URL, CORS_ORIGINS, JWT_SECRET, token TTLs, refresh-cookie settings, SMTP_*, API_BASE_URL, APP_BASE_URL, storage dirs)
 app/services/notifications.py the one email/in-app notification dispatcher, called by other services after they commit
 app/db.py                     SQLAlchemy Base/engine/SessionLocal/get_db
 app/errors.py                 NotFoundError/ForbiddenError/ConflictError/ValidationFailedError -> shared error body
@@ -54,7 +54,7 @@ app/routers/<resource>.py     ~25 files, one APIRouter per resource; thin HTTP b
 app/services/<resource>.py    ~25 files; business rules
 app/repositories/<resource>.py ~23 files; data access only
 app/schemas/<resource>.py     ~26 files; Pydantic request/response DTOs
-alembic/versions/             53 migrations, 0001-0053, one table per migration (0053 is data-only), applied at startup
+alembic/versions/             54 migrations, 0001-0054, one table per migration (0053 is data-only), applied at startup
 tests/                        34 files, one per resource/concern, pytest
 ```
 

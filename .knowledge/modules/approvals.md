@@ -5,10 +5,10 @@ description: Approval queue, step-by-step approve/reject/request-changes actions
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/approvals.py
 tags: [backend, uc6-uc7-combined, approvals]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T06:27:43Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-15T05:15:24Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
+    resource: codebase-memory-mcp project life-cycle-backend @ 24c451af17fc14c47102e38019b754771e026556
     title: Codebase knowledge graph
 status: stable
 ---
@@ -33,7 +33,9 @@ There is still no endpoint that creates an `Approval`; `start_approval` is calle
 
 * `_matching_matrix_config` picks the UC6 Approval Matrix config for the contract's type whose
   value — and, when a risk score exists, risk — band contains it and that has steps; the
-  narrowest value band wins. Its steps resolve lazily through `_get_or_create_step_instance`.
+  narrowest value band wins. Configs with `archived_at` set are skipped: they are superseded
+  rows kept only so the approvals already pointing at them still resolve their steps — see
+  [Approval Matrix](/modules/approval-matrix.md). Its steps resolve lazily through `_get_or_create_step_instance`.
 * With no matrix config, `_matching_settings_rules` falls back to the UC11
   `approval_matrix_rules` rows (see [Settings](/modules/settings.md)) whose `value_threshold`
   the contract meets, lowest first, one step each; `_approver_for_role` maps the rule's display

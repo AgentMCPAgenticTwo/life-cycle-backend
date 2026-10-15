@@ -1,5 +1,10 @@
 # Knowledge Update Log
 
+## 2026-10-15
+
+* **Update**: Recorded the signing-invite mail fix from correction trace `92a2ebacae78`, commit `24c451af17fc14c47102e38019b754771e026556`. [Notifications](/modules/notifications.md) gains `signing_invite_body` (the one body behind first send, next-signer and resend, carrying the `/sign/{sessionId}` URL, `link_token`, OTP and expiry) and the `_send_email` no-SMTP log line that now prints the body. [Signing](/modules/signing.md) gains the per-signer mail loop in `send_for_signature` (`otp_codes`), the newly-mailing `resend_otp`, and `apply_signature`'s `next_otp_code`. [Scheduled Notifications](/modules/scheduled-notifications.md)'s `run_signature_reminders` now links to the portal without repeating the OTP. Added `Settings.app_base_url`/`APP_BASE_URL` to [App Core](/modules/app-core.md) and [Overview](/overview.md).
+* **Update**: Recorded the approval-matrix archiving behaviour. [Approval Matrix](/modules/approval-matrix.md) gains a section on `repo.delete_all` archiving configs an `Approval` still references (`ApprovalMatrixConfig.archived_at`) instead of deleting them, and on `list_by_tenant` filtering them out; [Approvals](/modules/approvals.md)' `_matching_matrix_config` skips archived configs. [Migrations](/modules/migrations.md) adds `alembic/versions/0054_archive_approval_matrix_configs.py` (now 54 revisions, the second additive alter of an earlier batch's table), reflected in [Overview](/overview.md) and the module index. Same trace `92a2ebacae78`.
+
 ## 2026-10-14
 
 * **Creation**: Added [Contract Status](/modules/contract-status.md) for `app/services/contract_status.py` (`DRAFT`/`IN_NEGOTIATION`/`PENDING_APPROVAL`/`PENDING_SIGNATURE`/`EXECUTED`/`REJECTED`/`SIGNATURE_DECLINED`, `LEGACY_PENDING_SIGNATURE`, `LEGACY_SIGNATURE_DECLINED`, `NEGOTIATION_AGREED`, `NEGOTIATION_SENT_BACK`, `ACTIVITY_ACTION_STATUS_CHANGE`, `transition`, `is_pending_signature`, `is_signature_declined`) and the data-only `alembic/versions/0053_unify_contract_status_flow.py`, the unified workflow vocabulary landed alongside correction trace `c9533565bf0e`, commit `b0c64d78730b6ed271020fb3e7d89002e374f6da`.
