@@ -200,7 +200,7 @@ def test_summary_expiring_windows_overlap(db_client, db_session):
     admin_id = _seed_user(db_session, tenant_id, TENANT_ADMIN)
     owner_id = _seed_user(db_session, tenant_id, CONTRACT_OWNER)
     cp_id = _seed_counterparty(db_session, tenant_id, admin_id)
-    today = date(2026, 10, 8)
+    today = date.today()
     _seed_contract(db_session, tenant_id, admin_id, cp_id, owner_id, end_date=today + timedelta(days=20))
     _seed_contract(db_session, tenant_id, admin_id, cp_id, owner_id, end_date=today + timedelta(days=45))
     _seed_contract(db_session, tenant_id, admin_id, cp_id, owner_id, end_date=today + timedelta(days=85))
