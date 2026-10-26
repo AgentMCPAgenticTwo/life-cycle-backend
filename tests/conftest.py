@@ -36,7 +36,10 @@ def _document_storage(tmp_path):
 
 @pytest.fixture()
 def client() -> TestClient:
-    return TestClient(app)
+    # https base_url: the refresh cookie is `Secure` (required for `SameSite=None`, needed
+    # because the real frontend and backend are cross-origin), and httpx's cookie jar -- unlike
+    # a real browser's localhost exemption -- only resends a Secure cookie over an https scheme.
+    return TestClient(app, base_url="https://testserver")
 
 
 @pytest.fixture()
@@ -73,6 +76,6 @@ def db_client(db_session):
 
     app.dependency_overrides[get_db] = _override
     try:
-        yield TestClient(app)
+        yield TestClient(app, base_url="https://testserver")
     finally:
         app.dependency_overrides.pop(get_db, None)

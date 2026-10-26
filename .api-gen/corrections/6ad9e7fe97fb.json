@@ -1,0 +1,195 @@
+{
+  "trace_id": "6ad9e7fe97fb",
+  "branch": "api-correction/6ad9e7fe97fb",
+  "maintenance_branch": "api-correction/6ad9e7fe97fb",
+  "status": "SUCCESS",
+  "summary": "## Summary\n\nRoot cause of the broken refresh flow: the refresh cookie was set with `samesite=\"lax\"`. The SPA (`http://localhost:5173`) and this API (`http://localhost:5199`, confirmed via `/tmp/sage-refs/life-cycle-frontend/.env.example`) are different origins, and `SameSite=Lax` cookies are never sent on a cross-site `fetch` `POST` (only on top-level GET navigations). So `POST /auth/login` worked (the access token comes back in the response body), but every subsequent `POST /auth/refresh` silently dropped the httpOnly cookie and 401'd with \"missing refresh token\" — matching the reported symptom exactly.\n\nFix, scoped to `app/config.py` and `app/routers/auth.py`:\n- Added `refresh_cookie_samesite` (env `REFRESH_COOKIE_SAMESITE`, default `\"none\"`) and switched `refresh_cookie_secure`'s default to `true` (`SameSite=None` is rejected by browsers outright without `Secure`; Chrome/Firefox treat `localhost` as secure even over http, so local dev still works).\n- `set_cookie` in `login`/`refresh`/`change-password` now uses `settings.refresh_cookie_samesite`.\n- `logout`'s `delete_cookie` now passes matching `secure`/`samesite` attributes — otherwise the browser doesn't recognize it as clearing the same cookie.\n- Updated `tests/conftest.py`'s two `TestClient` fixtures to use an `https://` base URL, since httpx's cookie jar (unlike a real browser) only resends `Secure` cookies over an https-scheme test transport.\n\nAutomatic access-token renewal itself (the retry-after-401 logic) already lives in the frontend's `http.js`/`authStore.js`, which is out of scope for this repo — the backend's job is to make `/auth/refresh` actually succeed, which it now does.\n\nVerified: `python -m compileall app tests` and the full `pytest -q` suite (538 tests, including the auth flow's login → refresh-rotates → old-cookie-401 → logout → refresh-401 assertions) pass. Live `uvicorn` smoke testing wasn't possible — this sandbox blocks binding a listening port/process in Bash — so verification relied on the TestClient-based integration tests instead.",
+  "files_changed": [
+    "app/config.py",
+    "app/routers/auth.py",
+    "tests/conftest.py"
+  ],
+  "lines_changed": 26,
+  "blockers": [
+    "Not applied -- Automatic access-token renewal on expiry (retry-after-401 interceptor): already implemented in the frontend repo (services/http.js/authStore.js), which is out of scope here; backend only needed to make /auth/refresh actually succeed"
+  ],
+  "visual_check": {
+    "verdict": "skipped",
+    "evidence": "",
+    "screenshot_path": ""
+  },
+  "context_sharing": {
+    "target": "backend",
+    "branch": "api-correction/6ad9e7fe97fb",
+    "base_path": "",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/auth/login",
+        "request_fields": [
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "password",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "accessToken",
+            "type": "string"
+          },
+          {
+            "name": "user",
+            "type": "object"
+          }
+        ],
+        "purpose": "authenticate user, set httpOnly refresh cookie, return access token + user"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/refresh",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "accessToken",
+            "type": "string"
+          }
+        ],
+        "purpose": "exchange httpOnly refresh cookie for a new access token, rotates the cookie"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/logout",
+        "request_fields": [],
+        "response_fields": [],
+        "purpose": "revoke refresh token and clear the cookie (204 No Content)"
+      },
+      {
+        "method": "GET",
+        "path": "/auth/me",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "string"
+          },
+          {
+            "name": "tenantId",
+            "type": "string"
+          },
+          {
+            "name": "mustChangePassword",
+            "type": "boolean"
+          }
+        ],
+        "purpose": "get the current signed-in user from the bearer access token"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/change-password",
+        "request_fields": [
+          {
+            "name": "currentPassword",
+            "type": "string"
+          },
+          {
+            "name": "newPassword",
+            "type": "string"
+          }
+        ],
+        "response_fields": [],
+        "purpose": "change the signed-in user's password (204 No Content), rotates refresh cookie"
+      }
+    ],
+    "types": {
+      "LoginRequest": [
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "password",
+          "type": "string"
+        }
+      ],
+      "AuthUserResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "string"
+        },
+        {
+          "name": "tenantId",
+          "type": "string"
+        },
+        {
+          "name": "mustChangePassword",
+          "type": "boolean"
+        }
+      ],
+      "LoginResponse": [
+        {
+          "name": "accessToken",
+          "type": "string"
+        },
+        {
+          "name": "user",
+          "type": "object"
+        }
+      ],
+      "RefreshResponse": [
+        {
+          "name": "accessToken",
+          "type": "string"
+        }
+      ],
+      "ChangePasswordRequest": [
+        {
+          "name": "currentPassword",
+          "type": "string"
+        },
+        {
+          "name": "newPassword",
+          "type": "string"
+        }
+      ]
+    },
+    "notes": "Auth router is registered twice in app/main.py: once bare (paths exactly /auth/login, /auth/refresh, /auth/logout, /auth/me, /auth/change-password) and once with prefix=/api/v1 (so also reachable at /api/v1/auth/*). Both id and tenantId in AuthUserResponse are UUID types on the wire (serialize as strings), matching the counterpart's expected 'string' type. Refresh token lives only in an httpOnly, Secure, SameSite=None cookie named settings.refresh_cookie_name (default 'refreshToken'); access token is a signed JWT returned in the body. change-password and refresh both rotate/reset the refresh cookie. login/me/change-password/logout/refresh all match the counterpart-requested paths exactly; none are missing. Error body shape ({error, details}) was not present in these three files and could not be verified here."
+  },
+  "usage": {
+    "num_turns": 44,
+    "duration_ms": 211960,
+    "total_cost_usd": 1.4298897000000004,
+    "input_tokens": 3711,
+    "output_tokens": 11485,
+    "cache_creation_input_tokens": 68434,
+    "cache_read_input_tokens": 2778599,
+    "is_error": false
+  }
+}

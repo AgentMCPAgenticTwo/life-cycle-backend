@@ -30,7 +30,7 @@ def _set_refresh_cookie(response: Response, raw_token: str) -> None:
         value=raw_token,
         httponly=True,
         secure=settings.refresh_cookie_secure,
-        samesite="lax",
+        samesite=settings.refresh_cookie_samesite,
         max_age=settings.refresh_token_ttl_days * 24 * 60 * 60,
         path="/",
     )
@@ -62,7 +62,12 @@ def refresh(
 @router.post("/logout", status_code=204)
 def logout(request: Request, response: Response, db: Session = Depends(get_db)) -> None:
     auth_service.logout(db, request.cookies.get(settings.refresh_cookie_name))
-    response.delete_cookie(settings.refresh_cookie_name, path="/")
+    response.delete_cookie(
+        settings.refresh_cookie_name,
+        path="/",
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+    )
 
 
 @router.get("/me", response_model=AuthUserResponse)
