@@ -412,7 +412,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ALLOWED='^app/|^src/|^tests?/'
+          ALLOWED='^app/|^src/|^tests?/|^\.env\.example$'
           if [ "$ALLOW_DEPENDENCY_CHANGES" = "true" ]; then
             # ^requirements\.txt$|^pyproject\.toml$|^poetry\.lock$|^Pipfile$|^Pipfile\.lock$|^setup\.py$|^setup\.cfg$ is THIS STACK's manifest set, not a hardcoded
             # package.json/package-lock.json pair. Those two were widened in for
