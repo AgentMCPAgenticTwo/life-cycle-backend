@@ -66,6 +66,11 @@ class AssignFolderTagRequest(BaseModel):
     folderTagIds: list[uuid.UUID]
 
 
+class CreateFolderTagRequest(BaseModel):
+    name: str
+    kind: str
+
+
 class FolderTagOptionResponse(BaseModel):
     id: uuid.UUID
     name: str

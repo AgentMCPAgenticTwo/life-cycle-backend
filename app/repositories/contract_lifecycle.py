@@ -6,6 +6,7 @@ Owns queries only -- business rules live in `app.services.contract_lifecycle`.
 """
 import uuid
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.contract import Contract
@@ -114,6 +115,26 @@ def get_folder_tag(db: Session, tenant_id: uuid.UUID, folder_tag_id: uuid.UUID) 
         .filter(FolderTag.id == folder_tag_id, FolderTag.tenant_id == tenant_id)
         .first()
     )
+
+
+def get_folder_tag_by_name(
+    db: Session, tenant_id: uuid.UUID, name: str, kind: str
+) -> FolderTag | None:
+    return (
+        db.query(FolderTag)
+        .filter(
+            FolderTag.tenant_id == tenant_id,
+            FolderTag.kind == kind,
+            func.lower(FolderTag.name) == name.lower(),
+        )
+        .first()
+    )
+
+
+def insert_folder_tag(db: Session, folder_tag: FolderTag) -> FolderTag:
+    db.add(folder_tag)
+    db.flush()
+    return folder_tag
 
 
 def list_contract_folder_tags(db: Session, contract_id: uuid.UUID) -> list[tuple[ContractFolderTag, FolderTag]]:

@@ -25,6 +25,7 @@ from app.schemas.contract_lifecycle import (
     ContractDocumentResponse,
     ContractFolderTagResponse,
     ContractVersionListResponse,
+    CreateFolderTagRequest,
     CreateObligationRequest,
     DocumentDownloadResponse,
     FolderTagOptionResponse,
@@ -214,3 +215,13 @@ def list_folder_tags(
     db: Session = Depends(get_db),
 ) -> list[FolderTagOptionResponse]:
     return service.list_folder_tag_options(db, tenant_id)
+
+
+@folder_tags_router.post("", response_model=FolderTagOptionResponse, status_code=201)
+def create_folder_tag(
+    payload: CreateFolderTagRequest,
+    user: CurrentUser = Depends(require_roles(*_OWNER_ROLES)),
+    tenant_id: uuid.UUID = Depends(current_tenant_id),
+    db: Session = Depends(get_db),
+) -> FolderTagOptionResponse:
+    return service.create_folder_tag(db, tenant_id, user, payload)

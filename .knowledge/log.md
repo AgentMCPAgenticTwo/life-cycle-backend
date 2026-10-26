@@ -1,5 +1,9 @@
 # Knowledge Update Log
 
+## 2026-10-26
+
+* **Update**: Recorded correction trace `969242a87ba0`, commit `5f1f2f8ebf6f7d71121d6a1de489eb8bc75426b9` — "No way to create folders or tags. Only list (GET /folder-tags) and assign." [Contract Lifecycle](/modules/contract-lifecycle.md) gains `POST /folder-tags` (`create_folder_tag`, `CreateFolderTagRequest`), gated to `_OWNER_ROLES`, with `FOLDER_TAG_KINDS` validation, a case-insensitive duplicate name+kind 409 via the new `repo.get_folder_tag_by_name`, and the new `repo.insert_folder_tag` writer. Covered by five new cases in `tests/test_contract_lifecycle.py`. No concept description changed, so both index files stay in sync.
+
 ## 2026-10-15
 
 * **Update**: Recorded correction trace `129ed4097811`, commit `f6d064f5cca1e68e91dc3418c66298f233273401`. [Notifications](/modules/notifications.md) gains `external_review_invite_body` — the counterparty-review mail now leads with the clickable `/negotiation/external/{linkToken}` URL, built here instead of inline in [Lifecycle Negotiation](/modules/lifecycle-negotiation.md)'s `_issue_external_link`. [Lifecycle Clauses](/modules/lifecycle-clauses.md) gains a section on `_build_analysis_response` and `proceed_to_negotiation` consulting `app.repositories.lifecycle_negotiation.get_routing_by_contract`: an already-routed contract keeps `proceedToNegotiationEnabled` true despite a Missing-Mandatory flag and makes a repeat call idempotent, returning the routing's `negotiation_status`/`created_at`. Both new behaviours are covered by `tests/test_lifecycle_negotiation.py`. No concept descriptions changed, so both index files stay in sync.
