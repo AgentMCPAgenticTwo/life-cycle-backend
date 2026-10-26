@@ -145,7 +145,7 @@ jobs:
       LITELLM_DIRECT_URL: ${{ secrets.LITELLM_DIRECT_URL }}
       LITELLM_DIRECT_API_KEY: ${{ secrets.LITELLM_DIRECT_API_KEY }}
       # runtime-env marker -- the two lines under this are re-stamped IN PLACE
-      CLAUDE_CODE_EFFORT_LEVEL: "low"
+      CLAUDE_CODE_EFFORT_LEVEL: "medium"
       # by provision._restamp_runtime_env, exactly like --model further down and
       # for the same reason: effort and thinking budget are admin-changeable
       # RUNTIME values, not structural changes to this workflow, so changing one
@@ -700,7 +700,7 @@ jobs:
             --allowedTools "$ALLOWED_TOOLS" \
             --append-system-prompt "$(cat /tmp/correction.system.txt)" \
             --permission-mode acceptEdits \
-            --model "claude-opus-5" \
+            --model "claude-sonnet-5" \
             --output-format json \
             < /tmp/correction.prompt.txt \
             2>&1 > /tmp/correction.result.json | tee /tmp/correction.stderr.log
@@ -1012,7 +1012,7 @@ jobs:
           claude \
               --print \
               --allowedTools "Read,Glob,Grep" \
-              --model "claude-opus-5" \
+              --model "claude-sonnet-5" \
               --max-turns 20 \
               --output-format json \
               < /tmp/shared.prompt.txt \
@@ -1642,7 +1642,7 @@ jobs:
             --strict-mcp-config \
             --allowedTools "mcp__codebase-memory-mcp,Read,Glob,Grep,Write,Edit" \
             --permission-mode acceptEdits \
-            --model "claude-opus-5" \
+            --model "claude-sonnet-5" \
             --output-format json \
             < /tmp/knowledge.prompt.txt > /tmp/knowledge.result.json 2> /tmp/knowledge.stderr.log
           status=$?
