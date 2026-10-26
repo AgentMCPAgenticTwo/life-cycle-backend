@@ -18,7 +18,15 @@ class Settings:
     access_token_ttl_minutes: int = int(os.environ.get("ACCESS_TOKEN_TTL_MINUTES", "15"))
     refresh_token_ttl_days: int = int(os.environ.get("REFRESH_TOKEN_TTL_DAYS", "7"))
     refresh_cookie_name: str = os.environ.get("REFRESH_COOKIE_NAME", "refreshToken")
-    refresh_cookie_secure: bool = os.environ.get("REFRESH_COOKIE_SECURE", "false").lower() == "true"
+    # The SPA and this API are different origins (different ports in dev, different hosts in
+    # prod), so the refresh cookie must be sent on a cross-site request. `SameSite=Lax` only
+    # rides along on top-level GET navigations, never a cross-site POST fetch -- with it, the
+    # login call succeeds (the access token comes back in the body) but every following
+    # POST /auth/refresh silently drops the cookie and 401s. `SameSite=None` requires `Secure`
+    # by spec, or browsers discard the cookie outright; Chrome/Firefox treat `localhost` as a
+    # secure context even over plain http, so this also works in local dev.
+    refresh_cookie_samesite: str = os.environ.get("REFRESH_COOKIE_SAMESITE", "none").lower()
+    refresh_cookie_secure: bool = os.environ.get("REFRESH_COOKIE_SECURE", "true").lower() == "true"
     # Where `app.services.tracker_export` writes the generated Excel/PDF export files (UC10).
     # They are served back through GET /api/v1/tracker/exports/{fileId}; a plain directory,
     # because no object-storage client is declared in this repo's manifest.

@@ -5,7 +5,7 @@ description: 34 `test_*.py` files plus `conftest.py`, one per resource/concern, 
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/tests
 tags: [backend, tests, pytest]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-26T11:41:00Z }
 sources:
   - id: cbm-graph
     resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
@@ -39,7 +39,12 @@ with no HTTP request at all — see [Scheduled Notifications](/modules/scheduled
 helper, added when bearer auth replaced the header stub. It mints a real JWT with
 `app.security.create_access_token` and returns an `Authorization: Bearer …` header. The *role*
 an endpoint enforces is read from the seeded `users` row, not from this argument, so a test must
-seed that user with the role it passes. `tests/test_auth.py` covers the login/refresh/logout/
+seed that user with the role it passes. Both the `client` and `db_client` fixtures build their
+`TestClient` with `base_url="https://testserver"`: the refresh cookie is `Secure` (required
+because `SameSite=None` needs it, which in turn is needed since the real frontend and backend
+are cross-origin — see [Auth](/modules/auth.md#token-design)), and httpx's cookie jar, unlike a
+real browser's localhost exemption, only resends a `Secure` cookie over an `https` scheme.
+`tests/test_auth.py` covers the login/refresh/logout/
 me/change-password flow itself; see [Auth](/modules/auth.md). The schema under test is built from
 `Base.metadata` (SQLite `StaticPool`), not from Alembic. `test_persistence.py` is what ties the
 two together — `test_migration_chain_matches_contract_order_exactly` walks the revision chain

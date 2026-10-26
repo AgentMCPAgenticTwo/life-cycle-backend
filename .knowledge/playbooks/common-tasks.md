@@ -94,8 +94,14 @@ refresh-token digest/expiry). `app/routers/auth.py` stays a thin binding plus
 `_set_refresh_cookie`. Never log or return a raw refresh token: only its SHA-256 digest is
 stored and it reaches the browser only in the httpOnly cookie. Config knobs (`JWT_SECRET`,
 `ACCESS_TOKEN_TTL_MINUTES`, `REFRESH_TOKEN_TTL_DAYS`, `REFRESH_COOKIE_NAME`,
-`REFRESH_COOKIE_SECURE`) live in `app/config.py` and come from the environment. In tests, use
-`auth_headers` from `tests/conftest.py` — see [Tests](/modules/tests.md).
+`REFRESH_COOKIE_SECURE`, `REFRESH_COOKIE_SAMESITE`) live in `app/config.py` and come from the
+environment; keep `secure`/`samesite` matched between `_set_refresh_cookie` and `logout`'s
+`delete_cookie`, or the browser won't honor the delete. `SameSite=None` requires `Secure` by
+spec, so if you ever flip `REFRESH_COOKIE_SAMESITE` back to `lax`/`strict` for a same-origin
+deployment, `REFRESH_COOKIE_SECURE` can safely go back to `false` for plain-http dev — see
+[Auth](/modules/auth.md#token-design). In tests, use `auth_headers` from `tests/conftest.py` —
+and build the `TestClient` with `base_url="https://testserver"`, since a `Secure` cookie is only
+resent by httpx's cookie jar over an `https` scheme — see [Tests](/modules/tests.md).
 
 # Add a new tracker tab
 
