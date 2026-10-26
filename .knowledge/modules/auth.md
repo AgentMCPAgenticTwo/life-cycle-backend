@@ -5,7 +5,7 @@ description: Real login — JWT access tokens, rotating httpOnly-cookie refresh 
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/auth.py
 tags: [backend, auth, jwt, security]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-13T08:07:59Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-26T11:41:00Z }
 sources:
   - id: cbm-graph
     resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
@@ -48,7 +48,15 @@ because the frontend contract spells the auth routes without the `/api/v1` base 
 * Refresh token: opaque random string (`generate_refresh_token`), stored only as its SHA-256
   digest (`hash_refresh_token`, compared with `refresh_token_matches`) in `refresh_tokens`, and
   sent to the browser only as an httpOnly cookie (`settings.refresh_cookie_name`,
-  `refresh_cookie_secure`, `samesite=lax`, TTL `REFRESH_TOKEN_TTL_DAYS`, default 7).
+  `refresh_cookie_secure`, `refresh_cookie_samesite`, TTL `REFRESH_TOKEN_TTL_DAYS`, default 7).
+  The SPA and this API are different origins, so the cookie must ride along on a cross-site
+  `POST /auth/refresh`: `SameSite=Lax` (the old default) never attaches to a cross-site POST, so
+  refresh silently 401s after a successful login. `REFRESH_COOKIE_SAMESITE` now defaults to
+  `none`, and `SameSite=None` requires `Secure` by spec, so `REFRESH_COOKIE_SECURE` now defaults
+  to `true` (Chrome/Firefox treat `localhost` as a secure context even over plain http, so local
+  dev still works). `_set_refresh_cookie` and `logout`'s `delete_cookie` both read
+  `settings.refresh_cookie_samesite`/`refresh_cookie_secure` so the two stay matched — a browser
+  ignores a `Set-Cookie`/delete whose attributes don't match the cookie it already holds.
 * Rotation: `app.services.auth.refresh` revokes the presented row and issues a new one.
   `logout` revokes without re-issuing; `change_password` revokes all of the user's tokens
   (`revoke_all_for_user`) and issues one replacement.
