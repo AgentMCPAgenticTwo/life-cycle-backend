@@ -22,6 +22,7 @@ from app.models.contract_lifecycle import (
     ActivityLogEntry,
     ContractFolderTag,
     ContractLifecycleAction,
+    FolderTag,
     Obligation,
     ObligationAuditLog,
 )
@@ -36,6 +37,7 @@ from app.schemas.contract_lifecycle import (
     ContractFolderTagResponse,
     ContractVersionListResponse,
     ContractVersionResponse,
+    CreateFolderTagRequest,
     CreateObligationRequest,
     DocumentDownloadResponse,
     FolderTagOptionResponse,
@@ -54,6 +56,8 @@ from app.services import contract_documents
 # anywhere in this task's contract or stories -- this constant is a judgement call (25 MiB),
 # recorded in this task's `blockers`.
 OVERSIZED_FILE_BYTES = 25 * 1024 * 1024
+
+FOLDER_TAG_KINDS = {"FOLDER", "TAG"}
 
 OBLIGATION_TYPES = {"Deliverable", "Payment Milestone", "SLA", "Reporting"}
 OBLIGATION_STATUSES = {"Pending", "In Progress", "Completed", "Overdue"}
@@ -263,6 +267,42 @@ def list_activity_log(
 def list_folder_tag_options(db: Session, tenant_id: uuid.UUID) -> list[FolderTagOptionResponse]:
     rows = repo.list_folder_tags_for_tenant(db, tenant_id)
     return [FolderTagOptionResponse(id=row.id, name=row.name, kind=row.kind) for row in rows]
+
+
+def create_folder_tag(
+    db: Session,
+    tenant_id: uuid.UUID,
+    user: CurrentUser,
+    payload: CreateFolderTagRequest,
+) -> FolderTagOptionResponse:
+    name = payload.name.strip()
+    if not name:
+        raise ValidationFailedError(
+            "Name is required.", details=["name must not be blank."]
+        )
+    if payload.kind not in FOLDER_TAG_KINDS:
+        raise ValidationFailedError(
+            "Invalid kind.", details=[f"kind must be one of {sorted(FOLDER_TAG_KINDS)}."]
+        )
+    if repo.get_folder_tag_by_name(db, tenant_id, name, payload.kind) is not None:
+        raise ConflictError(
+            "A folder/tag with this name and kind already exists.",
+            details=[f"{payload.kind} '{name}' already exists."],
+        )
+    user_id = _user_uuid(user)
+    folder_tag = repo.insert_folder_tag(
+        db,
+        FolderTag(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            name=name,
+            kind=payload.kind,
+            created_by=user_id,
+            updated_by=user_id,
+        ),
+    )
+    db.commit()
+    return FolderTagOptionResponse(id=folder_tag.id, name=folder_tag.name, kind=folder_tag.kind)
 
 
 def _folder_tags_response(db: Session, contract_id: uuid.UUID) -> ContractFolderTagResponse:

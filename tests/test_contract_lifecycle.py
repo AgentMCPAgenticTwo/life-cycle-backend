@@ -294,6 +294,66 @@ def test_list_folder_tag_options(db_client, db_session):
     assert any(item["name"] == "Vendor" for item in resp.json())
 
 
+def test_create_folder_tag(db_client, db_session):
+    tenant_id = _seed_tenant(db_session)
+    owner_id = _seed_user(db_session, tenant_id, CONTRACT_OWNER)
+    resp = db_client.post(
+        "/api/v1/folder-tags",
+        json={"name": "Renewals", "kind": "FOLDER"},
+        headers=_headers(CONTRACT_OWNER, owner_id),
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["name"] == "Renewals"
+    assert body["kind"] == "FOLDER"
+
+    list_resp = db_client.get("/api/v1/folder-tags", headers=_headers(CONTRACT_OWNER, owner_id))
+    assert any(item["name"] == "Renewals" for item in list_resp.json())
+
+
+def test_create_folder_tag_rejects_duplicate(db_client, db_session):
+    tenant_id = _seed_tenant(db_session)
+    admin_id = _seed_user(db_session, tenant_id, TENANT_ADMIN)
+    db_session.add(
+        FolderTag(id=uuid.uuid4(), tenant_id=tenant_id, name="Vendor", kind="FOLDER",
+                   created_by=admin_id, updated_by=admin_id)
+    )
+    db_session.commit()
+    resp = db_client.post(
+        "/api/v1/folder-tags",
+        json={"name": "Vendor", "kind": "FOLDER"},
+        headers=_headers(TENANT_ADMIN, admin_id),
+    )
+    assert resp.status_code == 409
+
+
+def test_create_folder_tag_rejects_invalid_kind(db_client, db_session):
+    tenant_id = _seed_tenant(db_session)
+    admin_id = _seed_user(db_session, tenant_id, TENANT_ADMIN)
+    resp = db_client.post(
+        "/api/v1/folder-tags",
+        json={"name": "Vendor", "kind": "BOGUS"},
+        headers=_headers(TENANT_ADMIN, admin_id),
+    )
+    assert resp.status_code == 400
+
+
+def test_create_folder_tag_requires_owner_role(db_client, db_session):
+    tenant_id = _seed_tenant(db_session)
+    reviewer_id = _seed_user(db_session, tenant_id, LEGAL_REVIEWER)
+    resp = db_client.post(
+        "/api/v1/folder-tags",
+        json={"name": "Vendor", "kind": "FOLDER"},
+        headers=_headers(LEGAL_REVIEWER, reviewer_id),
+    )
+    assert resp.status_code == 403
+
+
+def test_create_folder_tag_requires_auth(db_client, db_session):
+    resp = db_client.post("/api/v1/folder-tags", json={"name": "Vendor", "kind": "FOLDER"})
+    assert resp.status_code == 401
+
+
 # ----------------------------------------------------------------------------- Obligations ---
 
 
