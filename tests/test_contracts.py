@@ -497,6 +497,25 @@ def test_tenant_admin_can_access_any_contract(db_client, db_session):
     assert resp.status_code == 200
 
 
+def test_contract_detail_carries_detail_page_fields(db_client, db_session):
+    tenant_id, admin_id, owner_id, counterparty_id, template_id = _setup_basic(db_session)
+    created = db_client.post(
+        "/api/v1/contracts",
+        json=_valid_payload(template_id, counterparty_id, owner_id),
+        headers=_headers(TENANT_ADMIN, admin_id),
+    ).json()
+    body = db_client.get(
+        f"/api/v1/contracts/{created['id']}", headers=_headers(TENANT_ADMIN, admin_id)
+    ).json()
+    assert body["contractId"] == created["id"]
+    assert body["contractType"] and body["counterpartyName"] and body["contractOwnerName"]
+    assert body["contractValue"] is not None and body["currency"]
+    assert body["lastModified"] is not None
+    assert body["folderTags"] == []
+    # A Draft contract has no approvals/signatures/obligations yet.
+    assert body["availableTabs"] == ["Details", "Document", "Versions", "Clauses", "Activity Log"]
+
+
 def test_contract_owner_can_access_own_contract(db_client, db_session):
     tenant_id, admin_id, owner_id, counterparty_id, template_id = _setup_basic(db_session)
     created = db_client.post(

@@ -1,0 +1,681 @@
+{
+  "trace_id": "814187bf619f",
+  "branch": "api-correction/814187bf619f",
+  "maintenance_branch": "api-correction/814187bf619f",
+  "status": "SUCCESS",
+  "summary": "Done. Reading taken: the Details-tab fix is about `GET /api/v1/contracts/{contractId}` returning the field names the page actually reads, so I extended the existing `ContractResponse` additively rather than introducing a second detail DTO.\n\n- `app/schemas/contract.py` — added `contractId`, `lastModified`, `folderTags` (`FolderTagOptionResponse[]`) and `availableTabs` to `ContractResponse`. `id`, `contractName`, `contractType`, `counterpartyName`, `status`, `contractValue`, `currency`, `startDate`, `endDate`, `contractOwnerName` were already spelled exactly as the contract requires, so they were left alone.\n- `app/services/contracts.py` — populates them: `contractId`/`lastModified` from the contract row, `folderTags` via the existing `contract_lifecycle` repo, and `availableTabs` from status using the exact labels `Details, Document, Versions, Clauses, Approvals, Signatures, Obligations, Activity Log`.\n- `tests/test_contracts.py` — one test asserting the detail payload carries these fields.\n\nThe already-existing `/versions`, `/activity-log`, `/document` and `POST /folder-tags` endpoints already match the contract's spelling (`versionId/versionNumber/createdAt/createdBy/changeSummary`, `entryId/performedBy/performedAt`, the full document DTO, `contractId/folderTags`), so I changed nothing there. Full suite: 539 passed.",
+  "files_changed": [
+    "app/schemas/contract.py",
+    "app/services/contracts.py",
+    "tests/test_contracts.py"
+  ],
+  "lines_changed": 92,
+  "blockers": [
+    "Not applied -- GET /contracts/{contractId}/versions, /activity-log, /document and POST /folder-tags field names: already true - the existing DTOs match the shared contract's spelling exactly",
+    "Not applied -- Rendering the Details tab / consuming these fields in the UI: belongs to the frontend repository"
+  ],
+  "conventions": [],
+  "visual_check": {
+    "verdict": "skipped",
+    "evidence": "",
+    "screenshot_path": ""
+  },
+  "context_sharing": {
+    "target": "backend",
+    "branch": "api-correction/814187bf619f",
+    "base_path": "/api/v1",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/contracts/{id}",
+        "request_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "contractName",
+            "type": "string"
+          },
+          {
+            "name": "contractType",
+            "type": "enum"
+          },
+          {
+            "name": "industry",
+            "type": "enum"
+          },
+          {
+            "name": "department",
+            "type": "string"
+          },
+          {
+            "name": "templateId",
+            "type": "string"
+          },
+          {
+            "name": "thirdPartyPaperFileId",
+            "type": "string"
+          },
+          {
+            "name": "counterpartyId",
+            "type": "string"
+          },
+          {
+            "name": "counterpartyName",
+            "type": "string"
+          },
+          {
+            "name": "counterpartyEmail",
+            "type": "string"
+          },
+          {
+            "name": "counterpartyCompany",
+            "type": "string"
+          },
+          {
+            "name": "counterpartyAddress",
+            "type": "string"
+          },
+          {
+            "name": "counterpartyGstTaxId",
+            "type": "string"
+          },
+          {
+            "name": "contractOwnerId",
+            "type": "string"
+          },
+          {
+            "name": "contractOwnerName",
+            "type": "string"
+          },
+          {
+            "name": "contractValue",
+            "type": "number"
+          },
+          {
+            "name": "currency",
+            "type": "enum"
+          },
+          {
+            "name": "startDate",
+            "type": "date"
+          },
+          {
+            "name": "endDate",
+            "type": "date"
+          },
+          {
+            "name": "renewalType",
+            "type": "enum"
+          },
+          {
+            "name": "noticePeriod",
+            "type": "number"
+          },
+          {
+            "name": "assignedDate",
+            "type": "date"
+          },
+          {
+            "name": "dueDate",
+            "type": "date"
+          },
+          {
+            "name": "status",
+            "type": "enum"
+          },
+          {
+            "name": "riskScore",
+            "type": "number"
+          },
+          {
+            "name": "createdAt",
+            "type": "date"
+          },
+          {
+            "name": "updatedAt",
+            "type": "date"
+          },
+          {
+            "name": "documentVersionNumber",
+            "type": "number"
+          },
+          {
+            "name": "message",
+            "type": "string"
+          },
+          {
+            "name": "lastModified",
+            "type": "date"
+          },
+          {
+            "name": "folderTags",
+            "type": "array"
+          },
+          {
+            "name": "availableTabs",
+            "type": "array"
+          }
+        ],
+        "purpose": "Contract detail / Details tab metadata"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/contracts/{contractId}/versions",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "items",
+            "type": "array"
+          },
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          },
+          {
+            "name": "totalCount",
+            "type": "number"
+          }
+        ],
+        "purpose": "Paged version history (ContractVersionResponse items)"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/contracts/{contractId}/activity-log",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "items",
+            "type": "array"
+          },
+          {
+            "name": "page",
+            "type": "number"
+          },
+          {
+            "name": "pageSize",
+            "type": "number"
+          },
+          {
+            "name": "totalCount",
+            "type": "number"
+          }
+        ],
+        "purpose": "Paged read-only activity log (ActivityLogEntryResponse items)"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/contracts/{contractId}/document",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "documentUrl",
+            "type": "string"
+          },
+          {
+            "name": "fileName",
+            "type": "string"
+          },
+          {
+            "name": "fileType",
+            "type": "string"
+          },
+          {
+            "name": "fileSizeBytes",
+            "type": "number"
+          },
+          {
+            "name": "isOversized",
+            "type": "boolean"
+          },
+          {
+            "name": "isCorruptedOrMissing",
+            "type": "boolean"
+          },
+          {
+            "name": "downloadEnabled",
+            "type": "boolean"
+          },
+          {
+            "name": "unavailableComment",
+            "type": "string"
+          }
+        ],
+        "purpose": "Document tab payload"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/contracts/{contractId}/document/download",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "success",
+            "type": "boolean"
+          },
+          {
+            "name": "fileUrl",
+            "type": "string"
+          },
+          {
+            "name": "errorMessage",
+            "type": "string"
+          }
+        ],
+        "purpose": "Resolve a download URL for the contract document"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/contracts/{contractId}/folder-tags",
+        "request_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "folderTagIds",
+            "type": "array"
+          }
+        ],
+        "response_fields": [
+          {
+            "name": "contractId",
+            "type": "string"
+          },
+          {
+            "name": "folderTags",
+            "type": "array"
+          }
+        ],
+        "purpose": "Assign folders/tags; TENANT_ADMIN and CONTRACT_OWNER only"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/folder-tags",
+        "request_fields": [],
+        "response_fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "kind",
+            "type": "string"
+          }
+        ],
+        "purpose": "Tenant folder/tag lookup; returns a bare array of FolderTagOptionResponse"
+      }
+    ],
+    "types": {
+      "ContractResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "contractName",
+          "type": "string"
+        },
+        {
+          "name": "contractType",
+          "type": "enum"
+        },
+        {
+          "name": "industry",
+          "type": "enum"
+        },
+        {
+          "name": "department",
+          "type": "string"
+        },
+        {
+          "name": "templateId",
+          "type": "string"
+        },
+        {
+          "name": "thirdPartyPaperFileId",
+          "type": "string"
+        },
+        {
+          "name": "counterpartyId",
+          "type": "string"
+        },
+        {
+          "name": "counterpartyName",
+          "type": "string"
+        },
+        {
+          "name": "counterpartyEmail",
+          "type": "string"
+        },
+        {
+          "name": "counterpartyCompany",
+          "type": "string"
+        },
+        {
+          "name": "counterpartyAddress",
+          "type": "string"
+        },
+        {
+          "name": "counterpartyGstTaxId",
+          "type": "string"
+        },
+        {
+          "name": "contractOwnerId",
+          "type": "string"
+        },
+        {
+          "name": "contractOwnerName",
+          "type": "string"
+        },
+        {
+          "name": "contractValue",
+          "type": "number"
+        },
+        {
+          "name": "currency",
+          "type": "enum"
+        },
+        {
+          "name": "startDate",
+          "type": "date"
+        },
+        {
+          "name": "endDate",
+          "type": "date"
+        },
+        {
+          "name": "renewalType",
+          "type": "enum"
+        },
+        {
+          "name": "noticePeriod",
+          "type": "number"
+        },
+        {
+          "name": "assignedDate",
+          "type": "date"
+        },
+        {
+          "name": "dueDate",
+          "type": "date"
+        },
+        {
+          "name": "status",
+          "type": "enum"
+        },
+        {
+          "name": "riskScore",
+          "type": "number"
+        },
+        {
+          "name": "createdAt",
+          "type": "date"
+        },
+        {
+          "name": "updatedAt",
+          "type": "date"
+        },
+        {
+          "name": "documentVersionNumber",
+          "type": "number"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "name": "lastModified",
+          "type": "date"
+        },
+        {
+          "name": "folderTags",
+          "type": "array"
+        },
+        {
+          "name": "availableTabs",
+          "type": "array"
+        }
+      ],
+      "ContractVersionResponse": [
+        {
+          "name": "versionId",
+          "type": "string"
+        },
+        {
+          "name": "versionNumber",
+          "type": "number"
+        },
+        {
+          "name": "createdAt",
+          "type": "date"
+        },
+        {
+          "name": "createdBy",
+          "type": "string"
+        },
+        {
+          "name": "changeSummary",
+          "type": "string"
+        }
+      ],
+      "ContractVersionListResponse": [
+        {
+          "name": "items",
+          "type": "array"
+        },
+        {
+          "name": "page",
+          "type": "number"
+        },
+        {
+          "name": "pageSize",
+          "type": "number"
+        },
+        {
+          "name": "totalCount",
+          "type": "number"
+        }
+      ],
+      "ActivityLogEntryResponse": [
+        {
+          "name": "entryId",
+          "type": "string"
+        },
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "actionType",
+          "type": "string"
+        },
+        {
+          "name": "performedBy",
+          "type": "string"
+        },
+        {
+          "name": "performedAt",
+          "type": "date"
+        },
+        {
+          "name": "details",
+          "type": "string"
+        }
+      ],
+      "ActivityLogListResponse": [
+        {
+          "name": "items",
+          "type": "array"
+        },
+        {
+          "name": "page",
+          "type": "number"
+        },
+        {
+          "name": "pageSize",
+          "type": "number"
+        },
+        {
+          "name": "totalCount",
+          "type": "number"
+        }
+      ],
+      "ContractDocumentResponse": [
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "documentUrl",
+          "type": "string"
+        },
+        {
+          "name": "fileName",
+          "type": "string"
+        },
+        {
+          "name": "fileType",
+          "type": "string"
+        },
+        {
+          "name": "fileSizeBytes",
+          "type": "number"
+        },
+        {
+          "name": "isOversized",
+          "type": "boolean"
+        },
+        {
+          "name": "isCorruptedOrMissing",
+          "type": "boolean"
+        },
+        {
+          "name": "downloadEnabled",
+          "type": "boolean"
+        },
+        {
+          "name": "unavailableComment",
+          "type": "string"
+        }
+      ],
+      "FolderTagOptionResponse": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "kind",
+          "type": "string"
+        }
+      ],
+      "ContractFolderTagResponse": [
+        {
+          "name": "contractId",
+          "type": "string"
+        },
+        {
+          "name": "folderTags",
+          "type": "array"
+        }
+      ],
+      "AssignFolderTagRequest": [
+        {
+          "name": "folderTagIds",
+          "type": "array"
+        }
+      ],
+      "DocumentDownloadResponse": [
+        {
+          "name": "success",
+          "type": "boolean"
+        },
+        {
+          "name": "fileUrl",
+          "type": "string"
+        },
+        {
+          "name": "errorMessage",
+          "type": "string"
+        }
+      ]
+    },
+    "notes": "The detail endpoint now returns contractId, lastModified, folderTags and availableTabs in addition to the existing uc123 fields, so the names the UI reads (id, contractType, counterpartyName, contractValue, currency, contractOwnerName) are all present. It does NOT return counterparty, value or owner — the old ContractDetailResponse typedef's spellings do not exist on the wire; use counterpartyName/contractValue/contractOwnerName. availableTabs is built in app/services/contracts.py as Details, Document, Versions, Clauses, then Approvals/Signatures/Obligations when the status warrants, then Activity Log last (a Draft contract gets only the five base labels). /versions and /activity-log return items + page + pageSize + totalCount (not just items/totalCount) and accept page/pageSize query params."
+  },
+  "usage": {
+    "num_turns": 28,
+    "duration_ms": 191314,
+    "total_cost_usd": 0.8461142000000001,
+    "input_tokens": 3452,
+    "output_tokens": 6880,
+    "cache_creation_input_tokens": 46591,
+    "cache_read_input_tokens": 1497394,
+    "is_error": false
+  }
+}

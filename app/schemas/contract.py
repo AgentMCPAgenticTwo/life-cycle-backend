@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas.contract_lifecycle import FolderTagOptionResponse
+
 ContractType = Literal[
     "NDA",
     "MSA",
@@ -88,6 +90,9 @@ class ContractListResponse(BaseModel):
 
 class ContractResponse(BaseModel):
     id: uuid.UUID
+    # The Contract Detail page's Details tab reads `contractId` (it shows the Contract ID
+    # row) alongside the uc123 `id`; both carry the same UUID so neither consumer breaks.
+    contractId: uuid.UUID
     contractName: str
     contractType: ContractType
     industry: Industry
@@ -120,6 +125,13 @@ class ContractResponse(BaseModel):
     # `message` is UC2's confirmation text.
     documentVersionNumber: int | None = None
     message: str | None = None
+    # Contract Detail page (life-cycle-uc8-uc9 Details tab): `lastModified` drives the
+    # "Last modified" line, `folderTags` the folder/tag chips, and `availableTabs` which
+    # tabs the page renders. The tab labels are matched character-for-character by the
+    # frontend -- see _AVAILABLE_TABS in app/services/contracts.py.
+    lastModified: datetime | None = None
+    folderTags: list[FolderTagOptionResponse] | None = None
+    availableTabs: list[str] | None = None
 
 
 class CreateContractRequest(BaseModel):
