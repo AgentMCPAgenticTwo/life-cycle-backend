@@ -15,6 +15,7 @@ from app.errors import ForbiddenError, NotFoundError, ValidationFailedError
 from app.models.contract import Contract
 from app.models.counterparty import Counterparty
 from app.models.user import User
+from app.repositories import contract_lifecycle as lifecycle_repo
 from app.repositories import contracts as contracts_repo
 from app.schemas.contract import (
     ContractListItemResponse,
@@ -22,10 +23,66 @@ from app.schemas.contract import (
     ContractResponse,
     CreateContractRequest,
 )
+from app.schemas.contract_lifecycle import FolderTagOptionResponse
 from app.schemas.pagination import PageParams
 from app.services import contract_documents
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# Tab labels the Contract Detail page matches character-for-character. Details, Document,
+# Versions, Clauses and Activity Log exist for every contract; Approvals/Signatures/
+# Obligations only once the contract has reached the stage that populates them.
+_BASE_TABS = ("Details", "Document", "Versions", "Clauses", "Activity Log")
+_APPROVAL_STATUSES = {
+    "Pending Approval",
+    "In Approval",
+    "Rejected",
+    "Pending Signature",
+    "In Signature",
+    "Ready For Signature",
+    "Sent",
+    "Executed",
+    "Active",
+    "Expired",
+    "Terminated",
+    "Renewed",
+    "Amended",
+    "Signature Declined",
+    "SignatureDeclined",
+}
+_SIGNATURE_STATUSES = {
+    "Pending Signature",
+    "In Signature",
+    "Ready For Signature",
+    "Sent",
+    "Executed",
+    "Active",
+    "Expired",
+    "Terminated",
+    "Renewed",
+    "Amended",
+    "Signature Declined",
+    "SignatureDeclined",
+}
+_OBLIGATION_STATUSES = {"Executed", "Active", "Expired", "Terminated", "Renewed", "Amended"}
+
+
+def _available_tabs(status: str) -> list[str]:
+    tabs = list(_BASE_TABS)
+    # Keep the page's own left-to-right order rather than appending at the end.
+    extra = []
+    if status in _APPROVAL_STATUSES:
+        extra.append("Approvals")
+    if status in _SIGNATURE_STATUSES:
+        extra.append("Signatures")
+    if status in _OBLIGATION_STATUSES:
+        extra.append("Obligations")
+    return tabs[:-1] + extra + [tabs[-1]]
+
+
+def _folder_tags(db: Session, contract_id: uuid.UUID) -> list[FolderTagOptionResponse]:
+    pairs = lifecycle_repo.list_contract_folder_tags(db, contract_id)
+    return [FolderTagOptionResponse(id=tag.id, name=tag.name, kind=tag.kind) for _link, tag in pairs]
 
 
 def _is_blank(value: str | None) -> bool:
@@ -63,6 +120,7 @@ def _to_response(db: Session, contract: Contract) -> ContractResponse:
     counterparty = _resolve_counterparty_row(db, contract.counterparty_id)
     return ContractResponse(
         id=contract.id,
+        contractId=contract.id,
         contractName=contract.contract_name,
         contractType=contract.contract_type,
         industry=contract.industry,
@@ -89,6 +147,9 @@ def _to_response(db: Session, contract: Contract) -> ContractResponse:
         riskScore=contract.risk_score,
         createdAt=contract.created_at,
         updatedAt=contract.updated_at,
+        lastModified=contract.updated_at,
+        folderTags=_folder_tags(db, contract.id),
+        availableTabs=_available_tabs(contract.status),
     )
 
 
