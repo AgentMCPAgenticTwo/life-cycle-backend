@@ -5,10 +5,10 @@ description: Contract listing, detail and creation including third-party-paper i
 resource: https://github.com/AgentMCPAgenticThree/life-cycle-backend/tree/main/app/routers/contracts.py
 tags: [backend, uc123, contracts]
 generated: { by: sage-maintenance/claude-code, at: 2026-10-14T05:40:14Z }
-updated: { by: sage-maintenance/claude-code, at: 2026-10-14T12:47:46Z }
+updated: { by: sage-maintenance/claude-code, at: 2026-10-28T06:00:32Z }
 sources:
   - id: cbm-graph
-    resource: codebase-memory-mcp project life-cycle-backend @ b0c64d78730b6ed271020fb3e7d89002e374f6da
+    resource: codebase-memory-mcp project life-cycle-backend @ 1662028280ad8faf6e454761554a23922060e1bd
     title: Codebase knowledge graph
 status: stable
 ---
@@ -40,6 +40,33 @@ read them is unaffected:
 
 See [Contract Documents](/modules/contract-documents.md) for the merge/third-party-paper split.
 
+# ContractResponse also feeds the Contract Detail page
+
+`GET /contracts/{id}` is the one detail endpoint both uc123 and life-cycle-uc8-uc9 read, so
+`_to_response` fills four further additive fields for the Detail page's Details tab. All are
+optional, so uc123 consumers are unaffected:
+
+| Field | Source in `_to_response` |
+|---|---|
+| `contractId` | `contract.id` — the same UUID as `id`; the Details tab renders a Contract ID row. |
+| `lastModified` | `contract.updated_at`, duplicated from `updatedAt` under the page's own name. |
+| `folderTags` | `_folder_tags` -> `app.repositories.contract_lifecycle.list_contract_folder_tags`, mapped to `FolderTagOptionResponse`. |
+| `availableTabs` | `_available_tabs(contract.status)`. |
+
+`_available_tabs` starts from `_BASE_TABS` (`Details`, `Document`, `Versions`, `Clauses`,
+`Activity Log`) and splices `Approvals`/`Signatures`/`Obligations` in *before* `Activity Log`
+rather than appending, because the frontend renders the list in order and matches each label
+character-for-character. Which extras appear is keyed off the contract status through
+`_APPROVAL_STATUSES`, `_SIGNATURE_STATUSES` and `_OBLIGATION_STATUSES` — a Draft contract gets
+the five base tabs only. The status vocabulary is [Contract Status](/modules/contract-status.md)'s;
+the sets also carry the legacy spellings (`SignatureDeclined` beside `Signature Declined`).
+
+This is the one place `app/services/contracts.py` imports from the lifecycle module
+(`app.repositories.contract_lifecycle`, `app.schemas.contract_lifecycle`) — see
+[Contract Lifecycle](/modules/contract-lifecycle.md), which owns the folder-tag tables and the
+tabs' own endpoints. Covered by `test_contract_detail_carries_detail_page_fields` in
+`tests/test_contracts.py`.
+
 # Layering (reference sample for the whole repo)
 
 This resource is the sample used to confirm CLAUDE.md's layering rule holds in practice — see
@@ -47,7 +74,8 @@ This resource is the sample used to confirm CLAUDE.md's layering rule holds in p
 
 * Router (`app/routers/contracts.py`): `list_contracts`, `get_contract`, `create_contract` — 5
   symbols total, each a thin `Depends(require_roles(...))` + service call.
-* Service (`app/services/contracts.py`): 15 functions. Validation helpers
+* Service (`app/services/contracts.py`): 17 functions (the Detail-page helpers `_available_tabs`
+  and `_folder_tags` are the two most recent). Validation helpers
   `_validate_template_and_paper_selection`, `_resolve_counterparty`, `_validate_contract_owner`,
   `_validate_dates`, `_validate_notice_period` run before `create_contract` persists anything.
   `_to_list_item`/`_to_response` are the explicit (no-mapper-library) DTO mapping functions.
