@@ -58,7 +58,8 @@ def _run_migrations() -> None:
     if not settings.database_url:
         return
     cfg = Config(str(ALEMBIC_INI))
-    cfg.set_main_option("sqlalchemy.url", settings.database_url)
+    # configparser treats '%' as interpolation syntax; a URL-encoded password contains it.
+    cfg.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
     command.upgrade(cfg, "head")
 
 

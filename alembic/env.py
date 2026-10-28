@@ -21,7 +21,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 if settings.database_url:
-    config.set_main_option("sqlalchemy.url", settings.database_url)
+    # configparser treats '%' as interpolation syntax; a URL-encoded password contains it.
+    config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 
